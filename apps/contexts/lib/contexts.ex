@@ -1,6 +1,6 @@
-defmodule Context do
+defmodule Comn.Contexts do
   @moduledoc """
-  Documentation for `Context`.
+  Documentation for `Contexts`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule Context do
 
   ## Examples
 
-      iex> Context.hello()
+      iex> Contexts.hello()
       :world
 
   """

@@ -1,16 +1,16 @@
-# Context
+# Contexts
 
 **TODO: Add description**
 
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `context` to your list of dependencies in `mix.exs`:
+by adding `contexts` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:context, "~> 0.1.0"}
+    {:contexts, "~> 0.1.0"}
   ]
 end
 ```
