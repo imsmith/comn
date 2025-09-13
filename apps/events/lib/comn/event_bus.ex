@@ -1,8 +1,4 @@
-defmodule Comn.Events.Registry do
-  @moduledoc """
-  Adapter the built-in Elixir Registry to the Comn.Events system.
-  """
-
+defmodule Comn.EventBus do
   def subscribe(topic) do
     Registry.register(__MODULE__, topic, [])
   end
@@ -12,5 +8,4 @@ defmodule Comn.Events.Registry do
       for {pid, _} <- entries, do: send(pid, {:event, topic, payload})
     end)
   end
-
 end

@@ -12,7 +12,16 @@ defmodule Events do
       :world
 
   """
-  def hello do
-    :world
+  def publish(EventStruct) do
+
   end
+
+  def subscribe(topic) do
+
+  end
+
+  def unsubscribe(topic) do
+
+  end
+
 end

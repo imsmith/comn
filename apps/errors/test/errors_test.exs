@@ -1,5 +1,5 @@
 defmodule ErrorsTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   doctest Errors
 
   test "greets the world" do
