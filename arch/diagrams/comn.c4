@@ -1,0 +1,170 @@
+specification {
+    element actor {
+        style {
+            shape browser
+            color muted
+        }
+    }
+    element system
+    element container
+    element component
+    relationship ipc
+    relationship message
+    relationship rpc
+}
+
+model {
+    process = actor {
+        title 'Process'
+        description 'An internal process that interacts with the system.'
+    }
+
+    program = actor {
+        title 'Program'
+        description 'An external program that interacts with the system.'
+    }
+
+    comn = system {
+        title 'Comn'
+        description 'A framework for common functions in Elixir.'
+        technology 'Elixir Umbrella Application'
+
+        process -[ipc]-> comn "Uses (imports/aliases in modules)"
+        process -[message]-> comn "Sends messages to"
+
+        comn -[message]-> program "Sends messages to"
+        comn -[message]-> process "Sends messages to"
+
+        program -[message]-> comn "Sends messages to"
+
+        contexts = container {
+            title 'Contexts'
+            description ''
+            technology 'Elixir Application'
+        }
+
+        errors = container {
+            title 'Errors'
+            description ''
+            technology 'Elixir Application'
+
+            component errorstruct {
+                title 'Comn.Error.ErrorStruct'
+                description 'A struct representing an error with a message and optional details.'
+                technology 'Elixir Struct'
+            }
+
+            component errorbehavior {
+                title 'Comn.Error.ErrorBehavior'
+                description 'A behavior defining the interface for error handling modules.'
+                technology 'Elixir Behavior'
+            }
+
+            component errorimpl {
+                title 'Comn.Error.Impl'
+                description 'An implementations of the ErrorBehavior for handling errors.'
+                technology 'Elixir Module'
+            }
+
+            component errorprotocol {
+                title 'Comn.Error.Protocol'
+                description 'A protocol for converting errors to a standard format.'
+                technology 'Elixir Protocol'
+            }
+
+            errorbehavior -[ipc]-> process "Defines interface for reporting errors"
+            errorimpl -[ipc]-> errorbehavior "Implements"
+            errorstruct -[ipc]-> errorimpl "Used by"
+            errorprotocol -[ipc]-> errorstruct "Converts"
+        }
+
+        events = container {
+            title 'Events'
+            description ''
+            technology 'Elixir Application'
+        }
+
+        infra = container {
+            title 'Infra'
+            description ''
+            technology 'Elixir Application'
+        }
+
+        repo = container {
+            title 'Repo'
+            description ''
+            technology 'Elixir Application'
+        }
+
+        secrets = container {
+            title 'Secrets'
+            description ''
+            technology  'Elixir Application'
+        }
+
+        contexts -[message]-> errors "Reports errors to"
+        contexts -[message]-> events "Sends events to"
+        
+        infra -[message]-> errors "Reports errors to"
+        infra -[message]-> events "Sends events to"
+
+        repo -[message]-> errors "Reports errors to"
+        repo -[message]-> events "Sends events to"
+
+        secrets -[message]-> errors "Reports errors to"
+        secrets -[message]-> events "Sends events to"
+        
+    }
+}
+
+views {
+
+    view {
+        title "System Context"
+        description "High-Level overview of the system showing how it fits into the world"
+        include *
+    }
+
+    view of comn {
+        title "Comn Container"
+        description "The container diagram for the Comn system"
+        include contexts, errors, events, infra, repo, secrets
+    }
+
+    view of contexts {
+        title "Contexts Components"
+        description "The component diagram for the Contexts container"
+        include process
+    }
+
+    view of errors {
+        title "Errors Components"
+        description "The component diagram for the Errors container"
+        include process,errorstruct, errorbehavior, errorimpl, errorprotocol
+    }
+
+    view of events {
+        title "Events Components"
+        description "The component diagram for the Events container"
+        include process, program
+    }
+
+    view of infra {
+        title "Infra Components"
+        description "The component diagram for the Infra container"
+        include process, program
+    }
+
+    view of repo {
+        title "Repo Components"
+        description "The component diagram for the Repo container"
+        include process, program
+    }
+
+    view of secrets {
+        title "Secrets Components"
+        description "The component diagram for the Secrets container"
+        include process
+    }
+
+}

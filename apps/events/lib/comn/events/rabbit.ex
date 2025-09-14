@@ -9,12 +9,12 @@ defmodule Comn.Events.Rabbit do
     AMQP.Connection.open("amqp://guest:guest@localhost")
   end
 
-  def subscribe() do
-    AMQP.Queue.declare(conn, "my_queue")
-    AMQP.Basic.consume(conn, "my_queue", nil, no_ack: true)
+  def subscribe(conn, topic) do
+    AMQP.Queue.declare(conn, topic)
+    AMQP.Basic.consume(conn, topic, nil, no_ack: true)
   end
 
-  def broadcast(exchange, routing_key, payload) do
+  def broadcast(conn, exchange, routing_key, payload) do
     AMQP.Basic.publish(conn, exchange, routing_key, payload)
   end
 end

@@ -1,27 +1,20 @@
-defmodule Events do
+defmodule Comn.Events.Adapter do
   @moduledoc """
   Documentation for `Events`.
   """
 
   @doc """
-  Hello world.
+  Behaviour defining the interface for event systems.
 
   ## Examples
 
-      iex> Events.hello()
-      :world
 
   """
-  def publish(EventStruct) do
+  alias Comn.Event.EventStruct, as: EventStruct
 
-  end
-
-  def subscribe(topic) do
-
-  end
-
-  def unsubscribe(topic) do
-
-  end
+  @callback start_link(keyword()) :: {:ok, pid()} | {:error, term()}
+  @callback broadcast(EventStruct) :: :ok | {:error, term()}
+  @callback subscribe(topic :: String.t(), opts :: keyword()) :: :ok | {:error, term()}
+  @callback unsubscribe(topic :: String.t(), opts :: keyword()) :: :ok | {:error, term()}
 
 end

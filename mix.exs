@@ -17,6 +17,11 @@ defmodule Comn.MixProject do
   #
   # Run "mix help deps" for examples and options.
   defp deps do
-    []
+    [
+      {:faker, "~> 0.18", only: :test},
+      {:cabbage, "~> 0.4.1", only: :test},
+      {:amqp, "~> 4.0"},
+      {:gnat, "~> 1.11"}
+    ]
   end
 end
