@@ -1,6 +1,6 @@
 defmodule Comn.Infra do
   @moduledoc """
-  Documentation for `Infra`.
+  Behaviour defining the interface for Infra systems
   """
 
   @doc """
@@ -12,7 +12,7 @@ defmodule Comn.Infra do
       :world
 
   """
-  def hello do
-    :world
-  end
+
+
+
 end

@@ -1,4 +1,4 @@
-defmodule Comn.Events.Adapter do
+defmodule Comn.Events do
   @moduledoc """
   Documentation for `Events`.
   """

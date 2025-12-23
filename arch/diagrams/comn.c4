@@ -39,13 +39,13 @@ model {
 
         contexts = container {
             title 'Contexts'
-            description ''
+            description 'A collection of modules for managing contexts and business logic for agents'
             technology 'Elixir Application'
         }
 
         errors = container {
             title 'Errors'
-            description ''
+            description 'A collection of modules for error handling and reporting.'
             technology 'Elixir Application'
 
             component errorstruct {
@@ -80,25 +80,116 @@ model {
 
         events = container {
             title 'Events'
-            description ''
+            description 'A collection of modules for handling events and notifications.'
             technology 'Elixir Application'
         }
 
         infra = container {
             title 'Infra'
-            description ''
+            description 'A collection of modules for infrastructure-related tasks.'
             technology 'Elixir Application'
         }
 
         repo = container {
             title 'Repo'
-            description ''
+            description 'A family of modules for abstracting various types of data stores.'
             technology 'Elixir Application'
+
+            component actor {
+                title 'Comn.Repo.Actor'
+                description 'A module for managing actors.'
+                technology 'Elixir Module'
+            }
+
+            component batch {
+                title 'Comn.Repo.Batch'
+                description 'A module for handling batch processing stores.'
+                technology 'Elixir Module'
+            }
+
+            component bus {
+                title 'Comn.Repo.Bus'
+                description 'A module for managing message buses.'
+                technology 'Elixir Module'
+            }
+
+            component cmd {
+                title 'Comn.Repo.Cmd'
+                description 'A module for managing command stores.'
+                technology 'Elixir Module'
+            }
+
+            component column {
+                title 'Comn.Repo.Column'
+                description 'A module for managing column stores.'
+                technology 'Elixir Module'
+            }
+
+            component file {
+                title 'Comn.Repo.File'
+                description 'A module for handling filesystem-based stores.'
+                technology 'Elixir Module'
+            }
+
+            component graph {
+                title 'Comn.Repo.Graph'
+                description 'A module for managing graphs stores.'
+                technology 'Elixir Module'
+            }
+
+            component merkel {
+                title 'Comn.Repo.Merkel'
+                description 'A module for handling Merkel tree-based stores.'
+                technology 'Elixir Module'
+            }
+
+            component queue {
+                title 'Comn.Repo.Queue'
+                description 'A module for managing queuing stores.'
+                technology 'Elixir Module'
+            }
+
+            component stream {
+                title 'Comn.Repo.Stream'
+                description 'A module for handling streaming stores.'
+                technology 'Elixir Module'
+            }
+
+            component table {
+                title 'Comn.Repo.Table'
+                description 'A module for managing table stores.'
+                technology 'Elixir Module'
+            }
+
+            process -[ipc]-> actor "Uses"
+            process -[ipc]-> batch "Uses"
+            process -[ipc]-> bus "Uses"
+            process -[ipc]-> cmd "Uses"
+            process -[ipc]-> column "Uses"
+            process -[ipc]-> file "Uses"
+            process -[ipc]-> graph "Uses"
+            process -[ipc]-> merkel "Uses"
+            process -[ipc]-> queue "Uses"
+            process -[ipc]-> stream "Uses"
+            process -[ipc]-> table "Uses"
+
+            actor -[message]-> program "Sends messages to"
+            batch -[message]-> program "Sends messages to"
+            bus -[message]-> program "Sends messages to"
+            cmd -[message]-> program "Sends messages to"
+            column -[message]-> program "Sends messages to"
+            file -[message]-> program "Sends messages to"
+            graph -[message]-> program "Sends messages to"
+            merkel -[message]-> program "Sends messages to"
+            queue -[message]-> program "Sends messages to"
+            stream -[message]-> program "Sends messages to"
+            table -[message]-> program "Sends messages to"
+    
         }
 
         secrets = container {
             title 'Secrets'
-            description ''
+            description 'A collection of modules for interfacing with secret stores.'
             technology  'Elixir Application'
         }
 
@@ -158,7 +249,7 @@ views {
     view of repo {
         title "Repo Components"
         description "The component diagram for the Repo container"
-        include process, program
+        include process, program, actor, batch, bus, cmd, column, file, graph, merkel, queue, stream, table
     }
 
     view of secrets {

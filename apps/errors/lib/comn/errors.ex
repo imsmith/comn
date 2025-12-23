@@ -1,4 +1,4 @@
-defmodule Errors do
+defmodule Comn.Errors do
   @moduledoc """
   Documentation for `Errors`.
   """

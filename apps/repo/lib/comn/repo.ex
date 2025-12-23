@@ -1,7 +1,7 @@
 defmodule Comn.Repo do
   @moduledoc """
   A Repo is an Application Delivery Controller for your Internal Procedure Calls.
-  
+
   It creates internally common I/O behavior for data repositories while accommodating modularity to external providers.
 
   Each implementing module (e.g., Comn.Repo.Cmd, Comn.Repo.Table) must
