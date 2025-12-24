@@ -1,0 +1,45 @@
+module comn-infra-health {
+  namespace "urn:comn:infra:health";
+  prefix health;
+
+  typedef health-status {
+    type enumeration {
+      enum healthy;
+      enum degraded;
+      enum unhealthy;
+    }
+  }
+
+  container HealthCheckStruct {
+    leaf component {
+      type string;
+      mandatory true;
+      description "Component being checked (db, cache, api, etc)";
+    }
+
+    leaf status {
+      type health-status;
+      mandatory true;
+    }
+
+    leaf message {
+      type string;
+      description "Status message or error";
+    }
+
+    leaf latency_ms {
+      type uint32;
+      description "Check execution time";
+    }
+
+    leaf timestamp {
+      type string;        // ISO8601
+      mandatory true;
+    }
+
+    container details {
+      description "Additional health details";
+      // Backend-specific health information
+    }
+  }
+}

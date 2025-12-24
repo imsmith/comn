@@ -1,0 +1,84 @@
+module comn-error {
+  namespace "urn:comn:errors";
+  prefix err;
+
+  typedef category {
+    type enumeration {
+      enum validation;    // Input validation failures
+      enum persistence;   // Database/storage failures
+      enum network;       // Network/connectivity failures
+      enum auth;          // Authentication/authorization failures
+      enum internal;      // Internal system errors
+      enum external;      // External service failures
+    }
+  }
+
+  typedef severity {
+    type enumeration {
+      enum low;           // Informational, system can continue
+      enum medium;        // Warning, may need attention
+      enum high;          // Error, requires intervention
+      enum critical;      // Critical, system stability at risk
+    }
+  }
+
+  container ErrorStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf message {
+      type string;
+      mandatory true;
+      description "Human-readable error message";
+    }
+
+    leaf category {
+      type category;
+      mandatory true;
+    }
+
+    leaf severity {
+      type severity;
+      mandatory true;
+    }
+
+    leaf field {
+      type string;
+      description "Field name if validation error";
+    }
+
+    leaf suggestion {
+      type string;
+      description "Suggested remedy or next action";
+    }
+
+    container details {
+      description "Arbitrary key-value error details";
+      // Map/dictionary of string -> any
+    }
+
+    leaf-list stacktrace {
+      type string;
+      description "Stack trace lines";
+    }
+
+    container context {
+      description "Execution context at error time";
+      leaf correlation_id {
+        type string;
+      }
+      leaf timestamp {
+        type string;      // ISO8601
+        mandatory true;
+      }
+      // Additional context key-value pairs
+    }
+
+    leaf timestamp {
+      type string;        // ISO8601
+      mandatory true;
+    }
+  }
+}

@@ -1,0 +1,35 @@
+module comn-repo-query {
+  namespace "urn:comn:repo:query";
+  prefix qry;
+
+  container QueryStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    container filters {
+      description "Query filter conditions";
+      // Backend-specific query structure
+    }
+
+    container options {
+      description "Query options";
+      leaf limit {
+        type uint32;
+      }
+      leaf offset {
+        type uint32;
+      }
+      leaf-list order_by {
+        type string;
+      }
+    }
+
+    leaf timestamp {
+      type string;        // ISO8601
+      mandatory true;
+    }
+  }
+}
+

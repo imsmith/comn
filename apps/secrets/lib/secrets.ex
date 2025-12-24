@@ -1,18 +1,9 @@
 defmodule Secrets do
-  @moduledoc """
-  Documentation for `Secrets`.
-  """
 
-  @doc """
-  Hello world.
+# secrets do this:
+#  lock(blob, keypair) :: locked_blob
+#  unlock(locked_blob, keypair) :: blob
 
-  ## Examples
 
-      iex> Secrets.hello()
-      :world
 
-  """
-  def hello do
-    :world
-  end
 end

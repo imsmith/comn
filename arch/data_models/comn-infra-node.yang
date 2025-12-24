@@ -1,0 +1,69 @@
+module comn-infra-node {
+  namespace "urn:comn:infra:node";
+  prefix node;
+
+  typedef node-type {
+    type enumeration {
+      enum compute;       // VM, container, bare metal
+      enum storage;       // Block, object, file storage
+      enum network;       // Router, switch, load balancer
+      enum service;       // Managed service
+    }
+  }
+
+  typedef node-state {
+    type enumeration {
+      enum provisioning;
+      enum running;
+      enum stopped;
+      enum failed;
+      enum terminating;
+    }
+  }
+
+  container NodeStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf name {
+      type string;
+      mandatory true;
+    }
+
+    leaf type {
+      type node-type;
+      mandatory true;
+    }
+
+    leaf state {
+      type node-state;
+      mandatory true;
+    }
+
+    container spec {
+      description "Node specifications";
+      // Type-specific configuration
+    }
+
+    list tags {
+      key "key";
+      uses TagStruct;
+    }
+
+    container metadata {
+      description "Node metadata";
+      leaf provider {
+        type string;
+        description "Infrastructure provider (aws, gcp, proxmox, etc)";
+      }
+      leaf region {
+        type string;
+      }
+      leaf created_at {
+        type string;      // ISO8601
+      }
+    }
+  }
+}

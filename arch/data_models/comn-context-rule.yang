@@ -1,0 +1,34 @@
+module comn-context-rule {
+  namespace "urn:comn:context:rule";
+  prefix rule;
+
+  container RuleStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf condition {
+      type string;
+      mandatory true;
+      description "Rule condition expression";
+    }
+
+    container actions {
+      description "Actions to take when rule matches";
+      // List of action specifications
+    }
+
+    leaf enabled {
+      type boolean;
+      default true;
+    }
+
+    container metadata {
+      description "Rule metadata";
+      leaf description {
+        type string;
+      }
+    }
+  }
+}

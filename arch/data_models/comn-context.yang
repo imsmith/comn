@@ -1,0 +1,51 @@
+module comn-context {
+  namespace "urn:comn:context";
+  prefix ctx;
+
+  container ContextStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf name {
+      type string;
+      description "Context name/identifier";
+    }
+
+    container environment {
+      description "Environment variables and settings";
+      // Map of string -> string
+    }
+
+    container constraints {
+      description "Execution constraints";
+      leaf timeout {
+        type uint32;
+        description "Maximum execution time in seconds";
+      }
+      leaf max_memory {
+        type uint64;
+        description "Maximum memory in bytes";
+      }
+      // Additional constraints
+    }
+
+    list policies {
+      key "id";
+      uses PolicyStruct;
+    }
+
+    container metadata {
+      description "Additional context metadata";
+      leaf created_at {
+        type string;      // ISO8601
+      }
+      leaf parent_id {
+        type string;
+        description "Parent context ID for inheritance";
+      }
+      // Additional key-value pairs
+    }
+  }
+}

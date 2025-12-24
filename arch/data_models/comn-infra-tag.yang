@@ -1,0 +1,16 @@
+module comn-infra-tag {
+  namespace "urn:comn:infra:tag";
+  prefix tag;
+
+  container TagStruct {
+    leaf key {
+      type string;
+      mandatory true;
+    }
+
+    leaf value {
+      type string;
+      mandatory true;
+    }
+  }
+}

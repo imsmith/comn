@@ -1,0 +1,50 @@
+module comn-infra-link {
+  namespace "urn:comn:infra:link";
+  prefix link;
+
+  typedef link-type {
+    type enumeration {
+      enum network;       // Network connection
+      enum dependency;    // Service dependency
+      enum data_flow;     // Data flow relationship
+    }
+  }
+
+  container LinkStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf source_id {
+      type string;
+      mandatory true;
+      description "Source node ID";
+    }
+
+    leaf target_id {
+      type string;
+      mandatory true;
+      description "Target node ID";
+    }
+
+    leaf type {
+      type link-type;
+      mandatory true;
+    }
+
+    container spec {
+      description "Link specifications";
+      // Type-specific configuration (bandwidth, latency, etc)
+    }
+
+    list tags {
+      key "key";
+      uses TagStruct;
+    }
+
+    container metadata {
+      description "Link metadata";
+    }
+  }
+}

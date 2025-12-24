@@ -1,111 +1,215 @@
 ---
-title: "MRD: Comn Framework" 
+title: "MRD: Comn Framework"
 create-date: 20250913
-update-date: 
+update-date: 20251223
 ---
 
 # Market Requirements Document
 
 ## Product Concept
 
-Comn — a framework providing common program infrastructure functions for Elixir systems. It standardizes foundational capabilities (events, configuration, metrics, auth, persistence, networking) so developers don’t repeatedly reinvent boilerplate and can focus on domain-specific code.
+Comn is a framework that eliminates boilerplate infrastructure code by providing uniform abstract interfaces, data structures, and actions for six common program infrastructure needs. It provides a stable and sufficient surface for programs to be written against, allowing backend products, services, or paradigms to be changed without forcing changes to the consumers of the abstractions.
 
-1. ### Market Problem
+## Market Problem
 
-    Repetition of Baseline Infrastructure Code
+### Repetition of Baseline Infrastructure Code
 
-    Elixir developers repeatedly solve the same set of foundational problems in every project:
+Elixir developers repeatedly solve the same foundational problems in every project, reinventing abstractions for:
 
-    + Events: projects need a standard way to define, publish, and consume domain and system events. Ad hoc implementations lead to fragmentation.
-    + Errors: error handling, categorization, and reporting are inconsistent, making recovery, logging, and debugging harder.
-    + Secrets: management of credentials, tokens, and keys is scattered across config files and environment variables, often without rotation or standard interfaces.
-    + Repos: persistence layers (Ecto repos, ETS, Mnesia, Postgres, Redis, S3) lack a unified abstraction, forcing applications to be tightly bound to chosen backends.
-    + Contexts: Phoenix-style contexts are inconsistently structured, limiting portability and composability of domain logic.
-    + Infra: every team rebuilds the same service plumbing (config loading, health checks, metrics, supervision patterns, network clients), wasting time and introducing subtle bugs.
+1. **Context** — the surroundings, circumstances, environment, background, or settings that determine, specify, or clarify meaning for the functions of a program or system. Useful for abstracting and conveying policy and for abstracting instructions and constraints to digital agents.
 
-    Consequences of Fragmentation
+2. **Events** — projects need a standard way to define, publish, and consume domain and system events. Ad hoc implementations lead to fragmentation and inconsistent event handling patterns.
 
-    + Slower Time-to-Market: teams spend weeks rewriting infrastructure before building domain logic.
-    + Technical Debt: projects accumulate one-off implementations that are hard to maintain and evolve.
-    + Lock-In: applications get tightly coupled to specific libraries and infrastructure choices, making future migration costly.
-    + Inconsistent Developer Experience: onboarding new developers is harder when every project reinvents these baselines differently.
+3. **Errors** — error handling, categorization, and reporting are inconsistent across projects, making recovery, logging, and debugging harder. Each team reinvents error structures and propagation patterns.
 
-2. ### Target Market
+4. **Repositories** — a location for safe storage and data preservation. Persistence layers (Ecto repos, ETS, Mnesia, Postgres, Redis, S3, etc.) lack a unified abstraction, forcing applications to be tightly bound to chosen backends.
 
-    + Elixir developers building distributed systems who need resilience, observability, and configurability without wasting time on boilerplate.
-    + Startups and scale-ups using Elixir as a core backend technology that want to accelerate delivery.
-    + Consultancies and agencies delivering Elixir projects for clients, where reusing a standardized base framework reduces cost.
+5. **Secrets** — management of credentials, tokens, and keys is scattered across config files and environment variables, often without rotation, versioning, or standard interfaces.
 
-3. ### Product Requirements
+6. **Infrastructure** — an underlying base or foundation that provides the facilities and services needed for the functioning of a program or system of programs. Every team rebuilds service plumbing (configuration loading, health checks, metrics, supervision patterns, network clients), wasting time and introducing subtle bugs.
 
-    Core Capabilities
+### Consequences of Fragmentation
 
-    1. Configuration & Environment
+- **Slower Time-to-Market**: Teams spend weeks rewriting infrastructure abstractions before building domain logic.
+- **Technical Debt**: Projects accumulate one-off implementations that are hard to maintain and evolve.
+- **Lock-In**: Applications get tightly coupled to specific libraries and infrastructure choices, making future migration costly.
+- **Inconsistent Developer Experience**: Onboarding new developers is harder when every project reinvents these baselines differently.
+- **Testing Complexity**: Without standard abstractions, testing requires complex mocking and stubbing of infrastructure dependencies.
 
-        + Unified runtime configuration system (env, config files, secret stores).
-        + Hot-reloadable, immutable config layers.
+## Target Market
 
-    2. Eventing & Messaging
+- **Elixir developers** building distributed systems who need resilience, observability, and configurability without wasting time on boilerplate.
+- **Startups and scale-ups** using Elixir as a core backend technology that want to accelerate delivery.
+- **Consultancies and agencies** delivering Elixir projects for clients, where reusing a standardized base framework reduces cost and risk.
+- **Platform engineers** building internal developer platforms who need consistent infrastructure abstractions across teams.
 
-        + Publish/subscribe abstraction with pluggable backends (Registry, NATS, RabbitMQ, Kafka).
-        + Uniform Event struct (timestamp, metadata, payload).
+## Product Requirements
 
-    3. Persistence
+### Core Abstractions
 
-        + Common persistence interface (ETS, Mnesia, Postgres, Redis, S3).
-        + State store API with transactional semantics.
+Each abstraction must provide:
+- **Protocol** — for converting domain types to standard representations
+- **Behavior** — defining the interface backend implementations must satisfy
+- **Struct** — standardized data structures for messages and entities
+- **Implementations** — backend integrations following `Comn.<App>.<Module>` pattern
 
-    4. Metrics & Observability
+### 1. Context
 
-        + Standard metrics collection (counter, gauge, histogram).
-        + OpenTelemetry tracing hooks.
-        + Health checks and diagnostics API.
+Provides abstractions for program surroundings, policy, and agent instructions.
 
-    5. Authentication & Identity
+**Requirements:**
+- Represent execution context (environment, settings, constraints)
+- Support policy definition and evaluation
+- Provide instructions and constraints for digital agents
+- Enable context composition and inheritance
 
-        + Pluggable identity/auth interface (JWT, OAuth2, mTLS, API keys).
-        + User/session abstraction with role-based access control (RBAC).
+**Backend Examples:** Configuration files, environment variables, policy engines, agent frameworks
 
-    6. Networking & APIs
+### 2. Events
 
-        + HTTP client abstraction with retry/circuit-breaker.
-        + GRPC, REST, and WebSocket helpers.
+Publish/subscribe abstraction with pluggable backends for domain and system events.
 
-    7. Process & Actor Utilities
+**Requirements:**
+- Uniform Event struct (id, type, timestamp, correlation_id, metadata, payload)
+- Publish and subscribe operations
+- Backend-agnostic event handling
+- Support for event filtering and routing
 
-        + Common supervision patterns and lifecycle hooks.
-        + Actor abstractions for common patterns (work queues, schedulers, pipelines).
+**Backend Examples:** Registry (local), NATS, RabbitMQ, Kafka, Redis Streams
 
-4. ### Differentiation
+### 3. Errors
 
-    + Standardized interfaces over pluggable backends: developers can change infrastructure without refactoring application logic.
-    + Semantic-first: data and events are modeled consistently across modules.
-    + Elixir-native philosophy: embraces OTP, supervisors, and lightweight processes rather than hiding them.
-    + Composable building blocks: small pieces, loosely joined — developers pull in only what they need.
+Standardized error handling, categorization, and reporting.
 
-5. ### Success Metrics
+**Requirements:**
+- Uniform Error struct with category, severity, context
+- Convert any error type (Exception, tuple, map) to standard format
+- Support error propagation and recovery patterns
+- Enable structured error logging and reporting
 
-    + Reduction in duplicated infrastructure code across projects (measured in lines of boilerplate avoided).
-    + Adoption by at least 3 open-source Elixir projects and 2 production deployments in the first year.
-    + Benchmarks showing negligible overhead compared to using infrastructure libraries directly.
-    + Positive developer feedback on reduced setup time (goal: cut infra setup by 50%).
+**Backend Examples:** Built-in protocol implementations, logging backends, error tracking services
 
-6. ### Release Plan
+### 4. Repositories
 
-    Phase 1 (MVP):
+Common interface for safe storage and data preservation across diverse backends.
 
-      + Eventing abstraction with Registry and NATS backends.
-      + Config system with hot-reload.
-      + Metrics wrapper with OpenTelemetry.
+**Requirements:**
+- Unified operations: get, set, delete, observe
+- Support for different storage paradigms (key-value, relational, document, blob, graph)
+- Backend-agnostic query capabilities where applicable
+- Transactional semantics where backend supports
 
-    Phase 2:
+**Backend Examples:** ETS, Mnesia, Postgres, SQLite, Redis, S3, local filesystem
 
-      + Persistence abstraction (ETS + Postgres).
-      + Networking helpers (HTTP client, gRPC).
+### 5. Secrets
 
-    Phase 3:
+Management of credentials, tokens, and keys with rotation and versioning.
 
-      + Authentication interfaces.
-      + Advanced actor patterns (workflows, schedulers).
+**Requirements:**
+- Secure storage and retrieval of sensitive values
+- Support rotation policies and versioning
+- Never log or expose secret values
+- Audit trail for access
+
+**Backend Examples:** Environment variables (dev), file-based (dev), HashiCorp Vault, AWS Secrets Manager, Azure Key Vault
+
+### 6. Infrastructure
+
+Foundation facilities and services for program operation.
+
+**Requirements:**
+- Configuration loading from multiple sources
+- Health checks and diagnostics
+- Metrics collection and export
+- HTTP client with retry/circuit-breaker
+- Supervision patterns and process management
+
+**Backend Examples:** Runtime config, Prometheus, OpenTelemetry, various cloud providers
+
+## Differentiation
+
+### What Makes Comn Different
+
+1. **Backend Agnosticism** — Applications written against Comn abstractions can change infrastructure backends without refactoring application logic. Swap Postgres for SQLite, Registry for NATS, or local files for S3 by changing configuration, not code.
+
+2. **Uniform Abstraction Pattern** — Every subsystem follows the same structure:
+   - `Comn.<App>` — Protocol for type conversion
+   - `Comn.<Apps>` — Behavior defining backend interface
+   - `Comn.<App>Struct` — Standard message/entity format
+   - `Comn.<App>.<Module>` — Backend implementations
+
+3. **Elixir-Native Philosophy** — Embraces OTP, supervisors, and lightweight processes rather than hiding them. Comn abstractions are BEAM-first, not ports of patterns from other ecosystems.
+
+4. **Composable Building Blocks** — Small pieces, loosely joined. Developers use only the abstractions they need. No framework lock-in or required base classes.
+
+5. **Required Characteristics, Not Features** — Comn implementations must have:
+   - **Topology-agnostic** — work the same locally and distributed
+   - **Interoperable** — standard protocols enable cross-system integration
+   - **Observable** — built-in tracing and instrumentation hooks
+   - **Testable** — acceptance test framework with clear feature definitions
+
+### What Comn Is Not
+
+- **Not an authentication framework** — sufficient solutions already exist (Guardian, Pow, etc.)
+- **Not a web framework** — complements Phoenix and other frameworks, doesn't replace them
+- **Not a product** for metrics/tracing/testing — these are *characteristics* Comn implementations must have
+
+## Success Metrics
+
+- **Boilerplate Reduction**: 50% reduction in infrastructure setup code across projects
+- **Adoption**: 3+ open-source projects and 2+ production deployments in first year
+- **Performance**: < 5% overhead compared to using infrastructure libraries directly
+- **Backend Portability**: Developers can swap backends with configuration changes only (no code refactoring)
+- **Test Coverage**: >= 85% line coverage with acceptance tests for all features
+- **Developer Satisfaction**: Positive feedback on reduced onboarding time and consistent patterns
+
+## Release Plan
+
+### Phase 1: Foundation (TDD Setup)
+
+**Define the standard abstractions**:
+1. Create `arch/data-models.md` — document all struct definitions and data types
+2. Create `arch/action-models.md` — document all behaviors and operations
+3. Create `arch/features.md` — document feature requirements in Gherkin format
+4. Establish testing framework with Cabbage for BDD
+
+**Implement core abstractions** (following TDD):
+- Errors subsystem with protocol and basic implementations
+- Events subsystem with Registry backend
+- Secrets subsystem with environment variable and file backends
+
+**Deliverables**:
+- [ ] Data models documented
+- [ ] Action models documented
+- [ ] Features documented with acceptance criteria
+- [ ] Acceptance test framework operational
+- [ ] Errors abstraction complete
+- [ ] Events abstraction complete (Registry backend)
+- [ ] Secrets abstraction complete (env + file backends)
+
+### Phase 2: Expansion
+
+**Add backends and capabilities**:
+- Events: NATS backend
+- Repositories: Initial implementation with ETS and local file backends
+- Infrastructure: Configuration loading and health checks
+
+**Deliverables**:
+- [ ] Events: NATS backend operational
+- [ ] Repositories abstraction with 2 backends
+- [ ] Infrastructure: Config and health check modules
+
+### Phase 3: Maturity
+
+**Complete repository types and infrastructure**:
+- Repositories: Add Postgres, Redis, S3 backends
+- Infrastructure: Metrics, supervision patterns, HTTP client
+- Context: Policy and agent instruction abstractions
+
+**Deliverables**:
+- [ ] Repository backends for common use cases
+- [ ] Full infrastructure subsystem
+- [ ] Context subsystem operational
+- [ ] Production hardening and performance optimization
 
 ---

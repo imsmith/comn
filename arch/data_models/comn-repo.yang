@@ -1,0 +1,65 @@
+module comn-repo {
+  namespace "urn:comn:repo";
+  prefix repo;
+
+  typedef repo-type {
+    type enumeration {
+      enum table;         // Relational/tabular data
+      enum blob;          // Binary large objects
+      enum graph;         // Graph databases
+      enum queue;         // Message queues
+      enum stream;        // Event streams
+      enum file;          // File systems
+      enum kv;            // Key-value stores
+    }
+  }
+
+  typedef repo-status {
+    type enumeration {
+      enum initializing;
+      enum ready;
+      enum degraded;
+      enum unavailable;
+    }
+  }
+
+  container RepoStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf name {
+      type string;
+      mandatory true;
+      description "Repository identifier";
+    }
+
+    leaf type {
+      type repo-type;
+      mandatory true;
+    }
+
+    leaf status {
+      type repo-status;
+      default ready;
+    }
+
+    container config {
+      description "Backend-specific configuration";
+      // Map of string -> any
+    }
+
+    container metadata {
+      description "Repository metadata";
+      leaf backend {
+        type string;
+        description "Backend implementation (e.g., postgres, s3, ets)";
+      }
+      leaf created_at {
+        type string;      // ISO8601
+      }
+      // Additional key-value pairs
+    }
+  }
+}

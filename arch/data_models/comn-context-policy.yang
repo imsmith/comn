@@ -1,0 +1,54 @@
+module comn-context-policy {
+  namespace "urn:comn:context:policy";
+  prefix pol;
+
+  typedef policy-effect {
+    type enumeration {
+      enum allow;
+      enum deny;
+    }
+  }
+
+  container PolicyStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf name {
+      type string;
+      mandatory true;
+    }
+
+    leaf effect {
+      type policy-effect;
+      mandatory true;
+    }
+
+    list rules {
+      key "id";
+      uses RuleStruct;
+    }
+
+    leaf priority {
+      type uint32;
+      default 0;
+      description "Higher priority policies evaluated first";
+    }
+
+    leaf enabled {
+      type boolean;
+      default true;
+    }
+
+    container metadata {
+      description "Policy metadata";
+      leaf created_at {
+        type string;      // ISO8601
+      }
+      leaf description {
+        type string;
+      }
+    }
+  }
+}

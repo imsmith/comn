@@ -1,0 +1,20 @@
+module comn-event-log {
+  namespace "urn:comn:events:log";
+  prefix log;
+
+  container EventLogEntry {
+    uses evt:EventStruct;
+
+    leaf sequence {
+      type uint64;
+      mandatory true;
+      description "Monotonic sequence number";
+    }
+
+    leaf logged_at {
+      type string;        // ISO8601
+      mandatory true;
+      description "When this entry was recorded";
+    }
+  }
+}

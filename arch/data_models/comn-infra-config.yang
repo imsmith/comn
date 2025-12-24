@@ -1,0 +1,48 @@
+module comn-infra-config {
+  namespace "urn:comn:infra:config";
+  prefix cfg;
+
+  typedef config-source {
+    type enumeration {
+      enum environment;   // Environment variables
+      enum file;          // Configuration file
+      enum vault;         // Secret vault
+      enum runtime;       // Runtime override
+    }
+  }
+
+  container ConfigStruct {
+    leaf key {
+      type string;
+      mandatory true;
+    }
+
+    leaf value {
+      type string;
+      mandatory true;
+    }
+
+    leaf source {
+      type config-source;
+      mandatory true;
+    }
+
+    leaf precedence {
+      type uint32;
+      description "Higher values override lower";
+    }
+
+    leaf immutable {
+      type boolean;
+      default false;
+      description "Cannot be changed after boot";
+    }
+
+    container metadata {
+      description "Config metadata";
+      leaf loaded_at {
+        type string;      // ISO8601
+      }
+    }
+  }
+}

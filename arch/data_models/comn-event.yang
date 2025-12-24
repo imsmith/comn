@@ -1,0 +1,60 @@
+module comn-event {
+  namespace "urn:comn:events";
+  prefix evt;
+
+  container EventStruct {
+    leaf id {
+      type string;        // UUID v4
+      mandatory true;
+    }
+
+    leaf type {
+      type string;
+      mandatory true;
+      description "Event type in domain.action format (e.g., user.created)";
+    }
+
+    leaf topic {
+      type string;
+      description "Routing topic for pub/sub backends";
+    }
+
+    leaf source {
+      type string;
+      description "Originating system/service identifier";
+    }
+
+    leaf timestamp {
+      type string;        // ISO8601
+      mandatory true;
+    }
+
+    leaf correlation_id {
+      type string;        // UUID v4
+      mandatory true;
+      description "Trace ID for distributed request tracking";
+    }
+
+    leaf causation_id {
+      type string;        // UUID v4
+      description "ID of the event that caused this event";
+    }
+
+    container metadata {
+      description "Event metadata (headers, tags, etc)";
+      // Map of string -> any
+    }
+
+    container payload {
+      description "Event data payload";
+      mandatory true;
+      // Any valid Elixir term
+    }
+
+    leaf version {
+      type uint32;
+      default 1;
+      description "Event schema version";
+    }
+  }
+}
