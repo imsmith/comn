@@ -17,7 +17,7 @@ defmodule Comn.Secrets.SecurityTestCase do
     implementation = Keyword.fetch!(opts, :implementation)
 
     quote bind_quoted: [implementation: implementation] do
-      use Bitwise
+      import Bitwise
       alias Comn.Secrets.{Key, LockedBlob, Container}
 
       describe "key validation (see features/key_validation.feature)" do

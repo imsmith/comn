@@ -597,3 +597,76 @@ Would you like me to help with any specific improvement area?
 imsmith: lets talk about coding standards and style -- I really want to have code that is well designed to take advantage of the unique characteristics that beam has, and for me that is really about nailing the use of behaviors, protocols, and data models to be more than just wrappers around gen-servers etc.  
 
 GitHub Copilot: Excellent focus! Let's talk about writing idiomatic BEAM/Elixir code that truly leverages OTP's strengths rather than just wrapping GenServers.
+
+---
+
+  1. Deserialization Attack ⚠️ CRITICAL
+
+  # From README example
+  container = :erlang.binary_to_term(binary)
+  Threat: Arbitrary code execution. :erlang.binary_to_term/1 with untrusted input can execute arbitrary code, create atoms (exhausting atom table), or crash the VM.
+
+  Attack: Replace encrypted container file with malicious Erlang terms. When you call unwrap, RCE.
+
+  Fix: Use :erlang.binary_to_term(binary, [:safe]) or proper serialization format (MessagePack, Protobuf).
+
+  ---
+  2. Nonce Reuse (deterministic_lock) ⚠️ CRITICAL
+
+  README suggests:
+  def deterministic_lock(blob, key)
+
+  Threat: Same plaintext + key = same nonce = catastrophic failure. For AES-GCM and ChaCha20-Poly1305, nonce reuse with same key reveals XOR of plaintexts and leaks keystream.
+
+  Attack: Lock same secret twice, compare ciphertexts, derive keystream.
+
+  Fix: Remove this suggestion from README entirely. It's a footgun with AEAD ciphers.
+
+  ---
+  3. Container wrap/unwrap Undefined ⚠️ MEDIUM-HIGH
+
+  @callback wrap(blobs :: [LockedBlob.t()], key :: Key.t()) :: {:ok, Container.t()}
+
+  Threat: What does wrap mean? Just bundle (no encryption = metadata leaks)? Encrypt container (double encryption)? Sign (no signature field)?
+
+  Attack: If wrap = bundle, attacker can reorder/remove/inject blobs. No integrity protection.
+
+  Fix: Define semantics explicitly. Probably: serialize container → encrypt entire thing → produce LockedBlob.
+
+  ---
+  4. Protocol Implementations Can Leak ⚠️ MEDIUM
+
+  defimpl Comn.Secret, for: Map do
+    def to_blob(map) do
+      :erlang.term_to_binary(map)  # throws exceptions with data in them
+    end
+  end
+
+  Threat: Functions that throw exceptions with data embedded (like Jason.encode!/1) will log plaintext on failure.
+
+  Attack: Trigger encoding failure, harvest logs.
+
+  Fix: Document protocol implementations must use safe wrappers, not functions that embed data in exceptions.
+
+  ---
+  5. Key Material in Memory ⚠️ MEDIUM
+
+  defstruct [:id, :algorithm, :public, :private, metadata: %{}]
+
+  Threat: Private keys live in Erlang heap. Vulnerable to memory dumps, core dumps, GC doesn't zero memory.
+
+  Attack: Process crash dumps private key to logs.
+
+  Fix: Document limitation. For production, use HSM/TPM. (Not fixable without NIFs)
+
+  ---
+  6. No Key Validation ⚠️ MEDIUM
+
+  def lock(blob, %Key{} = key) when is_binary(blob)
+
+  Threat: No validation that key structure matches algorithm (e.g., Ed25519 key with 128-bit material instead of 256-bit).
+
+  Attack: Weak keys = trivial brute force.
+
+  Fix: Validate key structure in lock/unlock. Fail fast on malformed keys.
+
