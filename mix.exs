@@ -4,23 +4,24 @@ defmodule Comn.MixProject do
   def project do
     [
       app: :comn,
-      apps_path: "apps",
-      version: "0.1.0",
+      version: "0.3.0",
+      elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
   end
 
-  # Dependencies listed here are available only for this
-  # project and cannot be accessed from applications inside
-  # the apps folder.
-  #
-  # Run "mix help deps" for examples and options.
+  def application do
+    [
+      extra_applications: [:logger, :inets]
+    ]
+  end
+
   defp deps do
     [
-      {:faker, "~> 0.18", only: :test},
-      {:cabbage, "~> 0.4.1", only: :test},
-      {:gnat, "~> 1.11"}
+      {:gnat, "~> 1.11"},
+      {:jason, "~> 1.4"},
+      {:faker, "~> 0.18", only: :test}
     ]
   end
 end
