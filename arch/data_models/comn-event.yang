@@ -1,60 +1,184 @@
 module comn-event {
+  yang-version 1.1;
   namespace "urn:comn:events";
   prefix evt;
 
-  container EventStruct {
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "Event structure for domain and system events.
+
+     Defines standard event representation supporting event sourcing,
+     CQRS, and event-driven architecture patterns. Events are immutable
+     facts about state changes in the system.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision with correlation and causation tracking.
+       - Domain event structure with versioning
+       - Distributed tracing support
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "CloudEvents Specification
+       https://github.com/cloudevents/spec";
+  }
+
+  typedef event-type {
+    type string {
+      pattern '[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*';
+    }
+    description
+      "Event type in domain.action format.
+
+       Format: <domain>.<action>
+       - domain: lowercase, alphanumeric with underscores (e.g., 'user', 'order')
+       - action: lowercase, alphanumeric with underscores (e.g., 'created', 'updated')
+
+       Examples: 'user.created', 'order.shipped', 'payment.failed'";
+  }
+
+  grouping event-core {
+    description
+      "Core event attributes reusable across event-related structures.
+       Extracted as grouping to support composition in event logs and
+       other event-based structures.";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description
+        "Unique event identifier.
+         Generated when event is created. Immutable.";
     }
 
     leaf type {
-      type string;
+      type event-type;
       mandatory true;
-      description "Event type in domain.action format (e.g., user.created)";
+      description
+        "Event type identifier in domain.action format.
+         Determines event schema and processing rules.";
     }
 
     leaf topic {
-      type string;
-      description "Routing topic for pub/sub backends";
+      type string {
+        length "1..255";
+        pattern '[a-zA-Z0-9._\-/]+';
+      }
+      description
+        "Routing topic for pub/sub backends.
+
+         Hierarchical topic structure using delimiters:
+         - '.' for subtopics (e.g., 'orders.shipped.international')
+         - '/' for routing patterns (e.g., 'app/domain/action')";
     }
 
     leaf source {
-      type string;
-      description "Originating system/service identifier";
+      type string {
+        length "1..255";
+      }
+      description
+        "Originating system/service identifier.
+
+         Examples: 'user-service', 'order-processor', 'payment-gateway'";
     }
 
     leaf timestamp {
-      type string;        // ISO8601
+      type comn:iso8601-timestamp;
       mandatory true;
+      description
+        "Event occurrence timestamp.
+
+         Represents when the event happened (business time),
+         not necessarily when it was recorded.
+         Set by event creator. Immutable.";
     }
 
-    leaf correlation_id {
-      type string;        // UUID v4
+    leaf correlation-id {
+      type comn:correlation-id;
       mandatory true;
-      description "Trace ID for distributed request tracking";
+      description
+        "Distributed trace identifier.
+
+         Groups all events and operations belonging to the same
+         logical request/transaction across service boundaries.
+         Propagated through entire request chain.";
     }
 
-    leaf causation_id {
-      type string;        // UUID v4
-      description "ID of the event that caused this event";
-    }
+    leaf causation-id {
+      type comn:causation-id;
+      description
+        "ID of the event that caused this event.
 
-    container metadata {
-      description "Event metadata (headers, tags, etc)";
-      // Map of string -> any
-    }
-
-    container payload {
-      description "Event data payload";
-      mandatory true;
-      // Any valid Elixir term
+         Forms causal chain for event sourcing and debugging.
+         If event A triggers event B, then B.causation_id = A.id.
+         Optional: root events in a chain have no causation_id.";
     }
 
     leaf version {
-      type uint32;
+      type comn:version-number;
       default 1;
-      description "Event schema version";
+      description
+        "Event schema version.
+
+         Incremented when event payload structure changes.
+         Enables event upcasting and schema evolution.
+         Consumers use this to select appropriate deserializer.";
+    }
+  }
+
+  grouping event {
+    description
+      "Standard event structure for domain and system events.
+
+       Immutable record of a state change or significant occurrence.
+       Supports event sourcing, distributed tracing, and audit trails.";
+
+    uses event-core;
+
+    must "not(causation-id) or causation-id != id" {
+      error-message "Event cannot be its own cause (causation-id must differ from id)";
+      error-app-tag "circular-causation";
+      description
+        "Business rule: Prevents circular causation chains.
+         An event cannot cause itself.";
+    }
+
+    container metadata {
+      description
+        "Event metadata (headers, tags, custom attributes).
+
+         Extensible key-value structure for:
+         - Routing hints
+         - Security classifications
+         - Custom tags
+         - Processing directives
+
+         Not part of business event data.";
+      // Implementation: Map of string -> any
+    }
+
+    container payload {
+      presence "Event must have a payload";
+      description
+        "Event business data.
+
+         Contains the actual event information specific to the event type.
+         Structure determined by event.type and event.version.
+         Must be serializable to/from JSON, MessagePack, or ETF.
+
+         Examples:
+         - user.created: {user_id, email, name, created_at}
+         - order.shipped: {order_id, tracking_number, carrier}";
+      // Implementation: Any valid serializable term
     }
   }
 }

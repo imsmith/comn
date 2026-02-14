@@ -1,51 +1,159 @@
 module comn-context {
+  yang-version 1.1;
   namespace "urn:comn:context";
   prefix ctx;
 
-  container ContextStruct {
+  import comn-context-policy {
+    prefix pol;
+  }
+
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the context data model for the COMN system.
+     A context represents an execution environment with associated
+     policies, constraints, and environment variables.
+
+     Contexts support inheritance through the parent_id mechanism,
+     allowing child contexts to inherit and override parent settings.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define context structure with policies and constraints
+       - Support for environment variables and metadata
+       - Parent-child context inheritance
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "COMN Architecture Documentation";
+  }
+
+  grouping context {
+    description "Context structure for execution environment and policies";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description "Unique identifier for the context";
     }
 
     leaf name {
-      type string;
+      type comn:non-empty-string;
       description "Context name/identifier";
     }
 
     container environment {
-      description "Environment variables and settings";
-      // Map of string -> string
+      description
+        "Environment variables and settings.
+         Each entry represents a name-value pair where both
+         name and value are strings.";
+
+      list variable {
+        key "name";
+        description "A single environment variable";
+
+        leaf name {
+          type comn:non-empty-string;
+          description "Environment variable name";
+        }
+
+        leaf value {
+          type string;
+          description "Environment variable value";
+        }
+      }
     }
 
     container constraints {
-      description "Execution constraints";
+      description "Execution constraints for resource management";
+
       leaf timeout {
-        type uint32;
-        description "Maximum execution time in seconds";
+        type uint32 {
+          range "1..86400";
+        }
+        units "seconds";
+        default 3600;
+        description
+          "Maximum execution time in seconds.
+           Default: 3600 seconds (1 hour).
+           Range: 1 second to 24 hours (86400 seconds).";
       }
-      leaf max_memory {
-        type uint64;
-        description "Maximum memory in bytes";
+
+      leaf max-memory {
+        type uint64 {
+          range "1048576..max";
+        }
+        units "bytes";
+        default 1073741824;
+        description
+          "Maximum memory allocation in bytes.
+           Default: 1 GB (1073741824 bytes).
+           Minimum: 1 MB (1048576 bytes).";
       }
-      // Additional constraints
     }
 
     list policies {
       key "id";
-      uses PolicyStruct;
+      uses pol:policy;
+      description "Policies associated with this context";
     }
 
     container metadata {
-      description "Additional context metadata";
-      leaf created_at {
-        type string;      // ISO8601
+      description "Context lifecycle and metadata tracking";
+
+      leaf status {
+        type comn:entity-status;
+        default "draft";
+        description "Current lifecycle status of the context";
       }
-      leaf parent_id {
-        type string;
+
+      leaf created-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp when context was created";
+      }
+
+      leaf updated-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp of last modification";
+      }
+
+      leaf created-by {
+        type comn:non-empty-string;
+        description "User or system that created this context";
+      }
+
+      leaf parent-id {
+        type comn:uuid;
+        must ". != ../../id" {
+          error-message "A context cannot be its own parent";
+          error-app-tag "invalid-parent-reference";
+        }
         description "Parent context ID for inheritance";
       }
-      // Additional key-value pairs
+
+      list property {
+        key "name";
+        description "Additional key-value metadata properties";
+
+        leaf name {
+          type comn:non-empty-string;
+          description "Property name";
+        }
+
+        leaf value {
+          type string;
+          description "Property value";
+        }
+      }
     }
   }
 }

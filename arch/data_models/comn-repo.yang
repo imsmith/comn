@@ -1,65 +1,168 @@
 module comn-repo {
+  yang-version 1.1;
   namespace "urn:comn:repo";
   prefix repo;
 
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "Repository metadata and configuration structures.
+
+     This module defines the core data structures for the COMN
+     repository subsystem, which provides abstraction over different
+     storage backends (relational, blob, graph, queue, stream, file, kv).
+
+     The repository structure represents repository metadata and configuration,
+     supporting multiple backend types with backend-specific settings.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision with repository type and status definitions.
+       Supports table, blob, graph, queue, stream, file, and kv backends.
+       - Strong typing for UUIDs and timestamps
+       - Backend configuration structure
+       - Status tracking";
+    reference
+      "COMN Repository Abstraction Design";
+  }
+
   typedef repo-type {
     type enumeration {
-      enum table;         // Relational/tabular data
-      enum blob;          // Binary large objects
-      enum graph;         // Graph databases
-      enum queue;         // Message queues
-      enum stream;        // Event streams
-      enum file;          // File systems
-      enum kv;            // Key-value stores
+      enum table {
+        description "Relational/tabular data storage (SQL databases)";
+      }
+      enum blob {
+        description "Binary large object storage (S3, object stores)";
+      }
+      enum graph {
+        description "Graph databases (Neo4j, JanusGraph)";
+      }
+      enum queue {
+        description "Message queues (RabbitMQ, SQS)";
+      }
+      enum stream {
+        description "Event streams (Kafka, Kinesis)";
+      }
+      enum file {
+        description "File systems (local, NFS, distributed)";
+      }
+      enum kv {
+        description "Key-value stores (Redis, DynamoDB, ETS)";
+      }
     }
+    description
+      "Repository backend type enumeration.
+       Determines the storage paradigm and available operations.";
   }
 
   typedef repo-status {
     type enumeration {
-      enum initializing;
-      enum ready;
-      enum degraded;
-      enum unavailable;
+      enum initializing {
+        description "Repository is being initialized, not yet ready for operations";
+      }
+      enum ready {
+        description "Repository is operational and accepting requests";
+      }
+      enum degraded {
+        description "Repository is operational but experiencing issues";
+      }
+      enum unavailable {
+        description "Repository is not accessible or has failed";
+      }
     }
+    description
+      "Repository operational status.
+       Indicates current health and availability.";
   }
 
-  container RepoStruct {
+  grouping repository {
+    description
+      "Repository metadata and configuration structure.
+       Represents a single repository instance with its backend-specific
+       configuration and runtime status.";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description
+        "Unique identifier for this repository instance.
+         Generated during repository creation.";
     }
 
     leaf name {
-      type string;
+      type string {
+        length "1..255";
+        pattern '[a-zA-Z0-9_\-]+';
+      }
       mandatory true;
-      description "Repository identifier";
+      description
+        "Repository identifier/name.
+         Must be alphanumeric with underscores and hyphens.
+         Used for programmatic reference and routing.";
     }
 
     leaf type {
       type repo-type;
       mandatory true;
+      description "Backend storage type for this repository";
     }
 
     leaf status {
       type repo-status;
       default ready;
+      description
+        "Current operational status.
+         Defaults to 'ready' when not explicitly set.";
     }
 
     container config {
-      description "Backend-specific configuration";
-      // Map of string -> any
+      description
+        "Backend-specific configuration parameters.
+         Structure and required fields depend on repository type.
+         Examples:
+         - table: connection_string, pool_size, timeout
+         - blob: bucket, region, access_key_id
+         - kv: host, port, password, db_index";
+      // Implementation: Map of string -> any
+      // Validated by backend-specific logic
     }
 
     container metadata {
-      description "Repository metadata";
+      description
+        "Repository operational metadata.
+         Contains runtime information and backend details.";
+
       leaf backend {
-        type string;
-        description "Backend implementation (e.g., postgres, s3, ets)";
+        type string {
+          length "1..100";
+        }
+        description
+          "Specific backend implementation identifier.
+           Examples: 'postgres', 's3', 'ets', 'redis', 'kafka'";
       }
-      leaf created_at {
-        type string;      // ISO8601
+
+      leaf created-at {
+        type comn:iso8601-timestamp;
+        description
+          "Timestamp when this repository was created.
+           Immutable after creation.";
       }
-      // Additional key-value pairs
+
+      leaf updated-at {
+        type comn:iso8601-timestamp;
+        description
+          "Timestamp of last configuration or status update.
+           Optional field maintained by repository manager.";
+      }
     }
   }
 }

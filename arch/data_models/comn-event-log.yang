@@ -1,20 +1,99 @@
 module comn-event-log {
+  yang-version 1.1;
   namespace "urn:comn:events:log";
-  prefix log;
+  prefix evt-log;
 
-  container EventLogEntry {
-    uses evt:EventStruct;
+  import comn-event {
+    prefix evt;
+  }
+
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "Event log entry structure for persistent event storage.
+
+     Extends the base event structure with storage-specific metadata
+     including sequence numbers and logging timestamps. Used by event
+     stores and audit trail systems.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision with monotonic sequence numbers.
+       - Event log entry with sequence tracking
+       - Storage timestamp separate from event timestamp
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "Event Sourcing Pattern
+       https://martinfowler.com/eaaDev/EventSourcing.html";
+  }
+
+  grouping event-log-entry {
+    description
+      "Event log entry for persistent storage.
+
+       Combines the core event data with storage metadata.
+       Maintains immutability while adding sequence and logging time.";
+
+    uses evt:event-core;
 
     leaf sequence {
       type uint64;
       mandatory true;
-      description "Monotonic sequence number";
+      description
+        "Monotonic sequence number for this log entry.
+
+         Strictly increasing across all events in the log.
+         Provides total ordering for events.
+         Used for:
+         - Replay and catchup operations
+         - Detecting missed events
+         - Optimistic concurrency control";
     }
 
-    leaf logged_at {
-      type string;        // ISO8601
+    leaf logged-at {
+      type comn:iso8601-timestamp;
       mandatory true;
-      description "When this entry was recorded";
+      description
+        "When this entry was recorded in the log.
+
+         Storage timestamp (different from event.timestamp).
+         - event.timestamp: when event occurred (business time)
+         - logged-at: when event was persisted (system time)
+
+         Immutable after persistence.";
+    }
+
+    container metadata {
+      description
+        "Event metadata from original event.
+         Preserved from EventStruct.metadata.";
+      // Implementation: Map of string -> any
+    }
+
+    container payload {
+      presence "Log entry must have event payload";
+      description
+        "Event business data from original event.
+         Preserved from EventStruct.payload.";
+      // Implementation: Any valid serializable term
+    }
+
+    leaf storage-backend {
+      type string {
+        length "1..50";
+      }
+      description
+        "Identifier of the storage backend that persisted this entry.
+         Examples: 'postgres-event-store', 'kafka-topic-events'";
     }
   }
 }

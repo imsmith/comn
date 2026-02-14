@@ -1,53 +1,117 @@
 module comn-context-policy {
+  yang-version 1.1;
   namespace "urn:comn:context:policy";
   prefix pol;
 
-  typedef policy-effect {
-    type enumeration {
-      enum allow;
-      enum deny;
-    }
+  import comn-context-rule {
+    prefix rule;
   }
 
-  container PolicyStruct {
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the policy data model for the COMN context system.
+     Policies consist of rules that determine access control and governance
+     decisions. Each policy has an effect (allow/deny) and a priority for
+     evaluation ordering.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define policy structure with rules
+       - Support for allow/deny effects
+       - Priority-based policy evaluation
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "COMN Architecture Documentation";
+  }
+
+  typedef policy-effect {
+    type enumeration {
+      enum allow {
+        description "Policy allows the specified actions";
+      }
+      enum deny {
+        description "Policy denies the specified actions";
+      }
+    }
+    description
+      "Policy effect determining whether access is granted or denied.
+       Deny policies typically take precedence over allow policies.";
+  }
+
+  grouping policy {
+    description "Policy structure for access control and governance";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description "Unique identifier for the policy";
     }
 
     leaf name {
-      type string;
+      type comn:non-empty-string;
       mandatory true;
+      description "Human-readable policy name";
     }
 
     leaf effect {
       type policy-effect;
       mandatory true;
+      description "Whether this policy allows or denies access";
     }
 
     list rules {
       key "id";
-      uses RuleStruct;
+      uses rule:rule;
+      description "Rules that make up this policy";
+    }
+
+    must "not(enabled = true()) or count(rules) > 0" {
+      error-message "An enabled policy must have at least one rule";
+      error-app-tag "policy-missing-rules";
+      description
+        "Business rule: Active policies must contain at least one rule
+         to have any effect on access control decisions.";
     }
 
     leaf priority {
-      type uint32;
+      type uint32 {
+        range "0..1000";
+      }
       default 0;
-      description "Higher priority policies evaluated first";
+      description
+        "Priority for policy evaluation ordering.
+         Higher priority policies are evaluated first.
+         Range: 0 (lowest) to 1000 (highest).";
     }
 
     leaf enabled {
       type boolean;
       default true;
+      description "Whether this policy is active";
     }
 
     container metadata {
       description "Policy metadata";
-      leaf created_at {
-        type string;      // ISO8601
+
+      leaf created-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp when policy was created";
       }
+
       leaf description {
         type string;
+        description "Detailed policy description";
       }
     }
   }

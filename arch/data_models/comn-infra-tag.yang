@@ -1,16 +1,56 @@
 module comn-infra-tag {
+  yang-version 1.1;
   namespace "urn:comn:infra:tag";
   prefix tag;
 
-  container TagStruct {
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the tag data model for infrastructure labeling
+     and categorization. Tags are key-value pairs used for organizing,
+     filtering, and querying infrastructure resources.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define tag grouping for reuse across infrastructure models
+       - Support for key-value tag structure";
+    reference
+      "COMN Architecture Documentation";
+  }
+
+  grouping tag {
+    description
+      "Key-value tag for resource labeling and categorization.
+       Tags enable flexible organization and querying of infrastructure
+       resources. Common use cases include environment labels (prod/dev),
+       cost centers, team ownership, and custom metadata.";
+
     leaf key {
-      type string;
+      type string {
+        length "1..255";
+        pattern '[a-zA-Z0-9_\-\.:/]+';
+      }
       mandatory true;
+      description
+        "Tag key identifier. Must be non-empty and contain only
+         alphanumeric characters, underscores, hyphens, dots, colons,
+         and forward slashes.";
     }
 
     leaf value {
-      type string;
+      type string {
+        length "0..1024";
+      }
       mandatory true;
+      description
+        "Tag value. Can be empty string but must be present.
+         Maximum length: 1024 characters.";
     }
   }
 }

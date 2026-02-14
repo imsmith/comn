@@ -1,35 +1,158 @@
 module comn-repo-query {
+  yang-version 1.1;
   namespace "urn:comn:repo:query";
-  prefix qry;
+  prefix repo-qry;
 
-  container QueryStruct {
-    leaf id {
-      type string;        // UUID v4
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "Query structure for repository operations.
+
+     Defines standard query representation supporting filtering,
+     pagination, and ordering. Backend implementations translate
+     this generic structure into backend-specific query languages.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision with pagination and ordering support.
+       - Query structure with filters and options
+       - Pagination with limit and offset
+       - Multi-field ordering
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "COMN Repository Query Interface Specification";
+  }
+
+  typedef sort-direction {
+    type enumeration {
+      enum asc {
+        description "Ascending order (A-Z, 0-9, oldest-newest)";
+      }
+      enum desc {
+        description "Descending order (Z-A, 9-0, newest-oldest)";
+      }
+    }
+    default asc;
+    description "Sort direction for order-by clauses";
+  }
+
+  grouping order-by {
+    description
+      "Ordering specification for query results.
+       Allows multiple sort keys with direction.";
+
+    leaf field {
+      type string {
+        length "1..255";
+      }
       mandatory true;
+      description "Field name to sort by";
+    }
+
+    leaf direction {
+      type sort-direction;
+      default asc;
+      description "Sort direction for this field";
+    }
+  }
+
+  grouping query {
+    description
+      "Standard query structure for repository operations.
+
+       Supports filtering, pagination, and ordering in a
+       backend-agnostic manner. The filters container structure
+       is backend-specific and validated by the repository implementation.";
+
+    leaf query-id {
+      type comn:uuid;
+      mandatory true;
+      description
+        "Unique identifier for this query instance.
+         Used for query caching, logging, and debugging.";
     }
 
     container filters {
-      description "Query filter conditions";
+      description
+        "Query filter conditions in backend-specific format.
+
+         Examples:
+         - SQL: WHERE clause predicates
+         - NoSQL: query documents
+         - Graph: traversal predicates
+
+         Structure validated by backend implementation.";
       // Backend-specific query structure
+      // Implementation: Map/dictionary of conditions
     }
 
     container options {
-      description "Query options";
+      description "Query execution options and result shaping";
+
       leaf limit {
-        type uint32;
+        type uint32 {
+          range "1..10000";
+        }
+        description
+          "Maximum number of results to return.
+           Enforces upper bound to prevent resource exhaustion.
+           Maximum: 10,000 results per query.";
       }
+
       leaf offset {
         type uint32;
+        default 0;
+        description
+          "Number of results to skip before returning matches.
+           Used for pagination. Defaults to 0 (no skip).";
       }
-      leaf-list order_by {
-        type string;
+
+      must "not(offset) or offset < 1000000" {
+        error-message "Offset must be less than 1,000,000 to prevent performance issues";
+        error-app-tag "deep-pagination-limit";
+        description
+          "Business rule: Deep pagination protection.
+           Very large offsets can cause performance issues.";
+      }
+
+      list order-by {
+        key "field";
+        description
+          "Ordered list of sort specifications.
+           Applied in sequence: primary sort, secondary sort, etc.";
+
+        uses order-by;
+      }
+
+      leaf timeout-ms {
+        type uint32 {
+          range "100..300000";
+        }
+        default 30000;
+        units "milliseconds";
+        description
+          "Query execution timeout in milliseconds.
+           Prevents long-running queries from blocking resources.
+           Default: 30 seconds (30000 ms).
+           Range: 100ms to 5 minutes.";
       }
     }
 
-    leaf timestamp {
-      type string;        // ISO8601
+    leaf created-at {
+      type comn:iso8601-timestamp;
       mandatory true;
+      description
+        "Timestamp when this query was created.
+         Used for query performance tracking and cache invalidation.";
     }
   }
 }
-

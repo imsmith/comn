@@ -1,47 +1,137 @@
 module comn-infra-config {
+  yang-version 1.1;
   namespace "urn:comn:infra:config";
   prefix cfg;
 
-  typedef config-source {
-    type enumeration {
-      enum environment;   // Environment variables
-      enum file;          // Configuration file
-      enum vault;         // Secret vault
-      enum runtime;       // Runtime override
-    }
+  import comn-types {
+    prefix comn;
   }
 
-  container ConfigStruct {
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the data model for infrastructure configuration
+     in the COMN system. Configuration entries support multiple sources
+     (environment, file, vault, runtime) with precedence-based resolution.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define configuration sources: environment, file, vault, runtime
+       - Support precedence-based configuration resolution
+       - Immutability controls for boot-time configuration
+       - Strong typing for timestamps";
+    reference
+      "COMN Configuration Management Specification";
+  }
+
+  typedef config-source {
+    type enumeration {
+      enum environment {
+        description
+          "Configuration from environment variables.
+           Typically precedence 21-40.";
+      }
+      enum file {
+        description
+          "Configuration from files (YAML, TOML, etc).
+           Typically precedence 1-20.";
+      }
+      enum vault {
+        description
+          "Configuration from secrets management (HashiCorp Vault, etc).
+           Typically precedence 41-60.";
+      }
+      enum runtime {
+        description
+          "Runtime overrides and dynamic configuration.
+           Typically precedence 61-80.";
+      }
+    }
+    description
+      "Source of configuration values. Determines where the
+       configuration was loaded from and informs precedence rules.";
+  }
+
+  grouping config {
+    description
+      "Configuration entry structure with source tracking
+       and precedence-based resolution.";
+
     leaf key {
-      type string;
+      type comn:non-empty-string;
       mandatory true;
+      description
+        "Configuration key identifier.
+         Typically uses dot notation (e.g., 'database.host').";
     }
 
     leaf value {
       type string;
       mandatory true;
+      description
+        "Configuration value as string.
+         Type conversion handled by application logic.";
     }
 
     leaf source {
       type config-source;
       mandatory true;
+      description "Origin of this configuration value";
     }
 
     leaf precedence {
-      type uint32;
-      description "Higher values override lower";
+      type uint8 {
+        range "1..100";
+      }
+      mandatory true;
+      description
+        "Configuration precedence level. Higher values override lower values.
+
+         Standard precedence levels:
+           1-20:   Default/file-based configuration
+           21-40:  Environment variables
+           41-60:  Vault/secrets management
+           61-80:  Runtime overrides
+           81-100: Emergency/debug overrides
+
+         When multiple configurations have the same key, the one with
+         the highest precedence value is active.";
     }
 
     leaf immutable {
       type boolean;
       default false;
-      description "Cannot be changed after boot";
+      description
+        "Indicates whether this configuration value can be changed after
+         initial boot. Immutable configurations are locked after first load.";
+    }
+
+    must "not(immutable = true() and source = 'runtime')" {
+      error-message "Runtime configurations cannot be marked as immutable";
+      error-app-tag "invalid-immutable-runtime";
+      description
+        "Business rule: Runtime overrides must remain mutable by definition.
+         Marking runtime configuration as immutable would prevent its intended
+         purpose of dynamic reconfiguration.";
     }
 
     container metadata {
-      description "Config metadata";
-      leaf loaded_at {
-        type string;      // ISO8601
+      description "Configuration metadata";
+
+      leaf loaded-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp when this configuration was loaded";
+      }
+
+      leaf description {
+        type string;
+        description "Human-readable description of this configuration";
       }
     }
   }

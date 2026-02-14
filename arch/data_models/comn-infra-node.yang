@@ -1,68 +1,183 @@
 module comn-infra-node {
+  yang-version 1.1;
   namespace "urn:comn:infra:node";
   prefix node;
 
+  import comn-infra-tag {
+    prefix tag;
+  }
+
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the data model for infrastructure nodes
+     in the COMN system. A node represents any infrastructure component
+     including compute resources, storage systems, network devices,
+     and managed services.
+
+     The model supports multiple infrastructure providers and includes
+     comprehensive metadata for tracking node lifecycle and state.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define node types: compute, storage, network, service
+       - Define node states: provisioning, running, stopped, failed, terminating
+       - Add metadata for provider, region, and creation tracking
+       - Support extensible tagging
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "COMN Infrastructure Design Document";
+  }
+
   typedef node-type {
     type enumeration {
-      enum compute;       // VM, container, bare metal
-      enum storage;       // Block, object, file storage
-      enum network;       // Router, switch, load balancer
-      enum service;       // Managed service
+      enum compute {
+        description
+          "Compute resources including virtual machines, containers,
+           and bare metal servers";
+      }
+      enum storage {
+        description
+          "Storage systems including block storage, object storage,
+           and file storage services";
+      }
+      enum network {
+        description
+          "Network infrastructure including routers, switches,
+           load balancers, and firewalls";
+      }
+      enum service {
+        description
+          "Managed platform services and third-party integrations";
+      }
     }
+    description
+      "Classification of infrastructure node types based on
+       primary function within the system architecture";
   }
 
   typedef node-state {
     type enumeration {
-      enum provisioning;
-      enum running;
-      enum stopped;
-      enum failed;
-      enum terminating;
+      enum provisioning {
+        description
+          "Node is being created and initialized. Resources are
+           being allocated but the node is not yet operational";
+      }
+      enum running {
+        description
+          "Node is fully operational and serving its intended function";
+      }
+      enum stopped {
+        description
+          "Node is stopped but can be restarted. Resources may still
+           be allocated";
+      }
+      enum failed {
+        description
+          "Node has encountered an error and is non-operational.
+           Manual intervention may be required";
+      }
+      enum terminating {
+        description
+          "Node is being decommissioned. Resources are being released
+           and the node will be removed";
+      }
     }
+    description
+      "Lifecycle state of an infrastructure node. States follow a
+       directed graph: provisioning → running ↔ stopped → terminating,
+       with failed reachable from any state";
   }
 
-  container NodeStruct {
+  grouping node {
+    description
+      "Node structure for infrastructure components.
+       Represents compute, storage, network, or service resources
+       with their configuration, state, and metadata.";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description "Unique identifier for the node";
     }
 
     leaf name {
-      type string;
+      type string {
+        length "1..255";
+        pattern '[a-zA-Z0-9]([a-zA-Z0-9\-_\.]*[a-zA-Z0-9])?';
+      }
       mandatory true;
+      description
+        "Human-readable node name. Must start and end with alphanumeric
+         characters. May contain hyphens, underscores, and dots.";
     }
 
     leaf type {
       type node-type;
       mandatory true;
+      description "Functional classification of the node";
     }
 
     leaf state {
       type node-state;
       mandatory true;
+      description "Current lifecycle state of the node";
     }
 
     container spec {
-      description "Node specifications";
+      description
+        "Node-specific specifications and configuration parameters.
+         The structure varies based on node type.";
       // Type-specific configuration
     }
 
     list tags {
       key "key";
-      uses TagStruct;
+      uses tag:tag;
+      description
+        "Key-value tags for node categorization, filtering, and metadata.
+         Tags enable flexible organization and querying of nodes.";
     }
 
     container metadata {
-      description "Node metadata";
+      description "Provider and tracking metadata for the node";
+
       leaf provider {
-        type string;
-        description "Infrastructure provider (aws, gcp, proxmox, etc)";
+        type string {
+          length "1..100";
+        }
+        description
+          "Infrastructure provider identifier
+           (e.g., aws, gcp, azure, proxmox, kubernetes)";
       }
+
       leaf region {
-        type string;
+        type string {
+          length "1..100";
+        }
+        description
+          "Provider-specific region or availability zone where the
+           node is located";
       }
-      leaf created_at {
-        type string;      // ISO8601
+
+      leaf created-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp when the node was created";
+      }
+
+      leaf updated-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp of the most recent node modification";
       }
     }
   }

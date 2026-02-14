@@ -1,84 +1,225 @@
 module comn-error {
+  yang-version 1.1;
   namespace "urn:comn:errors";
   prefix err;
 
-  typedef category {
-    type enumeration {
-      enum validation;    // Input validation failures
-      enum persistence;   // Database/storage failures
-      enum network;       // Network/connectivity failures
-      enum auth;          // Authentication/authorization failures
-      enum internal;      // Internal system errors
-      enum external;      // External service failures
-    }
+  import comn-types {
+    prefix comn;
   }
 
-  typedef severity {
-    type enumeration {
-      enum low;           // Informational, system can continue
-      enum medium;        // Warning, may need attention
-      enum high;          // Error, requires intervention
-      enum critical;      // Critical, system stability at risk
-    }
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines error structures for the COMN system,
+     providing consistent error representation across all components.
+
+     Errors are categorized by type and severity, with support for
+     contextual information, stack traces, and remediation suggestions.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision of error data model.
+       - Error categorization and severity levels
+       - Distributed tracing support
+       - Stack trace capture
+       - Strong typing for UUIDs and timestamps";
+    reference
+      "COMN Error Handling Specification";
   }
 
-  container ErrorStruct {
+  typedef error-category {
+    type enumeration {
+      enum validation {
+        description
+          "Input validation failures.
+           Data does not meet expected format or business rule constraints.";
+      }
+      enum persistence {
+        description
+          "Database/storage failures.
+           Issues with reading, writing, or querying data stores.";
+      }
+      enum network {
+        description
+          "Network/connectivity failures.
+           Problems with network communication or external service access.";
+      }
+      enum auth {
+        description
+          "Authentication/authorization failures.
+           Identity verification or permission check failures.";
+      }
+      enum internal {
+        description
+          "Internal system errors.
+           Unexpected conditions in application logic or infrastructure.";
+      }
+      enum external {
+        description
+          "External service failures.
+           Third-party services or dependencies failing or unavailable.";
+      }
+    }
+    description
+      "Error category classification.
+       Groups errors by their root cause type.";
+  }
+
+  typedef error-severity {
+    type enumeration {
+      enum low {
+        description
+          "Informational, system can continue normally.
+           No user impact, logged for awareness.";
+      }
+      enum medium {
+        description
+          "Warning, may need attention but not urgent.
+           Minor degradation, system still functional.";
+      }
+      enum high {
+        description
+          "Error, requires intervention to restore normal operation.
+           Significant impact on functionality or user experience.";
+      }
+      enum critical {
+        description
+          "Critical, system stability at risk, immediate action required.
+           Service outage or data integrity threat.";
+      }
+    }
+    description
+      "Error severity level.
+       Indicates the impact and urgency of the error.";
+  }
+
+  grouping error {
+    description
+      "Error structure for comprehensive error reporting.
+       Captures all relevant information for debugging and resolution.";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description
+        "Unique error identifier.
+         Generated when error is created.";
     }
 
     leaf message {
-      type string;
+      type string {
+        length "1..2048";
+      }
       mandatory true;
-      description "Human-readable error message";
+      description
+        "Human-readable error message.
+         Should be clear and actionable. Maximum 2048 characters.";
     }
 
     leaf category {
-      type category;
+      type error-category;
       mandatory true;
+      description
+        "Error category classification.
+         Helps route errors to appropriate handling teams.";
     }
 
     leaf severity {
-      type severity;
+      type error-severity;
       mandatory true;
+      description
+        "Error severity level.
+         Determines priority and alerting thresholds.";
     }
 
     leaf field {
-      type string;
-      description "Field name if validation error";
+      type string {
+        length "1..255";
+      }
+      description
+        "Field name if validation error.
+         Identifies which input field failed validation.";
     }
 
     leaf suggestion {
-      type string;
-      description "Suggested remedy or next action";
+      type string {
+        length "1..1024";
+      }
+      description
+        "Suggested remedy or next action.
+         Helps users resolve the error condition.";
     }
 
     container details {
-      description "Arbitrary key-value error details";
+      description
+        "Arbitrary key-value error details.
+         Additional context specific to the error type.";
       // Map/dictionary of string -> any
     }
 
     leaf-list stacktrace {
       type string;
-      description "Stack trace lines";
+      ordered-by user;
+      description
+        "Stack trace lines (ordered from innermost to outermost frame).
+         Captures execution path leading to the error.";
     }
 
     container context {
-      description "Execution context at error time";
-      leaf correlation_id {
-        type string;
-      }
-      leaf timestamp {
-        type string;      // ISO8601
-        mandatory true;
-      }
-      // Additional context key-value pairs
-    }
+      description
+        "Execution context at error time.
+         Provides distributed tracing and debugging information.";
 
-    leaf timestamp {
-      type string;        // ISO8601
-      mandatory true;
+      leaf correlation-id {
+        type comn:correlation-id;
+        description
+          "Correlation ID for distributed tracing.
+           Links this error to the broader request/transaction.";
+      }
+
+      leaf causation-id {
+        type comn:causation-id;
+        description
+          "ID of the event or error that caused this error.
+           Enables building causation chains for root cause analysis.";
+      }
+
+      leaf parent-error-id {
+        type comn:uuid;
+        description
+          "ID of the parent error in a wrapped/nested error chain.
+           Used when errors are wrapped or re-thrown with additional context.";
+      }
+
+      leaf timestamp {
+        type comn:iso8601-timestamp;
+        mandatory true;
+        description
+          "When the error occurred.
+           Captures the exact moment of error creation.";
+      }
+
+      list property {
+        key "name";
+        description
+          "Additional context properties (user_id, session_id, etc).
+           Extensible key-value pairs for debugging context.";
+
+        leaf name {
+          type comn:non-empty-string;
+          description "Property name";
+        }
+
+        leaf value {
+          type string;
+          description "Property value";
+        }
+      }
     }
   }
 }

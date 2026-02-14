@@ -1,33 +1,86 @@
 module comn-context-rule {
+  yang-version 1.1;
   namespace "urn:comn:context:rule";
   prefix rule;
 
-  container RuleStruct {
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the rule data model for the COMN policy system.
+     Rules contain conditions and associated actions that are evaluated
+     as part of policy execution. Rules can be individually enabled or
+     disabled.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define rule structure with conditions and actions
+       - Support for enable/disable functionality
+       - Strong typing for UUIDs";
+    reference
+      "COMN Architecture Documentation";
+  }
+
+  grouping rule {
+    description "Rule structure for condition-based actions";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description "Unique identifier for the rule";
     }
 
     leaf condition {
       type string;
       mandatory true;
-      description "Rule condition expression";
+      description
+        "Rule condition expression evaluated to determine if actions
+         should be executed. The expression syntax follows
+         the system's expression language specification.";
     }
 
     container actions {
-      description "Actions to take when rule matches";
-      // List of action specifications
+      description
+        "Actions to take when rule condition matches.
+         Each action has a type and associated parameters.";
+
+      list action {
+        key "name";
+        description "A single action specification";
+
+        leaf name {
+          type comn:non-empty-string;
+          description "Action name/type (e.g., 'log', 'alert', 'modify')";
+        }
+
+        leaf-list parameters {
+          type string;
+          description "Action parameters as key=value pairs";
+        }
+      }
     }
 
     leaf enabled {
       type boolean;
       default true;
+      description "Whether this rule is active";
     }
 
     container metadata {
       description "Rule metadata";
+
       leaf description {
         type string;
+        description "Detailed rule description";
       }
     }
   }

@@ -1,9 +1,8 @@
 defmodule Secrets do
+  @moduledoc """
+  Top-level Secrets module.
 
-# secrets do this:
-#  lock(blob, keypair) :: locked_blob
-#  unlock(locked_blob, keypair) :: blob
-
-
-
+  See `Comn.Secrets` for the behaviour definition and
+  `Comn.Secrets.Local` / `Comn.Secrets.Vault` for implementations.
+  """
 end

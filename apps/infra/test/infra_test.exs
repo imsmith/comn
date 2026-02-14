@@ -1,8 +1,7 @@
-defmodule InfraTest do
-  use ExUnit.Case
-  doctest Infra
+defmodule Comn.InfraTest do
+  use ExUnit.Case, async: true
 
-  test "greets the world" do
-    assert Infra.hello() == :world
+  test "Comn.Infra module exists" do
+    assert Code.ensure_loaded?(Comn.Infra)
   end
 end

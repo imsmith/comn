@@ -1,50 +1,128 @@
 module comn-infra-link {
+  yang-version 1.1;
   namespace "urn:comn:infra:link";
   prefix link;
 
-  typedef link-type {
-    type enumeration {
-      enum network;       // Network connection
-      enum dependency;    // Service dependency
-      enum data_flow;     // Data flow relationship
-    }
+  import comn-infra-tag {
+    prefix tag;
   }
 
-  container LinkStruct {
+  import comn-types {
+    prefix comn;
+  }
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the data model for infrastructure links
+     in the COMN system. Links represent relationships between nodes,
+     including network connections, service dependencies, and data flows.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define link types: network, dependency, data_flow
+       - Support for source and target node references
+       - Extensible tagging for link metadata
+       - Strong typing for UUIDs";
+    reference
+      "COMN Infrastructure Design Document";
+  }
+
+  typedef link-type {
+    type enumeration {
+      enum network {
+        description
+          "Physical or virtual network connection between nodes";
+      }
+      enum dependency {
+        description
+          "Service dependency relationship (source depends on target)";
+      }
+      enum data-flow {
+        description
+          "Data flow relationship indicating information transfer";
+      }
+    }
+    description
+      "Classification of infrastructure link types based on the
+       nature of the relationship between nodes";
+  }
+
+  grouping link {
+    description
+      "Link structure for infrastructure relationships.
+       Represents connections and dependencies between nodes.";
+
     leaf id {
-      type string;        // UUID v4
+      type comn:uuid;
       mandatory true;
+      description "Unique identifier for the link";
     }
 
-    leaf source_id {
-      type string;
+    leaf source-id {
+      type comn:uuid;
       mandatory true;
-      description "Source node ID";
+      description
+        "Reference to the source node. For dependencies, this is
+         the dependent node. For data flows, this is the origin.";
     }
 
-    leaf target_id {
-      type string;
+    leaf target-id {
+      type comn:uuid;
       mandatory true;
-      description "Target node ID";
+      description
+        "Reference to the target node. For dependencies, this is
+         the dependency. For data flows, this is the destination.";
+    }
+
+    must "source-id != target-id" {
+      error-message "Link source and target must be different nodes";
+      error-app-tag "self-referential-link";
+      description
+        "Business rule: Self-referential links are not permitted.
+         A node cannot be linked to itself.";
     }
 
     leaf type {
       type link-type;
       mandatory true;
+      description "Type of relationship this link represents";
     }
 
     container spec {
-      description "Link specifications";
+      description
+        "Link specifications and properties.
+         Type-specific configuration such as bandwidth, latency,
+         dependency strength, or data flow characteristics.";
       // Type-specific configuration (bandwidth, latency, etc)
     }
 
     list tags {
       key "key";
-      uses TagStruct;
+      uses tag:tag;
+      description
+        "Key-value tags for link categorization and metadata.";
     }
 
     container metadata {
-      description "Link metadata";
+      description
+        "Link metadata for tracking and additional properties";
+
+      leaf created-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp when the link was established";
+      }
+
+      leaf updated-at {
+        type comn:iso8601-timestamp;
+        description "Timestamp of the most recent link modification";
+      }
     }
   }
 }

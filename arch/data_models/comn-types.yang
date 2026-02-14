@@ -1,0 +1,180 @@
+module comn-types {
+  yang-version 1.1;
+  namespace "urn:comn:types";
+  prefix comn;
+
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "Common type definitions for the COMN system.
+     This module provides reusable typedef declarations for
+     identifiers, timestamps, and other common data types used
+     across all COMN modules.
+
+     Using these standardized types ensures consistency and
+     enables strong validation across the entire system.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - UUID v4 type definition with pattern constraint
+       - ISO8601 timestamp type definition
+       - Version number type
+       - Correlation and causation ID types
+       - Non-empty string type
+       - Entity status enumeration for lifecycle management";
+    reference
+      "RFC 4122: A Universally Unique IDentifier (UUID) URN Namespace
+       RFC 3339: Date and Time on the Internet: Timestamps
+       ISO 8601: Date and time format";
+  }
+
+  typedef uuid {
+    type string {
+      length "36";
+      pattern '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+    }
+    description
+      "A Universally Unique Identifier (UUID) version 4 as defined in RFC 4122.
+       The pattern enforces:
+       - Standard 8-4-4-4-12 hexadecimal format with lowercase letters
+       - Version 4 (random) in the version field
+       - Valid variant bits (10xx) in the variant field
+
+       Example: 550e8400-e29b-41d4-a716-446655440000";
+    reference
+      "RFC 4122: A Universally Unique IDentifier (UUID) URN Namespace";
+  }
+
+  typedef iso8601-timestamp {
+    type string {
+      pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})';
+    }
+    description
+      "An ISO 8601 timestamp in RFC 3339 format with timezone.
+       Format: YYYY-MM-DDTHH:MM:SS[.sss](Z|±HH:MM)
+
+       Examples:
+       - 2025-12-27T10:30:00Z
+       - 2025-12-27T10:30:00.123Z
+       - 2025-12-27T10:30:00+05:30
+       - 2025-12-27T10:30:00.123-08:00
+
+       The pattern enforces:
+       - Date: YYYY-MM-DD format
+       - Time: HH:MM:SS with optional fractional seconds
+       - Timezone: Z (UTC) or ±HH:MM offset";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       ISO 8601: Date and time format";
+  }
+
+  typedef non-empty-string {
+    type string {
+      length "1..max";
+    }
+    description
+      "A string that must contain at least one character.
+       Useful for names, identifiers, and other fields that
+       should not be empty.";
+  }
+
+  typedef version-number {
+    type uint32 {
+      range "1..max";
+    }
+    default 1;
+    description
+      "Schema version number. Must be positive integer starting at 1.
+       Incremented when the structure or semantics change.";
+  }
+
+  typedef correlation-id {
+    type uuid;
+    description
+      "Correlation ID for distributed request tracking.
+       Links related events and operations across service boundaries.
+       All events and operations in the same logical request/transaction
+       share the same correlation ID.";
+  }
+
+  typedef causation-id {
+    type uuid;
+    description
+      "Causation ID identifying the event or operation that triggered
+       the current event. Forms a causal chain for event sourcing.
+       If event A triggers event B, then B.causation_id = A.id.";
+  }
+
+  typedef entity-status {
+    type enumeration {
+      enum draft {
+        description "Entity is being created/edited, not yet active";
+      }
+      enum active {
+        description "Entity is active and in use";
+      }
+      enum inactive {
+        description "Entity is inactive but preserved for reference";
+      }
+      enum archived {
+        description "Entity is archived for historical reference";
+      }
+      enum deleted {
+        description "Entity is marked for deletion";
+      }
+    }
+    description
+      "Common status values for entity lifecycle management.
+       Supports typical lifecycle: draft → active → inactive → archived → deleted";
+  }
+
+  grouping common-metadata {
+    description
+      "Standard metadata attributes for tracking entity lifecycle
+       and provenance. Recommended for all major entities.";
+
+    container metadata {
+      description "Entity lifecycle and provenance metadata";
+
+      leaf status {
+        type entity-status;
+        default "draft";
+        description "Current lifecycle status of the entity";
+      }
+
+      leaf created-at {
+        type iso8601-timestamp;
+        description "Timestamp when entity was created";
+      }
+
+      leaf updated-at {
+        type iso8601-timestamp;
+        description "Timestamp of last modification";
+      }
+
+      leaf created-by {
+        type non-empty-string;
+        description "User or system that created this entity";
+      }
+
+      leaf updated-by {
+        type non-empty-string;
+        description "User or system that last modified this entity";
+      }
+
+      leaf version {
+        type version-number;
+        default 1;
+        description
+          "Entity version number. Incremented on each modification.
+           Supports optimistic locking and change detection.";
+      }
+    }
+  }
+}

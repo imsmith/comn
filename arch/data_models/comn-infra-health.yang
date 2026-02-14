@@ -1,44 +1,106 @@
 module comn-infra-health {
+  yang-version 1.1;
   namespace "urn:comn:infra:health";
   prefix health;
 
-  typedef health-status {
-    type enumeration {
-      enum healthy;
-      enum degraded;
-      enum unhealthy;
-    }
+  import comn-types {
+    prefix comn;
   }
 
-  container HealthCheckStruct {
+  organization
+    "COMN Project";
+
+  contact
+    "COMN Development Team
+     Project repository: https://github.com/comn";
+
+  description
+    "This module defines the data model for infrastructure health checks
+     in the COMN system. Health checks monitor component availability,
+     performance, and operational status.";
+
+  revision 2025-12-27 {
+    description
+      "Initial revision.
+       - Define health statuses: healthy, degraded, unhealthy
+       - Support for latency tracking
+       - Extensible details for component-specific health information
+       - Strong typing for timestamps";
+    reference
+      "COMN Health Monitoring Specification";
+  }
+
+  typedef health-status {
+    type enumeration {
+      enum healthy {
+        description
+          "Component is fully operational and performing within
+           expected parameters";
+      }
+      enum degraded {
+        description
+          "Component is operational but experiencing issues or
+           performing below expected parameters. May require attention.";
+      }
+      enum unhealthy {
+        description
+          "Component is not operational or has failed critical checks.
+           Immediate intervention required.";
+      }
+    }
+    description
+      "Health status classification for infrastructure components.
+       Represents the operational state based on health check results.";
+  }
+
+  grouping health-check {
+    description
+      "Health check result structure for infrastructure components.
+       Captures the status, timing, and details of health assessments.";
+
     leaf component {
-      type string;
+      type comn:non-empty-string;
       mandatory true;
-      description "Component being checked (db, cache, api, etc)";
+      description
+        "Component being checked.
+         Examples: 'database', 'cache', 'api', 'queue', 'storage'";
     }
 
     leaf status {
       type health-status;
       mandatory true;
+      description "Health status determined by the check";
     }
 
     leaf message {
-      type string;
-      description "Status message or error";
+      type string {
+        length "0..1024";
+      }
+      description
+        "Status message or error information.
+         Provides human-readable context about the health status.";
     }
 
-    leaf latency_ms {
+    leaf latency-ms {
       type uint32;
-      description "Check execution time";
+      units "milliseconds";
+      description
+        "Health check execution time in milliseconds.
+         Useful for detecting performance degradation.";
     }
 
     leaf timestamp {
-      type string;        // ISO8601
+      type comn:iso8601-timestamp;
       mandatory true;
+      description
+        "Timestamp when the health check was performed.
+         Used for tracking check frequency and staleness.";
     }
 
     container details {
-      description "Additional health details";
+      description
+        "Additional health details specific to the component type.
+         May include metrics, connection counts, error rates, etc.";
       // Backend-specific health information
     }
   }

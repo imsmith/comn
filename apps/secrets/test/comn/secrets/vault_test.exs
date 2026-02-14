@@ -14,7 +14,7 @@ defmodule Comn.Secrets.VaultTest do
   @moduletag :vault_integration
 
   describe "Vault Transit engine integration (see features/vault_backend.feature)" do
-    setup context do
+    setup _context do
       # Skip if Vault is not configured
       vault_addr = System.get_env("VAULT_ADDR") || "http://localhost:8200"
       vault_token = System.get_env("VAULT_TOKEN")
@@ -228,7 +228,7 @@ defmodule Comn.Secrets.VaultTest do
   end
 
   describe "backend interoperability (see features/backend_interoperability.feature)" do
-    setup context do
+    setup _context do
       vault_addr = System.get_env("VAULT_ADDR") || "http://localhost:8200"
       vault_token = System.get_env("VAULT_TOKEN")
 

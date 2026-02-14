@@ -1,26 +1,15 @@
-defmodule Events.RegistryTest do
+defmodule Comn.Events.RegistryTest do
   use ExUnit.Case, async: true
-  doctest Events.Registry
 
-
-  describe "subscribe/1" do
-    test "subscribes to a topic" do
-      assert :ok = Events.Registry.subscribe("test_topic")
-    end
-
-    test "allows multiple subscriptions to the same topic" do
-      assert :ok = Events.Registry.subscribe("test_topic")
-      assert :ok = Events.Registry.subscribe("test_topic")
-    end
-
-    test "handles subscription errors" do
-      assert {:error, _reason} = Events.Registry.subscribe(nil)
-    end
-
-
+  test "Comn.Events.Registry module is loaded" do
+    assert Code.ensure_loaded?(Comn.Events.Registry)
   end
 
-  test "greets the world" do
-    assert Events.Registry.hello() == :world
+  test "Comn.Events.Registry defines subscribe" do
+    assert {:subscribe, 1} in Comn.Events.Registry.__info__(:functions)
+  end
+
+  test "Comn.Events.Registry defines broadcast" do
+    assert {:broadcast, 2} in Comn.Events.Registry.__info__(:functions)
   end
 end

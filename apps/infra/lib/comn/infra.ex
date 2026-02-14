@@ -1,18 +1,7 @@
 defmodule Comn.Infra do
   @moduledoc """
-  Behaviour defining the interface for Infra systems
+  Behaviour defining the interface for Infra systems.
+
+  Not yet implemented. Placeholder for future infrastructure management.
   """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> Infra.hello()
-      :world
-
-  """
-
-
-
 end
