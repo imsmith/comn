@@ -1,24 +1,23 @@
-
 defmodule Comn.Repo.Graphs do
   @moduledoc """
-  A behavior defining the interface for graph database operations and queries.
+  Behaviour for graph repository operations.
   """
 
-  @optional_callbacks graph_info: 0
-  @optional_callbacks query_graph: 2
-  @optional_callbacks query_graph!: 2
+  @callback graph_create(opts :: keyword()) ::
+              {:ok, Comn.Repo.Graphs.GraphStruct.t()} | {:error, term()}
 
-  ## GRAPH
-  @callback graph_create(Comn.Repo.Graph.t()) :: any()
-  @callback graph_delete() :: any()
-  @callback graph_info() :: any()
-  @callback graph_read() :: any()
-  @callback graph_update(Comn.Repo.Graph.t()) :: any()
+  @callback graph_delete(id :: term()) ::
+              :ok | {:error, term()}
 
-  ## QUERY
-  @callback query_graph(Comn.Repo.Graph.t()) :: any()
-  @callback query_graph!(Comn.Repo.Graph.t()) :: any()
-  @callback query_graph(Comn.Repo.Graph.t(), map()) :: any()
-  @callback query_graph!(Comn.Repo.Graph.t(), map()) :: any()
+  @callback graph_info(id :: term()) ::
+              {:ok, map()} | {:error, term()}
 
+  @callback graph_read(id :: term()) ::
+              {:ok, Comn.Repo.Graphs.GraphStruct.t()} | {:error, term()}
+
+  @callback graph_update(id :: term(), updates :: keyword()) ::
+              {:ok, Comn.Repo.Graphs.GraphStruct.t()} | {:error, term()}
+
+  @callback query_graph(id :: term(), query :: keyword()) ::
+              {:ok, term()} | {:error, term()}
 end

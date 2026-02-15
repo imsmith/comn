@@ -1,22 +1,35 @@
 defmodule Comn.Repo.File do
   @moduledoc """
-  A behavior defining the interface for file repository operations.
+  Behaviour for file repository operations using a lifecycle state machine.
+
+  State transitions:
+
+           ┌→ stream → cast
+  open → load ┤
+           ├→ read → close
+           └→ write → close
   """
 
-  @callback file_create(term(), keyword()) :: :ok | {:error, term()}
-  @callback file_delete(term(), keyword()) :: :ok | {:error, term()}
-  @callback file_update(term(), keyword()) :: :ok | {:error, term()}
+  @type handle :: term()
 
-  @callback file_open(term(), keyword()) :: {:ok, term()} | {:error, term()}
-  @callback file_close(term(), keyword()) :: :ok | {:error, term()}
-  @callback file_info(term(), keyword()) :: {:ok, map()} | {:error, term()}
-  @callback file_exists?(term(), keyword()) :: boolean()
-  @callback file_list(term(), keyword()) :: {:ok, [term()]} | {:error, term()}
+  @callback open(path_or_ref :: term(), opts :: keyword()) ::
+              {:ok, handle()} | {:error, term()}
 
-  @callback file_read(term(), keyword()) :: {:ok, term()} | {:error, term()}
-  @callback file_stream(term(), keyword()) :: Enumerable.t() | {:error, term()}
-  @callback file_publish(term(), keyword()) :: :ok | {:error, term()}
+  @callback load(handle(), opts :: keyword()) ::
+              {:ok, handle()} | {:error, term()}
 
-  @callback file_subscribe(term(), keyword()) :: Enumerable.t() | {:error, term()}
-  @callback file_unsubscribe(term(), keyword()) :: :ok | {:error, term()}
+  @callback stream(handle(), opts :: keyword()) ::
+              {:ok, Enumerable.t()} | {:error, term()}
+
+  @callback cast(handle(), opts :: keyword()) ::
+              :ok | {:error, term()}
+
+  @callback read(handle(), opts :: keyword()) ::
+              {:ok, binary()} | {:error, term()}
+
+  @callback write(handle(), data :: iodata(), opts :: keyword()) ::
+              {:ok, handle()} | {:error, term()}
+
+  @callback close(handle(), opts :: keyword()) ::
+              :ok | {:error, term()}
 end

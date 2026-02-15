@@ -4,7 +4,7 @@ defmodule Comn.MixProject do
   def project do
     [
       app: :comn,
-      version: "0.3.0",
+      version: "0.4.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -21,6 +21,8 @@ defmodule Comn.MixProject do
     [
       {:gnat, "~> 1.11"},
       {:jason, "~> 1.4"},
+      {:req, "~> 0.5"},
+      {:libgraph, "~> 0.16"},
       {:faker, "~> 0.18", only: :test}
     ]
   end
