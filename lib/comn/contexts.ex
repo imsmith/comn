@@ -25,19 +25,23 @@ defmodule Comn.Contexts do
 
   alias Comn.Contexts.ContextStruct
 
+  # Process dictionary is intentional here — ambient context propagation is the
+  # standard BEAM pattern for request-scoped metadata (see Logger metadata,
+  # OpenTelemetry baggage). The alternative (explicit parameter threading) would
+  # require every function in the call chain to accept and forward a context arg.
   @key :comn_context
 
   @doc "Sets the current process context."
   @spec set(ContextStruct.t()) :: :ok
   def set(%ContextStruct{} = ctx) do
-    Process.put(@key, ctx)
+    Process.put(@key, ctx) # intentional: ambient context, same pattern as Logger metadata
     :ok
   end
 
   @doc "Gets the current process context, or nil if none set."
   @spec get() :: ContextStruct.t() | nil
   def get do
-    Process.get(@key)
+    Process.get(@key) # intentional: ambient context, same pattern as Logger metadata
   end
 
   @doc "Creates a new context and sets it on the current process."
@@ -83,7 +87,7 @@ defmodule Comn.Contexts do
       fun.()
     after
       case old do
-        nil -> Process.delete(@key)
+        nil -> Process.delete(@key) # intentional: restore clean state
         prev -> set(prev)
       end
     end
@@ -114,8 +118,8 @@ defmodule Comn.Contexts do
   end
 
   @impl Comn
-  def act(%{action: :new}), do: {:ok, new()}
   def act(%{action: :new, fields: fields}), do: {:ok, new(fields)}
+  def act(%{action: :new}), do: {:ok, new()}
   def act(%{action: :get}), do: {:ok, get()}
   def act(%{action: :set, context: ctx}), do: {:ok, set(ctx)}
   def act(_input), do: {:error, :unknown_action}
