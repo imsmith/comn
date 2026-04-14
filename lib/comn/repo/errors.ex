@@ -1,0 +1,20 @@
+defmodule Comn.Repo.Errors do
+  @moduledoc """
+  Registered error codes for the `Comn.Repo` subsystem.
+  """
+
+  use Comn.Errors.Registry
+
+  # Table
+  register_error "repo.table/not_found",      :persistence, message: "Table or key does not exist"
+  register_error "repo.table/already_exists",  :persistence, message: "Table already exists"
+
+  # File
+  register_error "repo.file/invalid_state",   :validation,  message: "File handle is not in the expected lifecycle state"
+  register_error "repo.file/stale_handle",    :persistence, message: "NFS file handle is stale (ESTALE)"
+  register_error "repo.file/ipfs_error",      :network,     message: "IPFS daemon returned an error"
+
+  # Graph
+  register_error "repo.graph/missing_key",        :validation,  message: "Required :vertex or :key option was not provided"
+  register_error "repo.graph/unknown_query_type",  :validation, message: "Unrecognized traversal query type"
+end

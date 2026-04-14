@@ -4,7 +4,7 @@ defmodule Comn.MixProject do
   def project do
     [
       app: :comn,
-      version: "0.4.0",
+      version: "0.5.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -13,7 +13,8 @@ defmodule Comn.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :inets]
+      extra_applications: [:logger, :inets],
+      mod: {Comn.Application, []}
     ]
   end
 

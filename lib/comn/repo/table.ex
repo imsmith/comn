@@ -17,9 +17,32 @@ defmodule Comn.Repo.Table do
 
   @behaviour Comn
 
+  @doc """
+  Creates a new table.
+
+  Errors: `{:already_exists, name}` (`repo.table/already_exists`).
+  """
   @callback create(name :: atom(), opts :: keyword()) :: {:ok, term()} | {:error, term()}
+
+  @doc """
+  Destroys a table and all its data.
+
+  Errors: `{:not_found, name}` (`repo.table/not_found`).
+  """
   @callback drop(name :: atom()) :: :ok | {:error, term()}
+
+  @doc """
+  Returns all keys in the table.
+
+  Errors: `{:not_found, name}` (`repo.table/not_found`).
+  """
   @callback keys(name :: atom()) :: {:ok, [term()]} | {:error, term()}
+
+  @doc """
+  Returns the number of entries in the table.
+
+  Errors: `{:not_found, name}` (`repo.table/not_found`).
+  """
   @callback count(name :: atom()) :: {:ok, non_neg_integer()} | {:error, term()}
 
   @impl Comn

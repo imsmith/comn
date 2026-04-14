@@ -6,12 +6,12 @@ end
 
 defimpl Comn.Error, for: BitString do
   def to_error(message) when is_binary(message) do
-    Comn.Errors.ErrorStruct.new("unknown", nil, message, nil)
+    {:ok, Comn.Errors.ErrorStruct.new("unknown", nil, message, nil)}
   end
 end
 
 defimpl Comn.Error, for: Atom do
   def to_error(reason) do
-    Comn.Errors.ErrorStruct.new(Atom.to_string(reason), nil, Atom.to_string(reason), nil)
+    {:ok, Comn.Errors.ErrorStruct.new(Atom.to_string(reason), nil, Atom.to_string(reason), nil)}
   end
 end

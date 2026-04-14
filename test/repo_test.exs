@@ -15,11 +15,18 @@ defmodule Comn.Repo.Table.ETSTest do
   use ExUnit.Case
 
   alias Comn.Repo.Table.ETS
+  alias Comn.Errors.ErrorStruct
 
   setup do
     table = :"test_table_#{:erlang.unique_integer([:positive])}"
     {:ok, _} = ETS.create(table)
-    on_exit(fn -> ETS.drop(table) end)
+    on_exit(fn ->
+      try do
+        ETS.drop(table)
+      rescue
+        ArgumentError -> :ok
+      end
+    end)
     %{table: table}
   end
 
@@ -33,12 +40,12 @@ defmodule Comn.Repo.Table.ETSTest do
     test "returns error when table already exists" do
       name = :"dup_test_#{:erlang.unique_integer([:positive])}"
       {:ok, _} = ETS.create(name)
-      assert {:error, {:already_exists, ^name}} = ETS.create(name)
+      assert {:error, %ErrorStruct{code: "repo.table/already_exists"}} = ETS.create(name)
       ETS.drop(name)
     end
 
     test "drop returns error for nonexistent table" do
-      assert {:error, {:not_found, :nonexistent}} = ETS.drop(:nonexistent)
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.drop(:nonexistent)
     end
   end
 
@@ -55,7 +62,7 @@ defmodule Comn.Repo.Table.ETSTest do
     end
 
     test "get returns error for missing key", %{table: table} do
-      assert {:error, {:not_found, "missing"}} = ETS.get(table, key: "missing")
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.get(table, key: "missing")
     end
   end
 
@@ -63,7 +70,7 @@ defmodule Comn.Repo.Table.ETSTest do
     test "removes a key", %{table: table} do
       ETS.set(table, key: "del", value: "val")
       assert :ok = ETS.delete(table, key: "del")
-      assert {:error, {:not_found, "del"}} = ETS.get(table, key: "del")
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.get(table, key: "del")
     end
 
     test "delete on missing key is silent", %{table: table} do
@@ -80,7 +87,7 @@ defmodule Comn.Repo.Table.ETSTest do
     end
 
     test "returns error for nonexistent table" do
-      assert {:error, {:not_found, :nope}} = ETS.describe(:nope)
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.describe(:nope)
     end
   end
 

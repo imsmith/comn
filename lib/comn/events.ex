@@ -22,9 +22,20 @@ defmodule Comn.Events do
 
   alias Comn.Events.EventStruct
 
+  @doc """
+  Starts the event adapter process. Add to a supervision tree.
+
+  Errors: adapter-specific connection failures (e.g. `events.nats/connection_failed`).
+  """
   @callback start_link(keyword()) :: {:ok, pid()} | {:error, term()}
+
+  @doc "Publishes an event to all subscribers of its topic."
   @callback broadcast(EventStruct.t()) :: :ok | {:error, term()}
+
+  @doc "Subscribes the calling process to events on `topic`."
   @callback subscribe(topic :: String.t(), opts :: keyword()) :: :ok | {:error, term()}
+
+  @doc "Removes the calling process's subscription to `topic`."
   @callback unsubscribe(topic :: String.t(), opts :: keyword()) :: :ok | {:error, term()}
 
   @impl Comn

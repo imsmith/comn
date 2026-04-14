@@ -23,20 +23,28 @@ defmodule Comn.EventsTest do
 
   describe "Comn.Event protocol" do
     test "converts a map with atom keys" do
-      event = Event.to_event(%{type: :info, topic: "test", data: %{}})
+      {:ok, event} = Event.to_event(%{type: :info, topic: "test", data: %{}})
       assert %EventStruct{} = event
       assert event.type == :info
     end
 
     test "converts a 3-tuple" do
-      event = Event.to_event({:warn, "test.topic", %{msg: "hi"}})
+      {:ok, event} = Event.to_event({:warn, "test.topic", %{msg: "hi"}})
       assert %EventStruct{} = event
       assert event.type == :warn
     end
 
     test "passes through an existing EventStruct" do
       original = EventStruct.new(:test, "topic", %{})
-      assert Event.to_event(original) == original
+      assert {:ok, ^original} = Event.to_event(original)
+    end
+
+    test "returns error for invalid map" do
+      assert {:error, :missing_keys} = Event.to_event(%{foo: "bar"})
+    end
+
+    test "returns error for invalid tuple" do
+      assert {:error, :invalid_tuple} = Event.to_event({:only_one})
     end
   end
 
@@ -56,7 +64,6 @@ defmodule Comn.EventsTest do
 
   describe "EventLog" do
     setup do
-      start_supervised!(Comn.EventLog)
       EventLog.clear()
       :ok
     end

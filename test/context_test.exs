@@ -56,20 +56,20 @@ defmodule Comn.ContextsTest do
 
   describe "Comn.Context protocol" do
     test "converts a map to ContextStruct" do
-      ctx = Context.to_context(%{request_id: "req-proto"})
+      {:ok, ctx} = Context.to_context(%{request_id: "req-proto"})
       assert %ContextStruct{} = ctx
       assert ctx.request_id == "req-proto"
     end
 
     test "converts a keyword list to ContextStruct" do
-      ctx = Context.to_context(user_id: "user-proto")
+      {:ok, ctx} = Context.to_context(user_id: "user-proto")
       assert %ContextStruct{} = ctx
       assert ctx.user_id == "user-proto"
     end
 
     test "passes through an existing ContextStruct" do
       original = ContextStruct.new(%{env: "prod"})
-      assert Context.to_context(original) == original
+      assert {:ok, ^original} = Context.to_context(original)
     end
   end
 

@@ -55,6 +55,7 @@ defmodule Comn.Secrets.Key do
           metadata: map()
         }
 
+  @enforce_keys [:algorithm, :public]
   defstruct [
     :id,
     :algorithm,

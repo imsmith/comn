@@ -18,6 +18,7 @@ defmodule Comn.Secrets.SecurityTestCase do
 
     quote bind_quoted: [implementation: implementation] do
       import Bitwise
+      alias Comn.Errors.ErrorStruct
       alias Comn.Secrets.{Key, LockedBlob, Container}
 
       describe "key validation (see features/key_validation.feature)" do
@@ -31,7 +32,7 @@ defmodule Comn.Secrets.SecurityTestCase do
 
           result = unquote(implementation).lock("secret data", key)
           
-          assert {:error, :invalid_key} = result
+          assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
         test "rejects Ed25519 key with wrong public key size" do
@@ -44,7 +45,7 @@ defmodule Comn.Secrets.SecurityTestCase do
 
           result = unquote(implementation).lock("secret data", key)
           
-          assert {:error, :invalid_key} = result
+          assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
         test "rejects key with missing private key when needed for encryption" do
@@ -57,7 +58,7 @@ defmodule Comn.Secrets.SecurityTestCase do
 
           result = unquote(implementation).lock("secret data", key)
           
-          assert {:error, :invalid_key} = result
+          assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
         test "rejects key with algorithm/size mismatch" do
@@ -70,7 +71,7 @@ defmodule Comn.Secrets.SecurityTestCase do
 
           result = unquote(implementation).lock("secret data", key)
           
-          assert {:error, :invalid_key} = result
+          assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
         test "accepts valid Ed25519 key" do

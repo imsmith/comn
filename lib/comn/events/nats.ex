@@ -2,9 +2,19 @@ defmodule Comn.Events.NATS do
   @moduledoc """
   NATS adapter for the `Comn.Events` system.
 
-  Wraps a Gnat connection in a GenServer that manages subscriptions
+  Wraps a Gnat connection in a named GenServer that manages subscriptions
   and translates NATS messages into `Comn.Events.EventStruct` broadcasts
   on the local `Comn.EventBus`. Defaults to `127.0.0.1:4222`.
+
+  Registers as `Comn.Events.NATS` by default. Pass `:name` to override.
+
+  Not started by `Comn.Supervisor` — add to your own supervision tree
+  with the appropriate connection config:
+
+      children = [
+        Comn.Supervisor,
+        {Comn.Events.NATS, host: "nats.internal", port: 4222}
+      ]
 
   Implements `@behaviour Comn` for uniform introspection.
 
@@ -25,27 +35,46 @@ defmodule Comn.Events.NATS do
 
   # Client API
 
-  @doc "Starts a NATS connection. Options are passed to Gnat.start_link."
+  @doc """
+  Starts a NATS connection.
+
+  Registers as `Comn.Events.NATS` by default. Pass `name: :my_nats` to override.
+
+  Options: `:host`, `:port`, `:tls`, `:ssl_opts`, `:name`.
+  """
   def start_link(opts \\ []) do
+    {name, opts} = Keyword.pop(opts, :name, __MODULE__)
     {server_opts, gen_opts} = Keyword.split(opts, [:host, :port, :tls, :ssl_opts])
     server = Map.new(server_opts)
     server = if map_size(server) == 0, do: %{host: "127.0.0.1", port: 4222}, else: server
-    GenServer.start_link(__MODULE__, server, gen_opts)
+    GenServer.start_link(__MODULE__, server, [{:name, name} | gen_opts])
   end
 
-  @doc "Subscribes the calling process to a NATS topic. Messages are forwarded to the local EventBus."
-  def subscribe(pid, topic) do
-    GenServer.call(pid, {:subscribe, topic, self()})
+  @doc """
+  Subscribes the calling process to a NATS topic.
+
+  Messages are forwarded to the local EventBus. Uses the default named
+  process unless `:name` is provided.
+  """
+  def subscribe(topic, opts \\ []) do
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.call(name, {:subscribe, topic, self()})
   end
 
-  @doc "Unsubscribes from a NATS topic."
-  def unsubscribe(pid, subscription_id) do
-    GenServer.call(pid, {:unsubscribe, subscription_id})
+  @doc """
+  Unsubscribes from a NATS topic by subscription ID.
+  """
+  def unsubscribe(subscription_id, opts \\ []) do
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.call(name, {:unsubscribe, subscription_id})
   end
 
-  @doc "Publishes a payload to a NATS topic."
-  def broadcast(pid, topic, payload) do
-    GenServer.call(pid, {:broadcast, topic, payload})
+  @doc """
+  Publishes a payload to a NATS topic.
+  """
+  def broadcast(topic, payload, opts \\ []) do
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.call(name, {:broadcast, topic, payload})
   end
 
   # Server callbacks
@@ -131,16 +160,18 @@ defmodule Comn.Events.NATS do
 
   @impl Comn
   def act(%{action: :connect} = input) do
-    opts = Map.to_list(Map.delete(input, :action))
+    opts = Map.to_list(Map.drop(input, [:action]))
     start_link(opts)
   end
 
-  def act(%{action: :broadcast, pid: pid, topic: topic, payload: payload}) do
-    broadcast(pid, topic, payload)
+  def act(%{action: :broadcast, topic: topic, payload: payload} = input) do
+    opts = if Map.has_key?(input, :name), do: [name: input.name], else: []
+    {:ok, broadcast(topic, payload, opts)}
   end
 
-  def act(%{action: :subscribe, pid: pid, topic: topic}) do
-    subscribe(pid, topic)
+  def act(%{action: :subscribe, topic: topic} = input) do
+    opts = if Map.has_key?(input, :name), do: [name: input.name], else: []
+    subscribe(topic, opts)
   end
 
   def act(_input), do: {:error, :unknown_action}

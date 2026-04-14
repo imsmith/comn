@@ -28,15 +28,22 @@ defmodule Comn.EventLog do
 
   ## Public API
 
+  @doc "Starts the event log Agent. Named `Comn.EventLog` — started by `Comn.Supervisor`."
+  @spec start_link(keyword()) :: {:ok, pid()} | {:error, term()}
   def start_link(_opts) do
     Agent.start_link(fn -> [] end, name: __MODULE__)
   end
 
   @doc "Records any struct that implements the Comn.Event protocol."
-  @spec record(term()) :: :ok
+  @spec record(term()) :: :ok | {:error, term()}
   def record(term) do
-    event = Event.to_event(term)
-    Agent.update(__MODULE__, fn log -> [event | log] end)
+    case Event.to_event(term) do
+      {:ok, event} ->
+        Agent.update(__MODULE__, fn log -> [event | log] end)
+
+      {:error, _} = err ->
+        err
+    end
   end
 
   @doc "Returns all logged events, oldest to newest."
@@ -83,6 +90,7 @@ defmodule Comn.EventLog do
   end
 
   @doc "Clears the event log. Use with caution."
+  @spec clear() :: :ok
   def clear do
     Agent.update(__MODULE__, fn _ -> [] end)
   end

@@ -17,9 +17,11 @@ defmodule Comn.Secrets.Local do
       iex> {:ok, "hello"} = Comn.Secrets.Local.unlock(locked, key)
   """
 
+  @behaviour Comn
   @behaviour Comn.Secrets
 
   alias Comn.Secrets.{Key, LockedBlob, Container}
+  alias Comn.Errors.Registry, as: ErrReg
 
   @impl true
   def lock(blob, %Key{} = key) when is_binary(blob) do
@@ -65,7 +67,7 @@ defmodule Comn.Secrets.Local do
     end
   end
 
-  def lock(_blob, _key), do: {:error, :invalid_key}
+  def lock(_blob, _key), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   @impl true
   def unlock(%LockedBlob{} = locked, %Key{} = key) do
@@ -92,18 +94,18 @@ defmodule Comn.Secrets.Local do
           {:ok, plaintext}
 
         :error ->
-          {:error, :authentication_failed}
+          {:error, ErrReg.error!("secrets/authentication_failed")}
       end
     else
       false ->
-        {:error, :wrong_key}
+        {:error, ErrReg.error!("secrets/wrong_key")}
 
-      :error ->
-        {:error, :invalid_key}
+      {:error, _} = err ->
+        err
     end
   end
 
-  def unlock(_locked, _key), do: {:error, :invalid_key}
+  def unlock(_locked, _key), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   @impl true
   def wrap(blobs, %Key{} = key) when is_list(blobs) do
@@ -142,10 +144,10 @@ defmodule Comn.Secrets.Local do
                   {:ok, blobs}
 
                 _ ->
-                  {:error, :invalid_container}
+                  {:error, ErrReg.error!("secrets/invalid_container")}
               end
             rescue
-              _ -> {:error, :invalid_container}
+              ArgumentError -> {:error, ErrReg.error!("secrets/invalid_container")}
             end
 
           {:error, _reason} = error ->
@@ -163,10 +165,10 @@ defmodule Comn.Secrets.Local do
        when is_binary(pub) and is_binary(priv) do
     cond do
       byte_size(pub) != 32 ->
-        {:error, :invalid_key}
+        {:error, ErrReg.error!("secrets/invalid_key")}
 
       byte_size(priv) != 32 ->
-        {:error, :invalid_key}
+        {:error, ErrReg.error!("secrets/invalid_key")}
 
       true ->
         :ok
@@ -174,23 +176,53 @@ defmodule Comn.Secrets.Local do
   end
 
   defp validate_key(%Key{algorithm: :ed25519, private: nil}) do
-    {:error, :invalid_key}
+    {:error, ErrReg.error!("secrets/invalid_key")}
   end
 
   defp validate_key(%Key{algorithm: :rsa_4096}) do
     # RSA not implemented yet
-    {:error, :invalid_key}
+    {:error, ErrReg.error!("secrets/invalid_key")}
   end
 
   defp validate_key(%Key{algorithm: :ecdsa_p256}) do
     # ECDSA not implemented yet
-    {:error, :invalid_key}
+    {:error, ErrReg.error!("secrets/invalid_key")}
   end
 
-  defp validate_key(_), do: {:error, :invalid_key}
+  defp validate_key(_), do: {:error, ErrReg.error!("secrets/invalid_key")}
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "Secrets.Local — ChaCha20-Poly1305 local encryption with Ed25519 keys"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :local_crypto,
+      cipher: :chacha20_poly1305,
+      key_derivation: :sha256,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{operations: ["lock", "unlock", "wrap", "unwrap"]}
+  end
+
+  @impl Comn
+  def act(%{action: :lock, blob: blob, key: key}), do: lock(blob, key)
+  def act(%{action: :unlock, locked: locked, key: key}), do: unlock(locked, key)
+  def act(%{action: :wrap, blobs: blobs, key: key}), do: wrap(blobs, key)
+  def act(%{action: :unwrap, locked: locked, key: key}), do: unwrap(locked, key)
+  def act(_input), do: {:error, :unknown_action}
 
   # UUID helper (simple version)
   defmodule UUID do
+    @moduledoc false
+    @doc "Generates a random UUID v4 string."
+    @spec uuid4() :: String.t()
     def uuid4 do
       <<u0::48, _::4, u1::12, _::2, u2::62>> = :crypto.strong_rand_bytes(16)
       <<u0::48, 4::4, u1::12, 2::2, u2::62>>

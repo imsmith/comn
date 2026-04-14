@@ -149,7 +149,7 @@ defmodule Comn.BehaviourTest do
     test "act :delete", %{table: table} do
       Comn.Repo.Table.ETS.act(%{action: :set, name: table, key: "d", value: "val"})
       assert :ok = Comn.Repo.Table.ETS.act(%{action: :delete, name: table, key: "d"})
-      assert {:error, {:not_found, "d"}} = Comn.Repo.Table.ETS.act(%{action: :get, name: table, key: "d"})
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.table/not_found"}} = Comn.Repo.Table.ETS.act(%{action: :get, name: table, key: "d"})
     end
   end
 end

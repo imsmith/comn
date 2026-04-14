@@ -31,6 +31,7 @@ defmodule Comn.Secrets.Vault do
   @behaviour Comn.Secrets
 
   alias Comn.Secrets.{Key, LockedBlob, Container}
+  alias Comn.Errors.Registry, as: ErrReg
 
   require Logger
 
@@ -78,7 +79,7 @@ defmodule Comn.Secrets.Vault do
     end
   end
 
-  def lock(_blob, _key), do: {:error, :invalid_key}
+  def lock(_blob, _key), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   @impl true
   def unlock(%LockedBlob{} = locked, %Key{} = key) do
@@ -89,17 +90,14 @@ defmodule Comn.Secrets.Vault do
       {:ok, plaintext}
     else
       false ->
-        {:error, :wrong_key}
+        {:error, ErrReg.error!("secrets/wrong_key")}
 
-      {:error, reason} ->
-        {:error, reason}
-
-      :error ->
-        {:error, :invalid_key}
+      {:error, _} = err ->
+        err
     end
   end
 
-  def unlock(_locked, _key), do: {:error, :invalid_key}
+  def unlock(_locked, _key), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   @impl true
   def wrap(blobs, %Key{} = key) when is_list(blobs) do
@@ -132,10 +130,10 @@ defmodule Comn.Secrets.Vault do
                   {:ok, blobs}
 
                 _ ->
-                  {:error, :invalid_container}
+                  {:error, ErrReg.error!("secrets/invalid_container")}
               end
             rescue
-              _ -> {:error, :invalid_container}
+              ArgumentError -> {:error, ErrReg.error!("secrets/invalid_container")}
             end
 
           {:error, _reason} = error ->
@@ -153,10 +151,10 @@ defmodule Comn.Secrets.Vault do
        when is_binary(pub) and is_binary(priv) do
     cond do
       byte_size(pub) != 32 ->
-        {:error, :invalid_key}
+        {:error, ErrReg.error!("secrets/invalid_key")}
 
       byte_size(priv) != 32 ->
-        {:error, :invalid_key}
+        {:error, ErrReg.error!("secrets/invalid_key")}
 
       true ->
         :ok
@@ -164,20 +162,20 @@ defmodule Comn.Secrets.Vault do
   end
 
   defp validate_key(%Key{algorithm: :ed25519, private: nil}) do
-    {:error, :invalid_key}
+    {:error, ErrReg.error!("secrets/invalid_key")}
   end
 
   defp validate_key(%Key{algorithm: :rsa_4096}) do
     # RSA not implemented yet
-    {:error, :invalid_key}
+    {:error, ErrReg.error!("secrets/invalid_key")}
   end
 
   defp validate_key(%Key{algorithm: :ecdsa_p256}) do
     # ECDSA not implemented yet
-    {:error, :invalid_key}
+    {:error, ErrReg.error!("secrets/invalid_key")}
   end
 
-  defp validate_key(_), do: {:error, :invalid_key}
+  defp validate_key(_), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   defp extract_vault_config(%Key{metadata: metadata}) do
     case metadata do
@@ -191,7 +189,7 @@ defmodule Comn.Secrets.Vault do
          }}
 
       _ ->
-        {:error, :invalid_vault_config}
+        {:error, ErrReg.error!("secrets/invalid_vault_config")}
     end
   end
 
@@ -206,8 +204,8 @@ defmodule Comn.Secrets.Vault do
     body = Jason.encode!(%{"plaintext" => encoded_plaintext})
 
     headers = [
-      {'X-Vault-Token', String.to_charlist(vault_config.token)},
-      {'Content-Type', 'application/json'}
+      {~c"X-Vault-Token", String.to_charlist(vault_config.token)},
+      {~c"Content-Type", ~c"application/json"}
     ]
 
     # Make HTTP request
@@ -222,12 +220,12 @@ defmodule Comn.Secrets.Vault do
             map_vault_error(errors)
 
           _ ->
-            {:error, :vault_error}
+            {:error, ErrReg.error!("secrets/vault_error")}
         end
 
       {:error, reason} ->
         Logger.error("Vault HTTP request failed: #{inspect(reason)}")
-        {:error, :vault_unavailable}
+        {:error, ErrReg.error!("secrets/vault_unavailable")}
     end
   end
 
@@ -239,8 +237,8 @@ defmodule Comn.Secrets.Vault do
     body = Jason.encode!(%{"ciphertext" => ciphertext})
 
     headers = [
-      {'X-Vault-Token', String.to_charlist(vault_config.token)},
-      {'Content-Type', 'application/json'}
+      {~c"X-Vault-Token", String.to_charlist(vault_config.token)},
+      {~c"Content-Type", ~c"application/json"}
     ]
 
     # Make HTTP request
@@ -251,7 +249,7 @@ defmodule Comn.Secrets.Vault do
             # Base64 decode the plaintext
             case Base.decode64(encoded_plaintext) do
               {:ok, plaintext} -> {:ok, plaintext}
-              :error -> {:error, :invalid_ciphertext}
+              :error -> {:error, ErrReg.error!("secrets/invalid_ciphertext")}
             end
 
           {:ok, %{"errors" => errors}} ->
@@ -259,12 +257,12 @@ defmodule Comn.Secrets.Vault do
             map_vault_error(errors)
 
           _ ->
-            {:error, :vault_error}
+            {:error, ErrReg.error!("secrets/vault_error")}
         end
 
       {:error, reason} ->
         Logger.error("Vault HTTP request failed: #{inspect(reason)}")
-        {:error, :vault_unavailable}
+        {:error, ErrReg.error!("secrets/vault_unavailable")}
     end
   end
 
@@ -275,21 +273,17 @@ defmodule Comn.Secrets.Vault do
     url_charlist = String.to_charlist(url)
     body_charlist = String.to_charlist(body)
 
-    case :httpc.request(:post, {url_charlist, headers, 'application/json', body_charlist}, [], []) do
+    case :httpc.request(:post, {url_charlist, headers, ~c"application/json", body_charlist}, [], []) do
       {:ok, {{_, 200, _}, _headers, response_body}} ->
         {:ok, to_string(response_body)}
 
       {:ok, {{_, status_code, _}, _headers, response_body}} ->
         Logger.error("Vault returned status #{status_code}: #{response_body}")
-        {:error, :vault_error}
+        {:error, ErrReg.error!("secrets/vault_error")}
 
       {:error, reason} ->
         {:error, reason}
     end
-  rescue
-    e ->
-      Logger.error("HTTP request exception: #{inspect(e)}")
-      {:error, :network_error}
   end
 
   defp extract_vault_version(ciphertext) do
@@ -306,20 +300,20 @@ defmodule Comn.Secrets.Vault do
 
     cond do
       String.contains?(error_string, "permission denied") ->
-        {:error, :authentication_failed}
+        {:error, ErrReg.error!("secrets/authentication_failed")}
 
       String.contains?(error_string, "invalid token") ->
-        {:error, :authentication_failed}
+        {:error, ErrReg.error!("secrets/authentication_failed")}
 
       String.contains?(error_string, "missing") ->
-        {:error, :invalid_key}
+        {:error, ErrReg.error!("secrets/invalid_key")}
 
       true ->
-        {:error, :vault_error}
+        {:error, ErrReg.error!("secrets/vault_error")}
     end
   end
 
-  defp map_vault_error(_), do: {:error, :vault_error}
+  defp map_vault_error(_), do: {:error, ErrReg.error!("secrets/vault_error")}
 
   # Comn callbacks
 

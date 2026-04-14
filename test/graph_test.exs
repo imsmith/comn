@@ -13,6 +13,7 @@ defmodule Comn.Repo.Graphs.GraphTest do
   use ExUnit.Case, async: true
 
   alias Comn.Repo.Graphs.{Graph, GraphStruct}
+  alias Comn.Errors.ErrorStruct
 
   describe "create" do
     test "creates a directed graph by default" do
@@ -105,7 +106,7 @@ defmodule Comn.Repo.Graphs.GraphTest do
 
     test "unknown query type returns error" do
       {:ok, gs} = Graph.create()
-      assert {:error, {:unknown_query_type, :bogus}} = Graph.traverse(gs, type: :bogus)
+      assert {:error, %ErrorStruct{code: "repo.graph/unknown_query_type"}} = Graph.traverse(gs, type: :bogus)
     end
   end
 
@@ -128,14 +129,14 @@ defmodule Comn.Repo.Graphs.GraphTest do
 
     test "get missing vertex returns error" do
       {:ok, gs} = Graph.create()
-      assert {:error, {:not_found, :x}} = Graph.get(gs, vertex: :x)
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = Graph.get(gs, vertex: :x)
     end
 
     test "delete vertex" do
       {:ok, gs} = Graph.create()
       {:ok, gs} = Graph.set(gs, vertex: :a)
       {:ok, gs} = Graph.delete(gs, vertex: :a)
-      assert {:error, {:not_found, :a}} = Graph.get(gs, vertex: :a)
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = Graph.get(gs, vertex: :a)
     end
 
     test "delete vertex removes its edges" do

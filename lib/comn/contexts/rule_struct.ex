@@ -1,6 +1,7 @@
 defmodule Comn.Contexts.RuleStruct do
   @moduledoc "Concrete rule struct for defining business rules."
 
+  @enforce_keys [:name, :condition, :action]
   defstruct [
     :name,
     :condition,

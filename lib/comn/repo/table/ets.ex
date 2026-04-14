@@ -19,6 +19,8 @@ defmodule Comn.Repo.Table.ETS do
       "ETS — in-memory key-value store backed by Erlang Term Storage"
   """
 
+  alias Comn.Errors.Registry, as: ErrReg
+
   @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.Table
@@ -27,13 +29,11 @@ defmodule Comn.Repo.Table.ETS do
 
   @impl Comn.Repo.Table
   def create(name, opts \\ []) when is_atom(name) do
-    ets_opts = Keyword.get(opts, :ets_opts, [:named_table, :public, :set])
-
-    try do
-      tid = :ets.new(name, ets_opts)
-      {:ok, tid}
-    rescue
-      ArgumentError -> {:error, {:already_exists, name}}
+    if table_exists?(name) do
+      {:error, ErrReg.error!("repo.table/already_exists", field: name)}
+    else
+      ets_opts = Keyword.get(opts, :ets_opts, [:named_table, :public, :set])
+      {:ok, :ets.new(name, ets_opts)}
     end
   end
 
@@ -45,7 +45,7 @@ defmodule Comn.Repo.Table.ETS do
         :ok
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -57,7 +57,7 @@ defmodule Comn.Repo.Table.ETS do
         {:ok, Enum.reverse(keys)}
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -65,7 +65,7 @@ defmodule Comn.Repo.Table.ETS do
   def count(name) when is_atom(name) do
     case table_exists?(name) do
       true -> {:ok, :ets.info(name, :size)}
-      false -> {:error, {:not_found, name}}
+      false -> {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -79,7 +79,7 @@ defmodule Comn.Repo.Table.ETS do
         {:ok, Map.new(info)}
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -91,11 +91,11 @@ defmodule Comn.Repo.Table.ETS do
       true ->
         case :ets.lookup(name, key) do
           [{^key, value}] -> {:ok, value}
-          [] -> {:error, {:not_found, key}}
+          [] -> {:error, ErrReg.error!("repo.table/not_found", field: key)}
         end
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -110,7 +110,7 @@ defmodule Comn.Repo.Table.ETS do
         :ok
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -124,7 +124,7 @@ defmodule Comn.Repo.Table.ETS do
         :ok
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -136,7 +136,7 @@ defmodule Comn.Repo.Table.ETS do
         |> Enum.reverse()
 
       false ->
-        {:error, {:not_found, name}}
+        {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 

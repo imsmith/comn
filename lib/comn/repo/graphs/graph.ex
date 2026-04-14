@@ -20,11 +20,14 @@ defmodule Comn.Repo.Graphs.Graph do
   """
 
   alias Comn.Repo.Graphs.GraphStruct
+  alias Comn.Errors.Registry, as: ErrReg
 
   @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.Graphs
 
+  @doc "Creates a new graph. Opts: `:name`, `:directed?` (default `true`), `:id`, `:metadata`."
+  @spec create(keyword()) :: {:ok, Comn.Repo.Graphs.GraphStruct.t()}
   def create(opts \\ []) do
     name = Keyword.get(opts, :name)
     directed? = Keyword.get(opts, :directed?, true)
@@ -100,7 +103,7 @@ defmodule Comn.Repo.Graphs.Graph do
         {:ok, Graph.edges(g)}
 
       other ->
-        {:error, {:unknown_query_type, other}}
+        {:error, ErrReg.error!("repo.graph/unknown_query_type", message: "unknown query type: #{inspect(other)}")}
     end
   end
 
@@ -125,9 +128,9 @@ defmodule Comn.Repo.Graphs.Graph do
     if vertex != nil do
       if Graph.has_vertex?(g, vertex),
         do: {:ok, vertex},
-        else: {:error, {:not_found, vertex}}
+        else: {:error, ErrReg.error!("repo.table/not_found", field: vertex)}
     else
-      {:error, :missing_key}
+      {:error, ErrReg.error!("repo.graph/missing_key")}
     end
   end
 
@@ -138,7 +141,7 @@ defmodule Comn.Repo.Graphs.Graph do
     if vertex != nil do
       {:ok, %{gs | graph: Graph.add_vertex(g, vertex)}}
     else
-      {:error, :missing_key}
+      {:error, ErrReg.error!("repo.graph/missing_key")}
     end
   end
 
@@ -149,7 +152,7 @@ defmodule Comn.Repo.Graphs.Graph do
     if vertex != nil do
       {:ok, %{gs | graph: Graph.delete_vertex(g, vertex)}}
     else
-      {:error, :missing_key}
+      {:error, ErrReg.error!("repo.graph/missing_key")}
     end
   end
 

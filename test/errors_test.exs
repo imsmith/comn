@@ -1,4 +1,5 @@
 defmodule Comn.ErrorsTest do
+  @moduledoc false
   use ExUnit.Case, async: true
 
   alias Comn.Errors
@@ -27,39 +28,47 @@ defmodule Comn.ErrorsTest do
 
   describe "Comn.Error protocol" do
     test "converts a map with atom keys" do
-      err = Error.to_error(%{reason: "auth", field: "token", message: "expired", suggestion: "refresh"})
+      {:ok, err} = Error.to_error(%{reason: "auth", field: "token", message: "expired", suggestion: "refresh"})
       assert %ErrorStruct{} = err
       assert err.reason == "auth"
     end
 
     test "converts a map with string keys" do
-      err = Error.to_error(%{"reason" => "auth", "field" => "token", "message" => "expired", "suggestion" => "refresh"})
+      {:ok, err} = Error.to_error(%{"reason" => "auth", "field" => "token", "message" => "expired", "suggestion" => "refresh"})
       assert %ErrorStruct{} = err
       assert err.reason == "auth"
     end
 
     test "converts a 4-tuple" do
-      err = Error.to_error({"persistence", "id", "not found", "check ID"})
+      {:ok, err} = Error.to_error({"persistence", "id", "not found", "check ID"})
       assert %ErrorStruct{} = err
       assert err.reason == "persistence"
     end
 
     test "passes through an existing ErrorStruct" do
       original = ErrorStruct.new("internal", nil, "oops")
-      assert Error.to_error(original) == original
+      assert {:ok, ^original} = Error.to_error(original)
     end
 
     test "converts a string" do
-      err = Error.to_error("something went wrong")
+      {:ok, err} = Error.to_error("something went wrong")
       assert %ErrorStruct{} = err
       assert err.message == "something went wrong"
       assert err.reason == "unknown"
     end
 
     test "converts an atom" do
-      err = Error.to_error(:timeout)
+      {:ok, err} = Error.to_error(:timeout)
       assert %ErrorStruct{} = err
       assert err.reason == "timeout"
+    end
+
+    test "returns error for invalid map" do
+      assert {:error, :missing_keys} = Error.to_error(%{foo: "bar"})
+    end
+
+    test "returns error for invalid tuple" do
+      assert {:error, :invalid_tuple} = Error.to_error({:only_one})
     end
   end
 
@@ -75,8 +84,12 @@ defmodule Comn.ErrorsTest do
     end
 
     test "wrap/1 delegates to protocol" do
-      err = Errors.wrap("test error")
+      {:ok, err} = Errors.wrap("test error")
       assert %ErrorStruct{} = err
+    end
+
+    test "wrap/1 returns error for invalid input" do
+      assert {:error, :missing_keys} = Errors.wrap(%{foo: "bar"})
     end
 
     test "new/2 creates a categorized error" do

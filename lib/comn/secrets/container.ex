@@ -20,6 +20,7 @@ defmodule Comn.Secrets.Container do
           metadata: map()
         }
 
+  @enforce_keys [:id]
   defstruct [
     :id,
     blobs: [],

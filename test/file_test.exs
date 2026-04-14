@@ -2,6 +2,7 @@ defmodule Comn.Repo.File.LocalTest do
   use ExUnit.Case, async: true
 
   alias Comn.Repo.File.{Local, FileStruct}
+  alias Comn.Errors.ErrorStruct
 
   @tmp_dir System.tmp_dir!()
 
@@ -57,33 +58,33 @@ defmodule Comn.Repo.File.LocalTest do
     test "read without load fails" do
       path = tmp_file()
       {:ok, fs} = Local.open(path)
-      assert {:error, {:invalid_state, :open, :expected_loaded}} = Local.read(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.read(fs)
       Local.close(fs)
     end
 
     test "load without open fails" do
       fs = %FileStruct{state: :init, backend: Local}
-      assert {:error, {:invalid_state, :init, :expected_open}} = Local.load(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.load(fs)
     end
 
     test "write without load fails" do
       path = tmp_file()
       {:ok, fs} = Local.open(path)
-      assert {:error, {:invalid_state, :open, :expected_loaded}} = Local.write(fs, "data")
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.write(fs, "data")
       Local.close(fs)
     end
 
     test "stream without load fails" do
       path = tmp_file()
       {:ok, fs} = Local.open(path)
-      assert {:error, {:invalid_state, :open, :expected_loaded}} = Local.stream(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.stream(fs)
       Local.close(fs)
     end
 
     test "cast without load fails" do
       path = tmp_file()
       {:ok, fs} = Local.open(path)
-      assert {:error, {:invalid_state, :open, :expected_loaded}} = Local.cast(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.cast(fs)
       Local.close(fs)
     end
   end
@@ -116,7 +117,7 @@ defmodule Comn.Repo.File.LocalTest do
     test "get fails when not loaded" do
       path = tmp_file()
       {:ok, fs} = Local.open(path)
-      assert {:error, {:invalid_state, :open, :expected_loaded}} = Local.get(fs, [])
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.get(fs, [])
       Local.close(fs)
     end
 
@@ -178,23 +179,24 @@ defmodule Comn.Repo.File.IPFSTest do
   use ExUnit.Case, async: true
 
   alias Comn.Repo.File.{IPFS, FileStruct}
+  alias Comn.Errors.ErrorStruct
 
   @moduletag :ipfs
 
   describe "state enforcement" do
     test "read without load fails" do
       fs = %FileStruct{state: :open, backend: IPFS, metadata: %{api: "http://localhost:5001"}}
-      assert {:error, {:invalid_state, :open, :expected_loaded}} = IPFS.read(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = IPFS.read(fs)
     end
 
     test "load without open fails" do
       fs = %FileStruct{state: :init, backend: IPFS, metadata: %{api: "http://localhost:5001"}}
-      assert {:error, {:invalid_state, :init, :expected_open}} = IPFS.load(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = IPFS.load(fs)
     end
 
     test "close on closed handle fails" do
       fs = %FileStruct{state: :closed, backend: IPFS, metadata: %{api: "http://localhost:5001"}}
-      assert {:error, {:invalid_state, :closed, :expected_open_or_loaded}} = IPFS.close(fs)
+      assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = IPFS.close(fs)
     end
   end
 end

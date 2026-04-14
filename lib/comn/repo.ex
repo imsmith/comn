@@ -22,11 +22,43 @@ defmodule Comn.Repo do
 
   @behaviour Comn
 
-  @callback describe(term()) :: {:ok, map()} | {:error, term()}
-  @callback get(term(), keyword()) :: {:ok, term()} | {:error, term()}
-  @callback set(term(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
-  @callback delete(term(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
-  @callback observe(term(), keyword()) :: Enumerable.t() | {:error, term()}
+  @typedoc "The resource being operated on — a table name, file handle, graph struct, etc."
+  @type resource :: term()
+
+  @doc """
+  Returns metadata about the resource (table info, file stat, graph summary).
+
+  Errors: `repo.table/not_found`, `repo.file/invalid_state`.
+  """
+  @callback describe(resource()) :: {:ok, map()} | {:error, term()}
+
+  @doc """
+  Retrieves a value. Opts specify the key or query.
+
+  Errors: `{:not_found, key}`, `repo.file/invalid_state`, `repo.graph/missing_key`.
+  """
+  @callback get(resource(), keyword()) :: {:ok, term()} | {:error, term()}
+
+  @doc """
+  Stores a value. Opts must include `:key` and `:value` (or backend equivalent).
+
+  Errors: `repo.table/not_found`, `repo.file/invalid_state`, `repo.graph/missing_key`.
+  """
+  @callback set(resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
+
+  @doc """
+  Removes a value. Opts must include `:key` (or backend equivalent).
+
+  Errors: `repo.table/not_found`, `repo.graph/missing_key`.
+  """
+  @callback delete(resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
+
+  @doc """
+  Returns a stream or snapshot of the resource's contents.
+
+  Errors: `repo.table/not_found`, `repo.file/invalid_state`.
+  """
+  @callback observe(resource(), keyword()) :: Enumerable.t() | {:error, term()}
 
   @impl Comn
   def look, do: "Repo — common I/O behaviour for data repositories (tables, files, graphs, commands)"

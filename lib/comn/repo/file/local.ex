@@ -16,6 +16,7 @@ defmodule Comn.Repo.File.Local do
   """
 
   alias Comn.Repo.File.FileStruct
+  alias Comn.Errors.Registry, as: ErrReg
 
   @behaviour Comn
   @behaviour Comn.Repo
@@ -23,6 +24,7 @@ defmodule Comn.Repo.File.Local do
 
   # Comn.Repo.File callbacks
 
+  @spec open(term(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def open(path, opts \\ []) do
     mode = Keyword.get(opts, :mode, [:read, :binary])
@@ -43,6 +45,7 @@ defmodule Comn.Repo.File.Local do
     end
   end
 
+  @spec load(Comn.Repo.File.handle(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def load(fs, opts \\ [])
 
@@ -63,8 +66,9 @@ defmodule Comn.Repo.File.Local do
   end
 
   def load(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_open}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected open")}
 
+  @spec stream(Comn.Repo.File.handle(), keyword()) :: {:ok, Enumerable.t()} | {:error, term()}
   @impl Comn.Repo.File
   def stream(fs, opts \\ [])
 
@@ -73,8 +77,9 @@ defmodule Comn.Repo.File.Local do
   end
 
   def stream(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
+  @spec cast(Comn.Repo.File.handle(), keyword()) :: :ok | {:error, term()}
   @impl Comn.Repo.File
   def cast(fs, opts \\ [])
 
@@ -85,8 +90,9 @@ defmodule Comn.Repo.File.Local do
   end
 
   def cast(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
+  @spec read(Comn.Repo.File.handle(), keyword()) :: {:ok, binary()} | {:error, term()}
   @impl Comn.Repo.File
   def read(fs, opts \\ [])
 
@@ -95,8 +101,9 @@ defmodule Comn.Repo.File.Local do
   end
 
   def read(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
+  @spec write(Comn.Repo.File.handle(), iodata(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def write(fs, data, opts \\ [])
 
@@ -108,8 +115,9 @@ defmodule Comn.Repo.File.Local do
   end
 
   def write(%FileStruct{state: state}, _data, _opts),
-    do: {:error, {:invalid_state, state, :expected_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
+  @spec close(Comn.Repo.File.handle(), keyword()) :: :ok | {:error, term()}
   @impl Comn.Repo.File
   def close(fs, opts \\ [])
 
@@ -119,10 +127,11 @@ defmodule Comn.Repo.File.Local do
   end
 
   def close(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_open_or_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected open or loaded")}
 
   # Comn.Repo callbacks
 
+  @spec describe(Comn.Repo.resource()) :: {:ok, map()} | {:error, term()}
   @impl Comn.Repo
   def describe(%FileStruct{path: path, state: state, metadata: meta}) do
     case File.stat(path) do
@@ -134,10 +143,12 @@ defmodule Comn.Repo.File.Local do
     end
   end
 
+  @spec get(Comn.Repo.resource(), keyword()) :: {:ok, term()} | {:error, term()}
   @impl Comn.Repo
   def get(%FileStruct{state: :loaded, buffer: buffer}, _opts), do: {:ok, buffer}
-  def get(%FileStruct{state: state}, _opts), do: {:error, {:invalid_state, state, :expected_loaded}}
+  def get(%FileStruct{state: state}, _opts), do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
+  @spec set(Comn.Repo.resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
   @impl Comn.Repo
   def set(%FileStruct{state: :loaded} = fs, opts) do
     data = Keyword.fetch!(opts, :value)
@@ -145,26 +156,30 @@ defmodule Comn.Repo.File.Local do
   end
 
   def set(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
+  @spec delete(Comn.Repo.resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
   @impl Comn.Repo
   def delete(%FileStruct{path: path}, _opts) do
     File.rm(path)
   end
 
+  @spec observe(Comn.Repo.resource(), keyword()) :: Enumerable.t() | {:error, term()}
   @impl Comn.Repo
   def observe(%FileStruct{state: :loaded, path: path}, _opts) do
     File.stream!(path)
   end
 
   def observe(%FileStruct{state: state}, _opts),
-    do: {:error, {:invalid_state, state, :expected_loaded}}
+    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   # Comn callbacks
 
+  @spec look() :: String.t()
   @impl Comn
   def look, do: "File.Local — local filesystem file I/O with lifecycle state machine"
 
+  @spec recon() :: map()
   @impl Comn
   def recon do
     %{
@@ -175,11 +190,13 @@ defmodule Comn.Repo.File.Local do
     }
   end
 
+  @spec choices() :: map()
   @impl Comn
   def choices do
     %{mode: [":read", ":write", ":binary", ":append"]}
   end
 
+  @spec act(map()) :: {:ok, term()} | {:error, term()}
   @impl Comn
   def act(%{action: :read, path: path}) do
     with {:ok, fs} <- open(path),

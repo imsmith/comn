@@ -1,6 +1,7 @@
 defmodule Comn.Contexts.PolicyStruct do
   @moduledoc "Concrete policy struct for defining business policies. A policy is a named set of rules."
 
+  @enforce_keys [:name]
   defstruct [
     :name,
     :description,

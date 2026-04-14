@@ -26,11 +26,13 @@ defmodule Comn.Contexts.ContextStruct do
         }
 
   @doc "Creates a new empty context."
+  @spec new() :: t()
   def new do
     %__MODULE__{}
   end
 
   @doc "Creates a new context from a keyword list or map of fields."
+  @spec new(t() | map() | keyword()) :: t()
   def new(%__MODULE__{} = ctx), do: ctx
 
   def new(fields) when is_map(fields) do
@@ -42,6 +44,7 @@ defmodule Comn.Contexts.ContextStruct do
   end
 
   @doc "Returns the context as a plain map, dropping nil values."
+  @spec to_map(t()) :: map()
   def to_map(%__MODULE__{} = ctx) do
     ctx
     |> Map.from_struct()
@@ -50,6 +53,7 @@ defmodule Comn.Contexts.ContextStruct do
   end
 
   @doc "Puts a value into the context."
+  @spec put(t(), atom(), term()) :: t()
   def put(%__MODULE__{} = ctx, key, value) when is_atom(key) do
     if Map.has_key?(ctx, key) do
       Map.put(ctx, key, value)
@@ -59,6 +63,7 @@ defmodule Comn.Contexts.ContextStruct do
   end
 
   @doc "Gets a value from the context."
+  @spec get(t(), atom()) :: term()
   def get(%__MODULE__{} = ctx, key) when is_atom(key) do
     if Map.has_key?(ctx, key) do
       Map.get(ctx, key)

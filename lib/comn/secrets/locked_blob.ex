@@ -62,6 +62,7 @@ defmodule Comn.Secrets.LockedBlob do
           metadata: map()
         }
 
+  @enforce_keys [:cipher, :encrypted]
   defstruct [
     :cipher,
     :encrypted,

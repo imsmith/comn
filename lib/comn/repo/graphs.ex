@@ -23,12 +23,26 @@ defmodule Comn.Repo.Graphs do
 
   alias Comn.Repo.Graphs.GraphStruct
 
+  @doc """
+  Creates a directed edge from `from` to `to`. Adds vertices if they don't exist.
+
+  Opts: `:label`, `:weight`.
+  """
   @callback link(graph :: GraphStruct.t(), from :: term(), to :: term(), opts :: keyword()) ::
               {:ok, GraphStruct.t()} | {:error, term()}
 
+  @doc "Removes the edge from `from` to `to`."
   @callback unlink(graph :: GraphStruct.t(), from :: term(), to :: term(), opts :: keyword()) ::
               {:ok, GraphStruct.t()} | {:error, term()}
 
+  @doc """
+  Runs a query against the graph. Requires `type:` in the query keyword list.
+
+  Query types: `:shortest_path` (requires `:from`, `:to`), `:reachable` (requires `:from`),
+  `:neighbors` (requires `:vertex`), `:vertices`, `:edges`.
+
+  Errors: `{:unknown_query_type, type}` (`repo.graph/unknown_query_type`).
+  """
   @callback traverse(graph :: GraphStruct.t(), query :: keyword()) ::
               {:ok, term()} | {:error, term()}
 

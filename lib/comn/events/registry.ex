@@ -15,10 +15,14 @@ defmodule Comn.Events.Registry do
 
   @behaviour Comn
 
+  @doc "Subscribes the calling process to `topic`. Messages arrive as `{:event, topic, payload}`."
+  @spec subscribe(term()) :: {:ok, pid()} | {:error, term()}
   def subscribe(topic) do
     Registry.register(__MODULE__, topic, [])
   end
 
+  @doc "Dispatches `payload` to all processes subscribed to `topic`."
+  @spec broadcast(term(), term()) :: :ok
   def broadcast(topic, payload) do
     Registry.dispatch(__MODULE__, topic, fn entries ->
       for {pid, _} <- entries, do: send(pid, {:event, topic, payload})

@@ -27,24 +27,63 @@ defmodule Comn.Repo.File do
 
   @type handle :: term()
 
+  @doc """
+  Opens a file by path or reference, returning a handle in the `:open` state.
+
+  Errors: OS-level errors (`:enoent`, `:eacces`), `{:stale_handle, path}` (NFS),
+  `{:ipfs_error, status, body}` (IPFS).
+  """
   @callback open(path_or_ref :: term(), opts :: keyword()) ::
               {:ok, handle()} | {:error, term()}
 
+  @doc """
+  Loads file content into the handle's buffer, transitioning to `:loaded`.
+
+  Errors: `{:invalid_state, state, :expected_open}` (`repo.file/invalid_state`),
+  `{:stale_handle, path}` (`repo.file/stale_handle`).
+  """
   @callback load(handle(), opts :: keyword()) ::
               {:ok, handle()} | {:error, term()}
 
+  @doc """
+  Returns a lazy stream over the loaded file's content.
+
+  Errors: `{:invalid_state, state, :expected_loaded}` (`repo.file/invalid_state`).
+  """
   @callback stream(handle(), opts :: keyword()) ::
               {:ok, Enumerable.t()} | {:error, term()}
 
+  @doc """
+  Broadcasts the loaded file's content to the EventBus (fire-and-forget).
+
+  Errors: `{:invalid_state, state, :expected_loaded}` (`repo.file/invalid_state`).
+  """
   @callback cast(handle(), opts :: keyword()) ::
               :ok | {:error, term()}
 
+  @doc """
+  Reads the loaded file's buffered content as a binary.
+
+  Errors: `{:invalid_state, state, :expected_loaded}` (`repo.file/invalid_state`).
+  """
   @callback read(handle(), opts :: keyword()) ::
               {:ok, binary()} | {:error, term()}
 
+  @doc """
+  Writes data through the handle. Returns an updated handle (may change path
+  for content-addressed backends like IPFS).
+
+  Errors: `{:invalid_state, state, :expected_loaded}` (`repo.file/invalid_state`),
+  `{:ipfs_error, status, body}` (`repo.file/ipfs_error`).
+  """
   @callback write(handle(), data :: iodata(), opts :: keyword()) ::
               {:ok, handle()} | {:error, term()}
 
+  @doc """
+  Closes the file handle and releases resources.
+
+  Errors: `{:invalid_state, state, :expected_open_or_loaded}` (`repo.file/invalid_state`).
+  """
   @callback close(handle(), opts :: keyword()) ::
               :ok | {:error, term()}
 
