@@ -1,13 +1,27 @@
 defmodule Comn.Repo.Graphs.Graph do
   @moduledoc """
-  libgraph-backed implementation of Comn.Repo.Graphs and Comn.Repo.
+  libgraph-backed implementation of `Comn.Repo.Graphs` and `Comn.Repo`.
 
-  Operates directly on GraphStruct — no process, no registry.
-  Caller holds the struct, passes it in, gets an updated one back.
+  Operates directly on `Comn.Repo.Graphs.GraphStruct` — no process, no
+  registry. The caller holds the struct, passes it in, gets an updated
+  one back. Supports directed and undirected graphs with five traversal
+  modes: `:shortest_path`, `:reachable`, `:neighbors`, `:vertices`, `:edges`.
+
+  Implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.create(name: "test")
+      iex> g.name
+      "test"
+
+      iex> Comn.Repo.Graphs.Graph.look()
+      "Graphs.Graph — libgraph-backed directed/undirected graph with traversal"
   """
 
   alias Comn.Repo.Graphs.GraphStruct
 
+  @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.Graphs
 
@@ -143,4 +157,42 @@ defmodule Comn.Repo.Graphs.Graph do
   def observe(%GraphStruct{graph: g}, _opts) do
     {:ok, %{vertices: Graph.vertices(g), edges: Graph.edges(g)}}
   end
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "Graphs.Graph — libgraph-backed directed/undirected graph with traversal"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :libgraph,
+      supports: [:directed, :undirected],
+      traversal: [:shortest_path, :reachable, :neighbors, :vertices, :edges],
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{
+      directed?: [true, false],
+      traversal: ["shortest_path", "reachable", "neighbors", "vertices", "edges"]
+    }
+  end
+
+  @impl Comn
+  def act(%{action: :create} = input) do
+    create(Map.to_list(Map.delete(input, :action)))
+  end
+
+  def act(%{action: :traverse, graph: graph, query: query}) do
+    traverse(graph, query)
+  end
+
+  def act(%{action: :link, graph: graph, from: from, to: to} = input) do
+    link(graph, from, to, Map.to_list(Map.drop(input, [:action, :graph, :from, :to])))
+  end
+
+  def act(_input), do: {:error, :unknown_action}
 end

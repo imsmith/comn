@@ -1,10 +1,23 @@
 defmodule Comn.Repo.File.Local do
   @moduledoc """
-  Local filesystem implementation of Comn.Repo.File and Comn.Repo.
+  Local filesystem implementation of `Comn.Repo.File` and `Comn.Repo`.
+
+  Follows the file lifecycle state machine (`open → load → read/write/stream → close`)
+  against the local disk. Used directly or as the delegate for `Comn.Repo.File.NFS`.
+
+  Implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> Comn.Repo.File.Local.look()
+      "File.Local — local filesystem file I/O with lifecycle state machine"
+
+      iex> %{backend: :local_fs} = Comn.Repo.File.Local.recon()
   """
 
   alias Comn.Repo.File.FileStruct
 
+  @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.File
 
@@ -146,4 +159,45 @@ defmodule Comn.Repo.File.Local do
 
   def observe(%FileStruct{state: state}, _opts),
     do: {:error, {:invalid_state, state, :expected_loaded}}
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "File.Local — local filesystem file I/O with lifecycle state machine"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :local_fs,
+      states: [:open, :loaded, :closed],
+      persistence: :disk,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{mode: [":read", ":write", ":binary", ":append"]}
+  end
+
+  @impl Comn
+  def act(%{action: :read, path: path}) do
+    with {:ok, fs} <- open(path),
+         {:ok, fs} <- load(fs),
+         {:ok, data} <- read(fs) do
+      close(fs)
+      {:ok, data}
+    end
+  end
+
+  def act(%{action: :write, path: path, data: data}) do
+    with {:ok, fs} <- open(path, mode: [:write, :binary]),
+         {:ok, fs} <- load(fs),
+         {:ok, _fs} <- write(fs, data) do
+      close(fs)
+      {:ok, :written}
+    end
+  end
+
+  def act(_input), do: {:error, :unknown_action}
 end

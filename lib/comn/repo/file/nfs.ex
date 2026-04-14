@@ -1,11 +1,24 @@
 defmodule Comn.Repo.File.NFS do
   @moduledoc """
-  NFS mount-point file backend. Wraps Local with path resolution
-  relative to a configured mount point and ESTALE detection.
+  NFS mount-point file backend.
+
+  Wraps `Comn.Repo.File.Local` with path resolution relative to a
+  configured mount point and ESTALE (stale NFS handle) detection.
+  Requires a `:mount` option on `open/2`.
+
+  Implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> Comn.Repo.File.NFS.look()
+      "File.NFS — NFS mount-point file backend with ESTALE detection"
+
+      iex> %{delegates_to: Comn.Repo.File.Local} = Comn.Repo.File.NFS.recon()
   """
 
   alias Comn.Repo.File.{Local, FileStruct}
 
+  @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.File
 
@@ -68,6 +81,38 @@ defmodule Comn.Repo.File.NFS do
 
   @impl Comn.Repo
   def observe(fs, opts), do: Local.observe(fs, opts)
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "File.NFS — NFS mount-point file backend with ESTALE detection"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :nfs,
+      delegates_to: Comn.Repo.File.Local,
+      requires: [:mount],
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{mount: "required — NFS mount point path"}
+  end
+
+  @impl Comn
+  def act(%{action: :read, path: path, mount: mount}) do
+    with {:ok, fs} <- open(path, mount: mount),
+         {:ok, fs} <- load(fs),
+         {:ok, data} <- read(fs) do
+      close(fs)
+      {:ok, data}
+    end
+  end
+
+  def act(_input), do: {:error, :unknown_action}
 
   # Helpers
 

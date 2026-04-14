@@ -1,10 +1,27 @@
 defmodule Comn.Contexts do
   @moduledoc """
-  Process-scoped context management using ContextStruct.
+  Process-scoped context management using the process dictionary.
 
-  Stores context in the process dictionary so it's available
-  throughout a request/operation lifecycle without explicit passing.
+  Stores a `Comn.Contexts.ContextStruct` in the calling process so request
+  metadata (request IDs, trace IDs, user info) is available throughout an
+  operation lifecycle without explicit passing.
+
+  Also implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> ctx = Comn.Contexts.new(request_id: "req-1")
+      iex> ctx.request_id
+      "req-1"
+
+      iex> Comn.Contexts.fetch(:request_id)
+      "req-1"
+
+      iex> Comn.Contexts.look()
+      "Contexts — process-scoped context management via process dictionary"
   """
+
+  @behaviour Comn
 
   alias Comn.Contexts.ContextStruct
 
@@ -75,4 +92,31 @@ defmodule Comn.Contexts do
   def with_context(fields, fun) when is_map(fields) or is_list(fields) do
     with_context(ContextStruct.new(fields), fun)
   end
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "Contexts — process-scoped context management via process dictionary"
+
+  @impl Comn
+  def recon do
+    %{
+      storage: :process_dictionary,
+      struct: Comn.Contexts.ContextStruct,
+      fields: [:request_id, :trace_id, :correlation_id, :user_id, :actor, :env, :zone, :parent_event_id, :metadata],
+      type: :facade
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{actions: ["get", "set", "new", "put", "fetch", "with_context"]}
+  end
+
+  @impl Comn
+  def act(%{action: :new}), do: {:ok, new()}
+  def act(%{action: :new, fields: fields}), do: {:ok, new(fields)}
+  def act(%{action: :get}), do: {:ok, get()}
+  def act(%{action: :set, context: ctx}), do: {:ok, set(ctx)}
+  def act(_input), do: {:error, :unknown_action}
 end

@@ -1,14 +1,20 @@
 defmodule Comn.Secrets.Local do
   @moduledoc """
-  Local implementation of Comn.Secrets using Erlang :crypto module.
+  Local implementation of `Comn.Secrets` using Erlang `:crypto`.
 
-  Uses hybrid encryption (NaCl box style):
-  - Ed25519 keys for identity
-  - ChaCha20-Poly1305 for AEAD encryption
-  - Ephemeral keys for each encryption (provides forward secrecy)
+  Uses Ed25519 keys for identity and ChaCha20-Poly1305 for AEAD encryption
+  with a unique nonce per operation. Similar to how `age` works — modern
+  cryptographic primitives, no lifecycle management overhead.
 
-  This is similar to how modern tools like 'age' work - PGP-inspired
-  but using modern cryptographic primitives.
+  ## Examples
+
+      iex> {pub, priv} = :crypto.generate_key(:eddsa, :ed25519)
+      iex> key = %Comn.Secrets.Key{
+      ...>   id: :crypto.hash(:blake2b, pub) |> binary_part(0, 16),
+      ...>   algorithm: :ed25519, public: pub, private: priv
+      ...> }
+      iex> {:ok, locked} = Comn.Secrets.Local.lock("hello", key)
+      iex> {:ok, "hello"} = Comn.Secrets.Local.unlock(locked, key)
   """
 
   @behaviour Comn.Secrets
@@ -70,7 +76,7 @@ defmodule Comn.Secrets.Local do
       symmetric_key = :crypto.hash(:sha256, key.private)
 
       # Serialize metadata for AAD
-      aad = :erlang.term_to_binary(locked.metadata, [:safe])
+      aad = :erlang.term_to_binary(locked.metadata)
 
       # Decrypt with tag verification
       case :crypto.crypto_one_time_aead(

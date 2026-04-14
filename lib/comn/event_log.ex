@@ -1,7 +1,24 @@
 defmodule Comn.EventLog do
   @moduledoc """
-  In-memory, immutable event log that records and queries all agent/tool activity.
+  In-memory, append-only event log backed by an `Agent`.
+
+  Records structs that implement the `Comn.Event` protocol and provides
+  query functions by topic, type, and timestamp. Useful for audit trails,
+  replay, and debugging.
+
+  Also implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> Comn.EventLog.look()
+      "EventLog — in-memory immutable event log for agent/tool activity"
+
+      iex> %{queries: qs} = Comn.EventLog.recon()
+      iex> :for_topic in qs
+      true
   """
+
+  @behaviour Comn
 
   use Agent
 
@@ -69,4 +86,32 @@ defmodule Comn.EventLog do
   def clear do
     Agent.update(__MODULE__, fn _ -> [] end)
   end
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "EventLog — in-memory immutable event log for agent/tool activity"
+
+  @impl Comn
+  def recon do
+    %{
+      storage: :agent,
+      queries: [:all, :for_topic, :for_type, :since],
+      immutable: true,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{actions: ["record", "all", "for_topic", "for_type", "since", "clear"]}
+  end
+
+  @impl Comn
+  def act(%{action: :record, event: event}), do: {:ok, record(event)}
+  def act(%{action: :all}), do: {:ok, all()}
+  def act(%{action: :for_topic, topic: topic}), do: {:ok, for_topic(topic)}
+  def act(%{action: :for_type, type: type}), do: {:ok, for_type(type)}
+  def act(%{action: :since, timestamp: ts}), do: {:ok, since(ts)}
+  def act(_input), do: {:error, :unknown_action}
 end

@@ -1,13 +1,24 @@
 defmodule Comn.Repo.File.IPFS do
   @moduledoc """
-  IPFS daemon API backend for Comn.Repo.File.
+  IPFS daemon API backend for `Comn.Repo.File`.
 
-  Connects to a local IPFS daemon at the configured endpoint
-  (default `http://localhost:5001`) via the HTTP API.
+  Content-addressed file I/O through a local IPFS daemon's HTTP API
+  (default `http://localhost:5001`). Writes return a new CID; reads
+  fetch by CID.
+
+  Implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> Comn.Repo.File.IPFS.look()
+      "File.IPFS — content-addressed file I/O via IPFS daemon HTTP API"
+
+      iex> %{content_addressed: true} = Comn.Repo.File.IPFS.recon()
   """
 
   alias Comn.Repo.File.FileStruct
 
+  @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.File
 
@@ -183,4 +194,49 @@ defmodule Comn.Repo.File.IPFS do
 
   def observe(%FileStruct{state: state}, _opts),
     do: {:error, {:invalid_state, state, :expected_loaded}}
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "File.IPFS — content-addressed file I/O via IPFS daemon HTTP API"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :ipfs,
+      default_api: @default_api,
+      content_addressed: true,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{api: "IPFS daemon endpoint (default: #{@default_api})"}
+  end
+
+  @impl Comn
+  def act(%{action: :read, cid: cid} = input) do
+    api = Map.get(input, :api, @default_api)
+
+    with {:ok, fs} <- open(cid, api: api),
+         {:ok, fs} <- load(fs),
+         {:ok, data} <- read(fs) do
+      close(fs)
+      {:ok, data}
+    end
+  end
+
+  def act(%{action: :write, data: data} = input) do
+    api = Map.get(input, :api, @default_api)
+
+    with {:ok, fs} <- open("new", api: api),
+         {:ok, fs} <- load(fs),
+         {:ok, fs} <- write(fs, data) do
+      close(fs)
+      {:ok, fs.path}
+    end
+  end
+
+  def act(_input), do: {:error, :unknown_action}
 end

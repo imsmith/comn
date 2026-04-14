@@ -1,31 +1,33 @@
 defmodule Comn.Secrets.Vault do
   @moduledoc """
-  HashiCorp Vault backend for Comn.Secrets using Transit secrets engine.
+  HashiCorp Vault Transit engine backend for `Comn.Secrets`.
 
-  This backend delegates encryption operations to Vault's Transit engine,
-  which means the application never sees the actual encryption keys.
-  Vault manages key material, versioning, and rotation internally.
+  Delegates all encryption to Vault's Transit engine — the application
+  never sees key material. Vault handles nonce generation, key versioning,
+  and rotation internally.
+
+  Implements the same `Comn.Secrets` behaviour as `Comn.Secrets.Local`,
+  so the calling code is backend-agnostic.
+
+  Also implements `@behaviour Comn` for uniform introspection.
 
   ## Configuration
 
-  Vault-specific configuration is passed via key.metadata:
-  - `vault_addr` - Vault server address (e.g., "http://localhost:8200")
-  - `vault_token` - Authentication token for Vault
-  - `vault_key_name` - Transit key name to use for encryption
+  Passed via `%Comn.Secrets.Key{metadata: ...}`:
 
-  ## Security
+  - `vault_addr` — Vault server address (e.g. `"http://localhost:8200"`)
+  - `vault_token` — authentication token
+  - `vault_key_name` — Transit key name
 
-  - Key material never leaves Vault
-  - Nonce generation handled by Vault
-  - Key rotation managed by Vault
-  - All cryptographic operations performed server-side
+  ## Examples
 
-  ## Interface Compatibility
+      iex> Comn.Secrets.Vault.look()
+      "Secrets.Vault — HashiCorp Vault Transit engine backend, key material never leaves Vault"
 
-  This module implements the same Comn.Secrets behavior as Local backend,
-  ensuring the application interface remains constant regardless of backend.
+      iex> %{key_management: :server_side} = Comn.Secrets.Vault.recon()
   """
 
+  @behaviour Comn
   @behaviour Comn.Secrets
 
   alias Comn.Secrets.{Key, LockedBlob, Container}
@@ -318,4 +320,34 @@ defmodule Comn.Secrets.Vault do
   end
 
   defp map_vault_error(_), do: {:error, :vault_error}
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "Secrets.Vault — HashiCorp Vault Transit engine backend, key material never leaves Vault"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :vault_transit,
+      requires: [:vault_addr, :vault_token, :vault_key_name],
+      key_management: :server_side,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{
+      operations: ["lock", "unlock", "wrap", "unwrap"],
+      config: ["vault_addr", "vault_token", "vault_key_name"]
+    }
+  end
+
+  @impl Comn
+  def act(%{action: :lock, blob: blob, key: key}), do: lock(blob, key)
+  def act(%{action: :unlock, locked: locked, key: key}), do: unlock(locked, key)
+  def act(%{action: :wrap, blobs: blobs, key: key}), do: wrap(blobs, key)
+  def act(%{action: :unwrap, locked: locked, key: key}), do: unwrap(locked, key)
+  def act(_input), do: {:error, :unknown_action}
 end

@@ -1,11 +1,25 @@
 defmodule Comn.Repo.Table.ETS do
   @moduledoc """
-  ETS-backed implementation of Comn.Repo and Comn.Repo.Table.
+  ETS-backed implementation of `Comn.Repo` and `Comn.Repo.Table`.
 
-  Provides a simple key-value store using Erlang Term Storage.
-  Tables are created as named_table, public, set by default.
+  In-memory key-value store using Erlang Term Storage. Tables default to
+  `[:named_table, :public, :set]`.
+
+  Implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> {:ok, _} = Comn.Repo.Table.ETS.create(:doctest_table)
+      iex> :ok = Comn.Repo.Table.ETS.set(:doctest_table, key: "k", value: "v")
+      iex> {:ok, "v"} = Comn.Repo.Table.ETS.get(:doctest_table, key: "k")
+      iex> {:ok, 1} = Comn.Repo.Table.ETS.count(:doctest_table)
+      iex> :ok = Comn.Repo.Table.ETS.drop(:doctest_table)
+
+      iex> Comn.Repo.Table.ETS.look()
+      "ETS — in-memory key-value store backed by Erlang Term Storage"
   """
 
+  @behaviour Comn
   @behaviour Comn.Repo
   @behaviour Comn.Repo.Table
 
@@ -125,6 +139,47 @@ defmodule Comn.Repo.Table.ETS do
         {:error, {:not_found, name}}
     end
   end
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "ETS — in-memory key-value store backed by Erlang Term Storage"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :ets,
+      default_opts: [:named_table, :public, :set],
+      persistence: :memory,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{
+      ets_opts: [":named_table", ":public", ":set", ":ordered_set", ":bag", ":duplicate_bag"]
+    }
+  end
+
+  @impl Comn
+  def act(%{action: :create, name: name} = input) do
+    create(name, Map.get(input, :opts, []))
+  end
+
+  def act(%{action: :get, name: name, key: key}) do
+    get(name, key: key)
+  end
+
+  def act(%{action: :set, name: name, key: key, value: value}) do
+    set(name, key: key, value: value)
+  end
+
+  def act(%{action: :delete, name: name, key: key}) do
+    delete(name, key: key)
+  end
+
+  def act(_input), do: {:error, :unknown_action}
 
   # Helpers
 

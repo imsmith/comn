@@ -1,6 +1,8 @@
 defmodule Comn.Secrets do
   @moduledoc """
-  Behavior for secret locking/unlocking implementations.
+  Behaviour for secret locking/unlocking implementations.
+
+  Also implements `@behaviour Comn` for uniform introspection.
 
   Secrets are encrypted blobs with a simple interface:
   - `lock/2` - Encrypt a blob with a key
@@ -133,4 +135,30 @@ defmodule Comn.Secrets do
   """
   @callback unwrap(locked_container :: LockedBlob.t(), key :: Key.t()) ::
               {:ok, [LockedBlob.t()]} | {:error, term()}
+
+  @behaviour Comn
+
+  @impl Comn
+  def look, do: "Secrets — lock/unlock encrypted blobs, wrap/unwrap containers"
+
+  @impl Comn
+  def recon do
+    %{
+      callbacks: [:lock, :unlock, :wrap, :unwrap],
+      algorithms: [:ed25519, :rsa_4096, :ecdsa_p256],
+      implementations: [Comn.Secrets.Local, Comn.Secrets.Vault],
+      type: :behaviour
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{
+      backends: ["Local", "Vault"],
+      algorithms: ["ed25519", "rsa_4096", "ecdsa_p256"]
+    }
+  end
+
+  @impl Comn
+  def act(_input), do: {:error, :behaviour_only}
 end

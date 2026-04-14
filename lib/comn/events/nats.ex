@@ -1,12 +1,24 @@
 defmodule Comn.Events.NATS do
   @moduledoc """
-  NATS adapter for the Comn.Events system.
+  NATS adapter for the `Comn.Events` system.
 
   Wraps a Gnat connection in a GenServer that manages subscriptions
-  and translates NATS messages into EventStruct broadcasts on the local EventBus.
+  and translates NATS messages into `Comn.Events.EventStruct` broadcasts
+  on the local `Comn.EventBus`. Defaults to `127.0.0.1:4222`.
+
+  Implements `@behaviour Comn` for uniform introspection.
+
+  ## Examples
+
+      iex> Comn.Events.NATS.look()
+      "Events.NATS — NATS adapter bridging NATS pub/sub to local EventBus"
+
+      iex> %{default_port: 4222} = Comn.Events.NATS.recon()
   """
 
   use GenServer
+
+  @behaviour Comn
 
   alias Comn.Events.EventStruct
   alias Comn.EventBus
@@ -91,4 +103,45 @@ defmodule Comn.Events.NATS do
   def handle_info(_msg, state) do
     {:noreply, state}
   end
+
+  # Comn callbacks
+
+  @impl Comn
+  def look, do: "Events.NATS — NATS adapter bridging NATS pub/sub to local EventBus"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :nats,
+      default_host: "127.0.0.1",
+      default_port: 4222,
+      bridges_to: Comn.EventBus,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{
+      host: "NATS server host (default: 127.0.0.1)",
+      port: "NATS server port (default: 4222)",
+      tls: [true, false]
+    }
+  end
+
+  @impl Comn
+  def act(%{action: :connect} = input) do
+    opts = Map.to_list(Map.delete(input, :action))
+    start_link(opts)
+  end
+
+  def act(%{action: :broadcast, pid: pid, topic: topic, payload: payload}) do
+    broadcast(pid, topic, payload)
+  end
+
+  def act(%{action: :subscribe, pid: pid, topic: topic}) do
+    subscribe(pid, topic)
+  end
+
+  def act(_input), do: {:error, :unknown_action}
 end
