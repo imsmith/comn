@@ -614,3 +614,94 @@ get what you ask for" — the path you pass is the path you get. If you are
 exposing Local to untrusted input, path policy is your problem to add. The
 library does not impose a sandbox on a shape that has no natural boundary;
 doing so would be the wrong abstraction in the wrong place.
+
+---
+
+<a id="boot"></a>
+## Supervision and Boot — How It Comes Alive
+
+### The Boot Sequence
+
+`Comn.Application.start/2` starts the supervision tree, then runs two discovery
+passes in sequence:
+
+```elixir
+<!-- from lib/comn/application.ex -->
+def start(_type, _args) do
+  result = Comn.Supervisor.start_link()
+
+  Comn.Errors.Registry.discover()
+  Comn.Discovery.discover()
+
+  result
+end
+```
+
+The supervision tree brings up three children under a `one_for_one` strategy:
+
+```elixir
+<!-- from lib/comn/supervisor.ex -->
+def init(_opts) do
+  children = [
+    {Registry, keys: :duplicate, name: Comn.EventBus},
+    {Registry, keys: :duplicate, name: Comn.Events.Registry},
+    Comn.EventLog
+  ]
+
+  Supervisor.init(children, strategy: :one_for_one)
+end
+```
+
+`Comn.EventBus` and `Comn.Events.Registry` are both Registry processes with
+`:duplicate` keys — multiple subscribers can register under the same topic.
+`Comn.EventLog` is an Agent-backed append-only log. `one_for_one` means a crash
+in `EventLog` does not take down the bus.
+
+### Post-Supervision Discovery
+
+Once the tree is up, two discovery passes run sequentially:
+
+1. `Comn.Errors.Registry.discover/0` — scans all loaded modules for
+   `__errors__/0`, collects every registered error code, and indexes the results
+   into `persistent_term`. From this point forward, error lookups are a single
+   read from shared memory.
+
+2. `Comn.Discovery.discover/0` — scans for modules that export the four Comn
+   callbacks (`recon/0`, `act/1`, `query/1`, `event/1`), and indexes those into
+   `persistent_term` as well.
+
+### Why This Order Matters
+
+The supervision tree must be up before discovery runs because `Comn.EventBus` is
+a Registry process that other modules may reference during initialization. Start
+discovery before the bus exists and you have a process lookup against nothing.
+
+Error discovery runs before module discovery because module metadata — returned
+by `recon/0` — may reference error codes. When `Discovery.discover/0` calls into
+a module's `recon/0`, the error registry is already populated and those
+references resolve cleanly.
+
+### What's Not in the Tree
+
+NATS and other external adapters are not supervised here. They require connection
+configuration — broker addresses, credentials, TLS settings — that Comn cannot
+know. They belong in the consumer application's supervision tree, started after
+Comn's tree is up, with whatever configuration the consumer provides.
+
+### Known Limitation: EventLog
+
+`Comn.EventLog` is an Agent wrapping an ever-growing list. Appends are cheap;
+the list grows without bound. This is acceptable for development, testing, and
+low-volume audit scenarios. It is not suitable for production systems with
+sustained event volume. A production deployment that needs durable event history
+should route events to an external log and treat `EventLog` as a diagnostic
+tool only.
+
+### Closing the Arc
+
+The system starts. The supervision tree comes up. Discovery runs and indexes
+what exists into shared memory. From that point forward, any Comn module can be
+found, queried, and operated through the same four verbs — regardless of where
+it lives in the codebase or how it was registered. That is the design: uniform
+introspection from boot to shutdown, with nothing requiring manual registration
+and nothing hidden from the runtime.
