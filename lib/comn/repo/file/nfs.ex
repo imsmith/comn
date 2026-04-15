@@ -134,6 +134,13 @@ defmodule Comn.Repo.File.NFS do
   # Helpers
 
   defp resolve_path(mount, path) do
-    Path.join(mount, path)
+    full = Path.join(mount, path) |> Path.expand()
+    mount_expanded = Path.expand(mount)
+
+    if String.starts_with?(full, mount_expanded <> "/") or full == mount_expanded do
+      full
+    else
+      raise ArgumentError, "path traversal detected: #{path} escapes mount #{mount}"
+    end
   end
 end
