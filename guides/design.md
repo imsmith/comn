@@ -344,3 +344,127 @@ event.correlation_id  #=> nil (not set in this context)
 No function in the call chain between the boundary and the error or event site
 needed to accept or forward a context argument. The process dictionary carries
 it. Same pattern Logger uses for metadata — idiomatic BEAM, not a hack.
+
+---
+
+<a id="secrets"></a>
+## Secrets — Encryption Without Lifecycle
+
+### Philosophy
+
+Secrets are encrypted data. That's the entire model.
+
+No rotation schedules. No version stages. No key management opinions. No
+lifecycle state machine. If you want rotation, call `lock/2` again with the new
+key and store the result. If you want versioning, store multiple blobs. The
+library's job is to encrypt and decrypt — yours is to decide when, with what
+key, and for how long.
+
+Four verbs: `lock`, `unlock`, `wrap`, `unwrap`. `lock` encrypts a binary.
+`unlock` decrypts it. `wrap` encrypts a list of blobs as a single container.
+`unwrap` recovers the list. Nothing else belongs here.
+
+The "no lifecycle" stance is a deliberate choice, not an omission. Lifecycle
+management is a policy problem. Every system has different rotation windows,
+different key storage constraints, different compliance requirements. A library
+that bakes in lifecycle assumptions is a library that forces those assumptions on
+its callers. `Comn.Secrets` refuses to do that.
+
+### Why ChaCha20-Poly1305
+
+ChaCha20-Poly1305 is an AEAD cipher — authentication and encryption in one pass.
+The authentication tag covers both the ciphertext and the additional authenticated
+data (AAD), so tampering with either is detectable at decrypt time, not as a
+separate MAC step.
+
+It's a stream cipher, not a block cipher, so there are no padding oracle attacks.
+The 96-bit nonce space is large enough for reasonable volumes when nonces are
+generated with a CSPRNG — no nonce-reuse risk from counter overflow at practical
+scale. Erlang's `:crypto` module exposes it natively via OpenSSL.
+
+### Key Derivation
+
+Ed25519 keys are asymmetric signature keys. ChaCha20-Poly1305 needs a symmetric
+32-byte key. The bridge is SHA-256: the private key material is hashed to derive
+the symmetric key.
+
+This is correct — the derived key is uniformly distributed and the right length.
+It is not best-practice. Production use should use HKDF (RFC 5869) with an
+explicit info string and salt to separate key purposes and prevent cross-protocol
+key reuse. The current approach is a pragmatic starting point; the interface does
+not change when the derivation is upgraded.
+
+### Wrap/Unwrap Design
+
+`wrap` does not bundle blobs alongside encryption — it encrypts the container as
+a whole. The entire serialized `%Container{}` structure, including blob order,
+blob count, and metadata, is the plaintext that gets locked.
+
+The AEAD tag therefore covers everything: blob order, blob count, metadata. This
+means reordering blobs, deleting a blob from the list, injecting a new blob, or
+replaying an old container with a different blob set will all fail authentication.
+You cannot surgically modify a wrapped container. The integrity guarantee is
+structural, not just per-blob.
+
+### Vault Backend
+
+`Comn.Secrets` is a behaviour. `Comn.Secrets.Local` implements it with Erlang's
+`:crypto`. A Vault backend implements the same behaviour, delegating to the
+Transit secrets engine.
+
+From the caller's perspective, there is no difference. The function signatures
+are identical. Key material never leaves Vault — the backend sends plaintext in,
+gets ciphertext back, and Vault handles all key storage, key rotation, and audit
+logging internally. Swapping backends is a configuration change, not a code change.
+
+### Safety Detail
+
+All `binary_to_term` calls use the `[:safe]` option. Without it, deserializing
+attacker-controlled data can exhaust the atom table (atoms are not garbage
+collected) or, in older OTP versions, execute arbitrary code. `[:safe]` restricts
+deserialization to terms that reference only existing atoms and does not allow
+anonymous functions. Any attempt to deserialize a term with unknown atoms raises
+`ArgumentError`, which is caught and converted to a `secrets/invalid_container`
+error.
+
+### The `lock/2` Implementation
+
+```elixir
+<!-- from lib/comn/secrets/local.ex -->
+def lock(blob, %Key{} = key) when is_binary(blob) do
+  with :ok <- validate_key(key) do
+    symmetric_key = :crypto.hash(:sha256, key.private)
+    nonce = :crypto.strong_rand_bytes(12)
+
+    metadata = %{
+      created_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+      algorithm: key.algorithm
+    }
+
+    aad = :erlang.term_to_binary(metadata)
+
+    {ciphertext, tag} = :crypto.crypto_one_time_aead(
+      :chacha20_poly1305,
+      symmetric_key,
+      nonce,
+      blob,
+      aad,
+      true
+    )
+
+    {:ok, %LockedBlob{
+      cipher: :chacha20_poly1305,
+      encrypted: ciphertext,
+      tag: tag,
+      nonce: nonce,
+      key_hint: Key.fingerprint(key),
+      metadata: metadata
+    }}
+  end
+end
+```
+
+The nonce is fresh per call. The metadata is bound into the AAD before
+encryption, so the metadata cannot be swapped out on a stored blob without
+breaking authentication. The `with` clause short-circuits on key validation
+failure before any crypto work happens.
