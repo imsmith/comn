@@ -22,3 +22,22 @@ erl_crash.dump
 # Temporary files, for example, from tests.
 /tmp/
 /working notes/
+
+# Secrets and environment
+.env
+.env.*
+
+# IDE and editor artifacts
+.elixir_ls/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Claude Code session state
+.claude/
