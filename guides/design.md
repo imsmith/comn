@@ -345,8 +345,6 @@ No function in the call chain between the boundary and the error or event site
 needed to accept or forward a context argument. The process dictionary carries
 it. Same pattern Logger uses for metadata — idiomatic BEAM, not a hack.
 
----
-
 <a id="secrets"></a>
 ## Secrets — Encryption Without Lifecycle
 
@@ -615,8 +613,6 @@ exposing Local to untrusted input, path policy is your problem to add. The
 library does not impose a sandbox on a shape that has no natural boundary;
 doing so would be the wrong abstraction in the wrong place.
 
----
-
 <a id="boot"></a>
 ## Supervision and Boot — How It Comes Alive
 
@@ -667,7 +663,7 @@ Once the tree is up, two discovery passes run sequentially:
    read from shared memory.
 
 2. `Comn.Discovery.discover/0` — scans for modules that export the four Comn
-   callbacks (`recon/0`, `act/1`, `query/1`, `event/1`), and indexes those into
+   callbacks (`look/0`, `recon/0`, `choices/0`, `act/1`), and indexes those into
    `persistent_term` as well.
 
 ### Why This Order Matters
