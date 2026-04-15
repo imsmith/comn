@@ -468,3 +468,149 @@ The nonce is fresh per call. The metadata is bound into the AAD before
 encryption, so the metadata cannot be swapped out on a stored blob without
 breaking authentication. The `with` clause short-circuits on key validation
 failure before any crypto work happens.
+
+---
+
+<a id="the-repo-tree"></a>
+## The Repo Tree — Ten Shapes of I/O
+
+All I/O falls into a small number of structural patterns. Not every backend is a
+relational table, not every data store is mutable, and not every operation is
+a read-write pair. Rather than invent a bespoke interface per backend, Comn
+defines a behaviour for each structural pattern and lets implementations fill
+in the details. The interface stays uniform; the shape of the data and the
+lifecycle constraints differ.
+
+### Base Contract: `Comn.Repo`
+
+Every repo type shares five verbs: `describe`, `get`, `set`, `delete`,
+`observe`. This is not CRUD with an alias change. The choice of five verbs is
+intentional.
+
+`describe` gives introspection CRUD lacks — caller can ask what a resource is,
+what its schema is, what its current state is, without fetching data. `observe`
+gives streaming and enumeration: a single callback covers both snapshot reads
+and live subscriptions. There is no `update` because update is `set` with an
+existing key; treating them as distinct operations adds ceremony without adding
+capability. The five-verb surface is the lowest common denominator that every
+repo type can meaningfully implement, and anything domain-specific belongs in
+an extension behaviour layered on top.
+
+```elixir
+<!-- from lib/comn/repo.ex -->
+@type resource :: term()
+
+@callback describe(resource()) :: {:ok, map()} | {:error, term()}
+@callback get(resource(), keyword()) :: {:ok, term()} | {:error, term()}
+@callback set(resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
+@callback delete(resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
+@callback observe(resource(), keyword()) :: Enumerable.t() | {:error, term()}
+```
+
+### The Ten Shapes
+
+**Table** is the baseline: a named collection of key-value pairs with a
+create/drop lifecycle. You create the table, put things in it, look them up
+by key, drop the table when done. The structure is flat and the semantics are
+synchronous. The ETS implementation makes this fast and in-process. What
+distinguishes Table from the other shapes is its simplicity — no schema
+enforcement, no ordering guarantee, no buffering. It is the raw keyed store
+everything else is built toward or away from.
+
+**File** has a state machine lifecycle that none of the other shapes share:
+open → load → read/write/stream → close. The state machine is not ceremony;
+it exists because using a file before it's loaded or writing to a closed handle
+are real, common mistakes that blow up at runtime. Encoding this as a lifecycle
+with explicit state transitions catches those errors at the type level rather
+than at the point of failure, which may be a hundred calls later. Local, NFS,
+and IPFS are all implementations of the same File behaviour — same verbs, same
+lifecycle, different path resolution and transport.
+
+**Graphs** is different from Table in kind, not just degree. In a table, data
+sits at keys and relationships are implied by convention (foreign keys, naming
+patterns). In a graph repo, the data _is_ the connections. The primitive
+operations are link, unlink, and traverse — not put/get. You cannot meaningfully
+map graph traversal onto keyed lookup without losing either the semantics or the
+performance. Graphs gets its own behaviour because the structural pattern is
+distinct: the libgraph implementation makes this concrete.
+
+**Cmd** is the command pattern: validate, apply, reset. It represents operations
+that are executed, not stored. There is no durable state, no key-value pair to
+retrieve later. The resource is a command specification; the operation is its
+execution. This matters for shell-driven workflows, infrastructure provisioning,
+and anything where the side effect is the point. Cmd is in the repo tree because
+it shares the five-verb surface — you can describe a command, observe its output
+— but its extension behaviour is about execution lifecycle, not persistence.
+
+**Batch** is write-behind buffering. Rather than flushing every write to the
+backend immediately, Batch accumulates writes and flushes on a size threshold
+or time interval. The primitive operations are push, flush, size, drain, and
+status. This shape exists because the cost model for many backends (network I/O,
+disk fsync, API rate limits) makes per-write flushing prohibitive at volume.
+Batch decouples the write rate the caller sees from the write rate the backend
+absorbs. The mem (GenServer) implementation supports configurable auto-flush;
+the auto-flush logic lives in the implementation, not the behaviour.
+
+**Column** is schema-enforced columnar storage. Rows must conform to a declared
+schema; projections select subsets of columns. The extension callbacks add
+create, put, select, delete, schema, count, and drop on top of the base five.
+Column differs from Table in that the schema is part of the contract — you
+cannot put an arbitrary term under a key, you put a row that validates against
+declared column types. This gives you query semantics (select by column
+predicate) and the ability to introspect the shape of stored data, not just its
+presence. The ETS implementation keeps this in-process.
+
+**Bus** (planned) is raw pub/sub transport. No struct opinions, no enrichment,
+no logging. A message goes in on a topic, subscribers receive it. Bus is distinct
+from the Events system (Section 3) precisely because Events is opinionated:
+EventStruct, enrichment pipeline, telemetry hooks. Bus is the transport layer
+underneath all of that — what you use when you need pub/sub without the event
+machinery, or when you are building the event machinery itself.
+
+**Queue** (planned) is ordered, durable, and ackable. The pattern is RabbitMQ or
+Oban: messages are enqueued, workers dequeue and acknowledge, unacknowledged
+messages are retried or dead-lettered. Queue differs from Batch in direction and
+durability: Batch is write-behind for outbound I/O; Queue is a work-distribution
+mechanism where delivery guarantees matter. Queue differs from Bus in that Bus
+is fire-and-forget by design; Queue tracks delivery state per message.
+
+**Stream** (planned) is append-only and replayable. The pattern is Kafka: events
+are appended to a log, consumers read from an offset, old data is retained until
+a retention policy expires it. Stream differs from Queue in that consumption is
+non-destructive — multiple consumers can read the same data at different offsets
+independently. It differs from Bus in that the log is durable: a consumer that
+falls behind can catch up; a Bus subscriber that disconnects misses what it
+missed.
+
+**Merkel** (planned) is content-addressed and immutable. The pattern is Git or
+IPFS: data is stored by a hash of its content, not by a mutable key. You cannot
+update content under an address; you produce a new address for new content. This
+shape exists for audit trails, content verification, and distributed sync where
+you need to prove that what you received is what was sent. The address _is_ the
+integrity check.
+
+### Naming Convention
+
+Behaviours live at `Comn.Repo.X`. Implementations live at
+`Comn.Repo.X.Backend`. For example: `Comn.Repo.Table` is the behaviour;
+`Comn.Repo.Table.ETS` is the ETS implementation. `Comn.Repo.File` is the
+behaviour; `Comn.Repo.File.Local`, `Comn.Repo.File.NFS`, and
+`Comn.Repo.File.IPFS` are the implementations. This keeps the module tree
+readable: the behaviour is always one level up from its implementations, and
+you can find all implementations of a shape by listing its namespace.
+
+### NFS vs Local: A Design Choice
+
+NFS wraps Local rather than reimplementing file I/O. The NFS implementation adds
+exactly two things Local does not have: path resolution relative to a mount
+point, and ESTALE detection. Everything else — reading, writing, streaming,
+lifecycle state management — delegates to Local.
+
+The path resolution difference is deliberate. NFS has a mount boundary to
+enforce. `resolve_path/2` expands the path and validates that the result stays
+within the mount point, rejecting traversal attempts (`../../etc/passwd` and
+its variants). Local does not have a mount boundary. Local is deliberately "you
+get what you ask for" — the path you pass is the path you get. If you are
+exposing Local to untrusted input, path policy is your problem to add. The
+library does not impose a sandbox on a shape that has no natural boundary;
+doing so would be the wrong abstraction in the wrong place.
