@@ -1,67 +1,70 @@
 # Comn
 
-Shared Elixir foundation providing standardized abstractions for error handling, event systems, secrets management, repository access, and request context propagation.
+A shared Elixir foundation for building systems with uniform introspection, structured errors, event propagation, secrets management, and pluggable repository backends.
+
+Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `choices`, `act`) that make any subsystem discoverable and operable at runtime. You always know what a module is, what it can do, and how to use it.
 
 ## Status
 
-**v0.5.0** — OTP application with supervision tree. All modules implement `@behaviour Comn` for uniform introspection. Structured error codes via compile-time registry. Automatic context enrichment on errors and events.
+**v0.5.0** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, and runtime module discovery.
 
-| Subsystem | Status | Description |
+| Subsystem | Status | What it does |
 |---|---|---|
-| **Comn** | Complete | Universal `look`/`recon`/`choices`/`act` behaviour |
-| **Discovery** | Complete | Runtime module indexing, type/behaviour queries |
-| **Supervisor** | Complete | OTP supervisor for EventBus, EventLog, Events.Registry |
-| **Secrets** | Complete | ChaCha20-Poly1305 local encryption + HashiCorp Vault Transit backend |
-| **Events** | Complete | Registry-based pub/sub, Agent-based log, NATS adapter, structured events with schema/version/tags |
-| **Errors** | Complete | Error protocol, categorization, compile-time registry with namespaced codes, context enrichment |
-| **Contexts** | Complete | Process-scoped request context with automatic propagation to errors and events |
-| **Repo** | Working | ETS key-value, local/NFS/IPFS file I/O, libgraph graphs, Cmd behaviour |
-| **Infra** | Placeholder | Not yet implemented |
+| Comn | Complete | Universal `look`/`recon`/`choices`/`act` behaviour |
+| Discovery | Complete | Runtime module indexing, type/behaviour queries |
+| Supervisor | Complete | OTP supervisor for EventBus, EventLog, Events.Registry |
+| Contexts | Complete | Process-scoped request context with automatic propagation |
+| Errors | Complete | Structured errors, categorization, compile-time registry with namespaced codes |
+| Events | Complete | Registry-based pub/sub, event log, NATS adapter, structured events |
+| Secrets | Complete | ChaCha20-Poly1305 local encryption + HashiCorp Vault Transit backend |
+| Repo.Table | Complete | ETS key-value store |
+| Repo.File | Complete | Local/NFS/IPFS file I/O |
+| Repo.Graphs | Complete | libgraph-backed directed/undirected graphs |
+| Repo.Cmd | Complete | Command behaviour (Shell placeholder) |
+| Repo.Batch | Complete | Buffered write-behind with auto-flush (Mem backend) |
+| Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
+| Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
+| Repo.Queue | Planned | Ordered, durable, ackable (RabbitMQ/Oban pattern) |
+| Repo.Stream | Planned | Append-only, replayable (Kafka pattern) |
+| Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
+| Infra | Placeholder | Not yet implemented |
 
 ## Installation
 
-Add Comn as a dependency. The OTP application starts automatically — `Comn.Supervisor` brings up EventBus, EventLog, and Events.Registry, then discovers all error codes.
-
 ```elixir
 defp deps do
-  [
-    {:comn, path: "../comn"}
-  ]
+  [{:comn, path: "../comn"}]
 end
 ```
 
+The OTP application starts automatically — `Comn.Supervisor` brings up EventBus, EventLog, and Events.Registry, then discovers all registered error codes.
+
 ## The Comn Behaviour
 
-Every module in the library implements `@behaviour Comn`, providing four callbacks for discovery and action:
+Every module in the library implements `@behaviour Comn`:
 
 ```elixir
-# What is this?
 Comn.Repo.look()
 #=> "Repo — common I/O behaviour for data repositories (tables, files, graphs, commands)"
 
-# What can it do?
 Comn.Repo.recon()
 #=> %{callbacks: [:describe, :get, :set, :delete, :observe],
 #     extensions: [Comn.Repo.Table, Comn.Repo.File, Comn.Repo.Graphs, Comn.Repo.Cmd],
 #     type: :behaviour}
 
-# What are my options?
 Comn.Repo.choices()
 #=> %{extensions: ["Table", "File", "Graphs", "Cmd"],
 #     implementations: ["Table.ETS", "File.Local", ...]}
 
-# Do it
 Comn.Repo.Table.ETS.act(%{action: :create, name: :my_table})
 #=> {:ok, #Reference<...>}
 ```
 
-Behaviour-only modules return `{:error, :behaviour_only}` from `act/1`. Unimplemented placeholders return `{:error, :not_implemented}`.
+Behaviour-only modules return `{:error, :behaviour_only}` from `act/1`. Placeholders return `{:error, :not_implemented}`.
 
-### When to implement `@behaviour Comn`
+### When to add it
 
-Implement it on modules that are **discoverable infrastructure**: behaviours,
-their implementations, and facade modules that orchestrate them. These are
-the modules that answer "what can this system do?"
+Implement `@behaviour Comn` on modules that are **discoverable infrastructure** — behaviours, their implementations, and facade modules. If `Comn.Discovery.all()` should list it, add the behaviour. Don't add it to schemas, routers, controllers, helpers, or internal structs.
 
 ```elixir
 defmodule MyApp.Repo.Postgres do
@@ -73,10 +76,6 @@ defmodule MyApp.Repo.Postgres do
   # ...
 end
 ```
-
-Don't implement it on schemas, routers, controllers, helpers, or internal
-structs. The litmus test: if `Comn.Discovery.all()` should list it, add
-the behaviour. If not, skip it.
 
 ### Runtime discovery
 
@@ -93,9 +92,86 @@ Comn.Discovery.implementations_of(Comn.Repo.File)
 #=> [Comn.Repo.File.Local, Comn.Repo.File.NFS, Comn.Repo.File.IPFS]
 ```
 
-## Usage
+## Contexts
 
-### Secrets
+Process-scoped request context. Set it once at the boundary; errors and events downstream auto-enrich from it.
+
+```elixir
+alias Comn.Contexts
+
+ctx = Contexts.new(request_id: "req-123", user_id: "user-42")
+Contexts.fetch(:request_id)  #=> "req-123"
+
+Contexts.with_context(%{request_id: "req-456"}, fn ->
+  Contexts.fetch(:request_id)  #=> "req-456"
+end)
+Contexts.fetch(:request_id)  #=> "req-123" (restored)
+```
+
+## Errors
+
+All errors are `%Comn.Errors.ErrorStruct{}` with a namespaced `code` field. When a `Comn.Contexts` is active, errors auto-enrich with request IDs and trace IDs.
+
+```elixir
+alias Comn.Errors
+
+{:ok, error} = Errors.wrap("something went wrong")
+error = Errors.new(:validation, "email is required", :email)
+
+Errors.categorize("invalid_format")    #=> :validation
+Errors.categorize("database_timeout")  #=> :persistence
+```
+
+### Error registry
+
+Declare error codes at compile time. Codes use `namespace/error_name` format, validated at compile time, duplicates rejected.
+
+```elixir
+defmodule MyApp.Auth.Errors do
+  use Comn.Errors.Registry
+
+  register_error "auth/invalid_token", :auth, message: "Token is invalid or expired", status: 401
+  register_error "auth/forbidden",     :auth, message: "Insufficient permissions", status: 403
+end
+
+{:ok, err} = Comn.Errors.Registry.error("auth/invalid_token", field: "authorization")
+{:error, Comn.Errors.Registry.error!("auth/invalid_token")}
+
+Comn.Errors.Registry.http_status("auth/invalid_token")       #=> 401
+Comn.Errors.Registry.codes_for_prefix("auth/")               #=> ["auth/forbidden", "auth/invalid_token"]
+```
+
+## Events
+
+Registry-based pub/sub with an append-only event log. All processes started by `Comn.Supervisor`.
+
+```elixir
+Comn.EventBus.subscribe("user.created")
+
+event = Comn.Events.EventStruct.new(:domain, "user.created", %{user_id: 42})
+Comn.EventBus.broadcast("user.created", event)
+
+event.id              #=> "a1b2c3d4-..."  (auto-generated UUID)
+event.request_id      #=> from Comn.Contexts if set
+event.correlation_id  #=> from Comn.Contexts if set
+
+# Schema, version, and tags for routing and evolution
+event = Comn.Events.EventStruct.new(:domain, "order.placed", %{id: 1}, MyApp.Orders,
+  schema: "order.placed.v2", version: 2, tags: ["priority:high"])
+
+# Event log for audit/replay
+Comn.EventLog.record(event)
+Comn.EventLog.all()
+Comn.EventLog.for_topic("user.created")
+```
+
+NATS adapter is opt-in:
+
+```elixir
+children = [{Comn.Events.NATS, host: "nats.internal", port: 4222}]
+```
+
+## Secrets
 
 Lock and unlock data with Ed25519 keys using ChaCha20-Poly1305 AEAD encryption.
 
@@ -114,14 +190,13 @@ key = %Key{
 {:ok, locked} = Local.lock("sensitive data", key)
 {:ok, "sensitive data"} = Local.unlock(locked, key)
 
-# Wrap multiple locked blobs into a single encrypted container
 {:ok, locked1} = Local.lock("secret 1", key)
 {:ok, locked2} = Local.lock("secret 2", key)
 {:ok, container} = Local.wrap([locked1, locked2], key)
 {:ok, [^locked1, ^locked2]} = Local.unwrap(container, key)
 ```
 
-The Vault backend (`Comn.Secrets.Vault`) uses the same `Comn.Secrets` behaviour but delegates to HashiCorp Vault's Transit engine:
+The Vault backend (`Comn.Secrets.Vault`) delegates to HashiCorp Vault's Transit engine:
 
 ```elixir
 key = %Key{
@@ -136,118 +211,11 @@ key = %Key{
 }
 ```
 
-### Events
+## Repo
 
-Pub/sub via Registry and an append-only event log. All event processes are
-started by `Comn.Supervisor` — no manual setup needed.
+Pluggable repository backends sharing a common `Comn.Repo` behaviour (`describe`, `get`, `set`, `delete`, `observe`). Each specialization adds its own callbacks.
 
-```elixir
-# Subscribe and broadcast
-Comn.EventBus.subscribe("user.created")
-
-event = Comn.Events.EventStruct.new(:domain, "user.created", %{user_id: 42})
-Comn.EventBus.broadcast("user.created", event)
-
-# Events auto-enrich with ambient context
-event.id              #=> "a1b2c3d4-..."  (auto-generated UUID)
-event.request_id      #=> pulled from Comn.Contexts if set
-event.correlation_id  #=> pulled from Comn.Contexts if set
-
-# Schema, version, and tags for routing and evolution
-event = Comn.Events.EventStruct.new(:domain, "order.placed", %{id: 1}, MyApp.Orders,
-  schema: "order.placed.v2", version: 2, tags: ["priority:high"])
-
-# Event log for audit/replay
-Comn.EventLog.record(event)
-Comn.EventLog.all()
-Comn.EventLog.for_topic("user.created")
-```
-
-NATS adapter is opt-in — add to your own supervision tree:
-
-```elixir
-children = [
-  {Comn.Events.NATS, host: "nats.internal", port: 4222}
-]
-```
-
-### Errors
-
-All errors are `%Comn.Errors.ErrorStruct{}` with a namespaced `code` field.
-Errors are automatically enriched with ambient context (request IDs, trace
-IDs) when a `Comn.Contexts` is set on the calling process.
-
-```elixir
-alias Comn.Errors
-
-# Wrap a term — returns {:ok, %ErrorStruct{}} | {:error, reason}
-{:ok, error} = Errors.wrap("something went wrong")
-
-# Create categorized errors (returns %ErrorStruct{} directly)
-error = Errors.new(:validation, "email is required", :email)
-
-# Auto-categorize from reason strings
-Errors.categorize("invalid_format")    #=> :validation
-Errors.categorize("database_timeout")  #=> :persistence
-Errors.categorize("connection_refused") #=> :network
-
-# Context auto-enrichment — set context once at the boundary
-Comn.Contexts.new(request_id: "req-123", trace_id: "trace-456")
-{:ok, error} = Errors.wrap("timeout")
-error.request_id  #=> "req-123"
-error.trace_id    #=> "trace-456"
-```
-
-### Error Registry
-
-Declare error codes at compile time with enforced `namespace/error_name`
-format. Codes are validated at compile time, duplicates rejected at
-registration time. All Comn modules register their error codes.
-
-```elixir
-# Declare errors in a module
-defmodule MyApp.Auth.Errors do
-  use Comn.Errors.Registry
-
-  register_error "auth/invalid_token",  :auth, message: "Token is invalid or expired", status: 401
-  register_error "auth/forbidden",      :auth, message: "Insufficient permissions", status: 403
-end
-
-# Create errors from codes (auto-enriched with ambient context)
-{:ok, err} = Comn.Errors.Registry.error("auth/invalid_token", field: "authorization")
-err.code     #=> "auth/invalid_token"
-err.message  #=> "Token is invalid or expired"
-
-# Or get the struct directly for {:error, ...} tuples
-{:error, Comn.Errors.Registry.error!("auth/invalid_token")}
-
-# HTTP status mapping
-Comn.Errors.Registry.http_status("auth/invalid_token")  #=> 401
-
-# Query by prefix or category
-Comn.Errors.Registry.codes_for_prefix("auth/")  #=> ["auth/forbidden", "auth/invalid_token"]
-Comn.Errors.Registry.codes_for(:auth)            #=> ["auth/forbidden", "auth/invalid_token"]
-```
-
-### Contexts
-
-Process-scoped request context for propagating metadata. Set once at the
-boundary; errors and events downstream auto-enrich from it.
-
-```elixir
-alias Comn.Contexts
-
-ctx = Contexts.new(request_id: "req-123", user_id: "user-42")
-Contexts.fetch(:request_id)  #=> "req-123"
-
-# Temporary context scope
-Contexts.with_context(%{request_id: "req-456"}, fn ->
-  Contexts.fetch(:request_id)  #=> "req-456"
-end)
-Contexts.fetch(:request_id)  #=> "req-123" (restored)
-```
-
-### Repo — Tables (ETS)
+### Tables (ETS)
 
 ```elixir
 alias Comn.Repo.Table.ETS
@@ -259,7 +227,7 @@ alias Comn.Repo.Table.ETS
 :ok = ETS.drop(:my_cache)
 ```
 
-### Repo — Files (Local, NFS, IPFS)
+### Files (Local, NFS, IPFS)
 
 ```elixir
 alias Comn.Repo.File.Local
@@ -270,7 +238,7 @@ alias Comn.Repo.File.Local
 Local.close(fs)
 ```
 
-### Repo — Graphs (libgraph)
+### Graphs (libgraph)
 
 ```elixir
 alias Comn.Repo.Graphs.Graph
@@ -280,6 +248,26 @@ alias Comn.Repo.Graphs.Graph
 {:ok, g} = Graph.link(g, :plug, :cowboy)
 {:ok, path} = Graph.traverse(g, type: :shortest_path, from: :phoenix, to: :cowboy)
 #=> {:ok, [:phoenix, :plug, :cowboy]}
+```
+
+### Batch (buffered writes)
+
+```elixir
+alias Comn.Repo.Batch.Mem
+
+{:ok, pid} = Mem.start_link(flush_fn: &IO.inspect/1, flush_interval: 5_000, max_buffer: 100)
+:ok = Mem.push(pid, %{event: "page_view", ts: DateTime.utc_now()})
+:ok = Mem.flush(pid)
+```
+
+### Column (schema-enforced columnar storage)
+
+```elixir
+alias Comn.Repo.Column.ETS
+
+{:ok, ref} = ETS.create(:metrics, schema: %{ts: :integer, value: :float, host: :string})
+:ok = ETS.put(ref, %{ts: 1713100800, value: 3.14, host: "web-1"})
+{:ok, rows} = ETS.select(ref, where: [host: "web-1"], columns: [:ts, :value])
 ```
 
 ## Architecture
@@ -323,12 +311,20 @@ lib/comn/
   repo/file.ex               File behaviour (open/load/stream/cast/read/write/close)
   repo/graphs.ex             Graph behaviour (link/unlink/traverse)
   repo/cmd.ex                Command behaviour (validate/apply/reset/enable/...)
-  repo/table/ets.ex          ETS implementation
+  repo/batch.ex              Batch behaviour (push/flush/size/drain/status)
+  repo/column.ex             Column behaviour (create/put/select/delete/schema/count/drop)
+  repo/bus.ex                Bus behaviour (planned)
+  repo/queue.ex              Queue behaviour (planned)
+  repo/stream.ex             Stream behaviour (planned)
+  repo/merkel.ex             Merkel behaviour (planned)
+  repo/table/ets.ex          ETS key-value implementation
   repo/file/local.ex         Local filesystem implementation
   repo/file/nfs.ex           NFS mount-point wrapper
   repo/file/ipfs.ex          IPFS daemon API backend
   repo/graphs/graph.ex       libgraph implementation
   repo/cmd/shell.ex          Shell command execution (placeholder)
+  repo/batch/mem.ex          In-memory GenServer with auto-flush
+  repo/column/ets.ex         ETS columnar implementation
   repo/actor.ex              Actor-style repo (placeholder)
   repo/errors.ex             Repo subsystem error codes
 
