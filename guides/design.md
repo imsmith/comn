@@ -164,3 +164,183 @@ can't register themselves in Comn's module attributes. A runtime scan has no
 such constraint. Any module loaded on the node, from any application, is
 visible. The protocol is the registry: export the four callbacks, and you appear
 in the index.
+
+<a id="cross-cutting"></a>
+## Cross-cutting Concerns — Context, Errors, Events
+
+Contexts, Errors, and Events are three independent subsystems. None depends on
+the other two. What ties them together is ambient process state: a single
+`ContextStruct` stored in the process dictionary at the request boundary
+automatically enriches every error and every event produced downstream — without
+any function in between needing to know or forward it.
+
+<a id="contexts"></a>
+### Contexts
+
+The alternative to ambient context is explicit parameter threading: every
+function in the call chain accepts a context argument and passes it to every
+function it calls. At shallow call depths that is fine. Across a library with
+many independent subsystems it becomes a forcing function that pollutes every
+function signature and couples subsystems to the context type. Logger metadata
+and OpenTelemetry baggage both reject that approach for the same reason — and
+both use the process dictionary instead. Comn follows the same pattern.
+
+`Comn.Contexts.new/1` constructs a `ContextStruct` from keyword fields and
+stores it in the process dictionary under a fixed key. `fetch/1` reads it back.
+`with_context/2` provides a scoped override: it sets the new context, runs the
+function, and restores the previous value (or deletes the key if there was none)
+via `try/after`, guaranteeing no leakage even if the function raises.
+
+```elixir
+<!-- from lib/comn/contexts.ex -->
+@key :comn_context
+
+def new(fields) do
+  ctx = ContextStruct.new(fields)
+  set(ctx)
+  ctx
+end
+
+def with_context(%ContextStruct{} = ctx, fun) do
+  old = get()
+  set(ctx)
+  try do
+    fun.()
+  after
+    case old do
+      nil -> Process.delete(@key)
+      prev -> set(prev)
+    end
+  end
+end
+```
+
+Fields that propagate: `request_id`, `trace_id`, `correlation_id`, `user_id`,
+`actor`, `env`, `zone`, `parent_event_id`, `metadata`. Any field not set
+defaults to `nil` — callers set only what they have.
+
+<a id="error-philosophy"></a>
+### Errors
+
+Bare atoms fail at the boundary. They carry no context, no suggested remediation,
+no HTTP status for callers that need one. They cannot be queried by category.
+They offer nothing to an operator reading logs or a client deciding whether to
+retry.
+
+Every Comn error is a full `ErrorStruct` with a registered `namespace/error_name`
+code. The code format is enforced by regex at compile time — an invalid format is
+a `CompileError`, not a runtime surprise. Duplicate codes within a module are
+rejected. The struct is enriched from ambient context: `request_id`, `trace_id`,
+and `correlation_id` are pulled from the process dictionary automatically, so
+errors carry provenance without any call site doing anything extra.
+
+Six categories cover the domain: `:validation`, `:persistence`, `:network`,
+`:auth`, `:internal`, `:unknown`. The `categorize/1` heuristic uses keyword
+matching on the error code string — not exhaustive, but useful for
+auto-categorizing errors that weren't explicitly registered with a category.
+Errors are also queryable by HTTP status code and by code prefix, enabling a
+caller to ask "does this module produce any 5xx errors?" without reading source.
+
+The `Comn.Error` protocol provides `wrap/1`, which converts any term into an
+`ErrorStruct` via protocol dispatch. Strings, maps, `{:error, reason}` tuples,
+and existing structs all have implementations. The goal: no error escapes the
+subsystem as a raw term.
+
+The compile-time registry is built by the `register_error` macro. Each call
+accumulates a map into a module attribute. At boot, `Comn.Discovery` scans
+loaded modules for `__errors__/0` and indexes all registered codes into
+`:persistent_term`. The result is a queryable registry of every error the system
+can produce.
+
+```elixir
+<!-- from lib/comn/errors/registry.ex -->
+defmacro register_error(code, category, opts) do
+  unless is_binary(code) and Regex.match?(~r/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\/[a-z][a-z0-9_]*$/, code) do
+    raise CompileError,
+      description: "invalid error code #{inspect(code)} — must match namespace/error_name"
+  end
+
+  quote do
+    @registered_errors %{
+      code: unquote(code),
+      category: unquote(category),
+      message: unquote(Keyword.get(opts, :message)),
+      status: unquote(Keyword.get(opts, :status)),
+      suggestion: unquote(Keyword.get(opts, :suggestion)),
+      module: __MODULE__
+    }
+  end
+end
+```
+
+<a id="events"></a>
+### Events
+
+`Comn.Events` is a behaviour — it defines four callbacks (`start_link`,
+`broadcast`, `subscribe`, `unsubscribe`) and leaves the transport to adapters.
+Two adapters ship with the library: `Comn.EventBus` (Registry-based, in-process,
+no dependencies) and `Comn.Events.Registry` (a named variant of the same
+pattern). A third adapter, `Comn.Events.NATS`, targets external pub/sub but is
+opt-in: Comn cannot know the connection configuration, so it cannot initialize
+NATS itself. Applications that need it configure and start the adapter explicitly.
+
+`EventStruct.new/5` mirrors the error enrichment pattern. The constructor reads
+the ambient `ContextStruct` and copies `request_id` and `correlation_id` into
+the event without the call site doing anything. Every event produced during a
+request automatically carries the same provenance as every error produced during
+that same request.
+
+`EventLog` is an Agent wrapping an append-only list. It works for development
+and low-volume use cases. Known limitation: the list is unbounded. Nothing
+prunes it. For production use, consume events and drain the log or use an
+external adapter.
+
+```elixir
+<!-- from lib/comn/events/event_struct.ex -->
+def new(type, topic, data, source \\ __MODULE__, opts \\ []) do
+  ctx = Comn.Contexts.get()
+
+  %__MODULE__{
+    id: Comn.Secrets.Local.UUID.uuid4(),
+    timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
+    source: source,
+    type: type,
+    topic: topic,
+    data: data,
+    schema: Keyword.get(opts, :schema),
+    version: Keyword.get(opts, :version, 1),
+    tags: Keyword.get(opts, :tags, []),
+    correlation_id: ctx && ctx.correlation_id,
+    request_id: ctx && ctx.request_id,
+    metadata: Keyword.get(opts, :metadata, %{})
+  }
+end
+```
+
+<a id="composition"></a>
+### The Composition Story
+
+The three subsystems compose without any explicit coordination. Set a context
+once at the request boundary — every error and every event produced anywhere in
+the call stack carries that context automatically:
+
+```elixir
+# Set context once at the request boundary
+Comn.Contexts.new(request_id: "req-abc", trace_id: "trace-789", user_id: "user-42")
+
+# Somewhere deep in the call stack, an error occurs — auto-enriched
+{:ok, error} = Comn.Errors.wrap("database_timeout")
+error.request_id      #=> "req-abc"
+error.trace_id        #=> "trace-789"
+
+# An event is broadcast — also auto-enriched from the same context
+event = Comn.Events.EventStruct.new(:domain, "order.failed", %{reason: "timeout"})
+event.request_id      #=> "req-abc"
+event.correlation_id  #=> nil (not set in this context)
+
+# Both carry the same request_id without anyone passing it explicitly
+```
+
+No function in the call chain between the boundary and the error or event site
+needed to accept or forward a context argument. The process dictionary carries
+it. Same pattern Logger uses for metadata — idiomatic BEAM, not a hack.
