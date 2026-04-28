@@ -25,6 +25,13 @@ defmodule Comn.Repo.Errors do
   register_error "repo.batch/flush_failed", :persistence, message: "Failed to flush batch buffer to backend"
   register_error "repo.batch/not_running",  :persistence, message: "Batch process is not running"
 
+  # Stream
+  register_error "repo.stream/not_found",       :persistence, message: "Stream does not exist"
+  register_error "repo.stream/already_exists",  :persistence, message: "Stream with this name already exists"
+  register_error "repo.stream/invalid_event",   :validation,  message: "Value is not a Comn.Events.EventStruct"
+  register_error "repo.stream/invalid_offset",  :validation,  message: "Offset is not valid for this stream"
+  register_error "repo.stream/append_only",     :validation,  message: "Streams are append-only; delete is not supported"
+
   # Column
   register_error "repo.column/not_found",       :persistence, message: "Column store does not exist"
   register_error "repo.column/invalid_schema",  :validation,  message: "Schema definition is invalid"
