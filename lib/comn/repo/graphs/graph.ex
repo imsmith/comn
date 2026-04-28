@@ -9,6 +9,15 @@ defmodule Comn.Repo.Graphs.Graph do
 
   Implements `@behaviour Comn` for uniform introspection.
 
+  ## Spatial use
+
+  Graphs implement the optional spatial callbacks on `Comn.Repo`
+  (`enter/2`, `exit/2`, `discover/2`) plus a graph-specific
+  `traverse/4`. A `Comn.Zone`'s `:locale` is matched against vertex
+  names — strings match string-named vertices; if a same-named atom
+  vertex exists, that's matched instead. Errors come back as registered
+  codes: `repo.graph/zone_not_found` and `repo.graph/unreachable`.
+
   ## Examples
 
       iex> {:ok, g} = Comn.Repo.Graphs.Graph.create(name: "test")
@@ -165,9 +174,23 @@ defmodule Comn.Repo.Graphs.Graph do
   # Spatial (Comn.Repo optional callbacks)
 
   @doc """
-  Positions into a zone within this graph. The zone's locale must
-  correspond to an existing vertex (matched as the locale string or
-  its existing-atom form). Returns `{:ok, vertex}`.
+  Positions into a zone within this graph.
+
+  The zone's `:locale` must correspond to an existing vertex — matched
+  as a literal string vertex first, falling back to the same-named atom
+  via `String.to_existing_atom/1` if no string vertex matches.
+
+  Returns `{:ok, vertex}` with the resolved vertex term, or
+  `{:error, ErrorStruct}` with code `repo.graph/zone_not_found` if the
+  locale doesn't resolve.
+
+  ## Examples
+
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.create()
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.link(g, :room_a, :room_b)
+      iex> zone = Comn.Zone.new(realm: :local, locale: "room_a")
+      iex> Comn.Repo.Graphs.Graph.enter(g, zone)
+      {:ok, :room_a}
   """
   @impl Comn.Repo
   @spec enter(GraphStruct.t(), Zone.t()) :: {:ok, term()} | {:error, term()}
@@ -178,12 +201,34 @@ defmodule Comn.Repo.Graphs.Graph do
     end
   end
 
-  @doc "Clears any positional state for a zone. Currently a no-op (graph holds no per-caller state)."
+  @doc """
+  Clears any positional state for a zone.
+
+  Currently a no-op — the `Graph` impl holds no per-caller state, so
+  there's nothing to clear. Defined to satisfy the optional callback
+  contract; future stateful backends may track per-zone cursors here.
+  """
   @impl Comn.Repo
   @spec exit(GraphStruct.t(), Zone.t()) :: :ok
   def exit(%GraphStruct{}, %Zone{}), do: :ok
 
-  @doc "Returns vertices reachable in one hop from the zone's locale."
+  @doc """
+  Returns vertices reachable in one hop from the zone's locale.
+
+  Adjacency uses `Graph.neighbors/2` — for directed graphs, this is the
+  out-neighbours; for undirected graphs, both sides. Errors with
+  `repo.graph/zone_not_found` if the zone doesn't resolve to a vertex.
+
+  ## Examples
+
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.create()
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.link(g, :hub, :a)
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.link(g, :hub, :b)
+      iex> zone = Comn.Zone.new(realm: :local, locale: "hub")
+      iex> {:ok, neighbors} = Comn.Repo.Graphs.Graph.discover(g, zone)
+      iex> Enum.sort(neighbors)
+      [:a, :b]
+  """
   @impl Comn.Repo
   @spec discover(GraphStruct.t(), Zone.t()) :: {:ok, list()} | {:error, term()}
   def discover(%GraphStruct{graph: g}, %Zone{} = zone) do
@@ -194,11 +239,30 @@ defmodule Comn.Repo.Graphs.Graph do
   end
 
   @doc """
-  Spatial navigation: find a path from the zone `from` to vertex `to`,
-  return the destination zone and the path. Updates the calling
-  process's `Comn.Contexts` zone if a context is set.
+  Spatial navigation: walk from a source zone to a destination vertex.
 
-  Returns `{:ok, dest_zone, path}` or `{:error, _}` if unreachable.
+  Resolves the `from` zone to a vertex (`zone_to_vertex/2`), runs
+  Dijkstra's algorithm to `to`, and returns the destination as a new
+  zone (cloning `from` and replacing the `:locale` with the destination
+  vertex's locale string) plus the full path.
+
+  Side effect: if the calling process has a `Comn.Contexts` set, the
+  context's `:zone` is updated to the destination. This makes traverse
+  the canonical "I moved" operation in spatial code.
+
+  Errors:
+  - `repo.graph/zone_not_found` — `from` doesn't resolve to a vertex
+  - `repo.graph/unreachable` — no path from `from` to `to`
+
+  ## Examples
+
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.create()
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.link(g, :a, :b)
+      iex> {:ok, g} = Comn.Repo.Graphs.Graph.link(g, :b, :c)
+      iex> from = Comn.Zone.new(realm: :local, locale: "a")
+      iex> {:ok, dest, path} = Comn.Repo.Graphs.Graph.traverse(g, from, :c, [])
+      iex> {dest.locale, path}
+      {"c", [:a, :b, :c]}
   """
   @spec traverse(GraphStruct.t(), Zone.t(), term(), keyword()) ::
           {:ok, Zone.t(), [term()]} | {:error, term()}

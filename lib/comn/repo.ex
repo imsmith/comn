@@ -10,6 +10,19 @@ defmodule Comn.Repo do
 
   Also implements `@behaviour Comn` for uniform introspection.
 
+  ## Spatial callbacks (optional)
+
+  Repos that have a notion of *place* implement three optional callbacks:
+  `enter/2`, `exit/2`, and `discover/2`, all keyed by a `Comn.Zone`.
+  `Comn.Repo.Graphs.Graph` implements them — vertices are zone locales,
+  `discover/2` returns adjacent vertices, and `traverse/4` (a graph-only
+  extension) walks the graph and updates the calling process's context
+  zone.
+
+  Flat repos like `Comn.Repo.Table.ETS` do **not** implement these. Use
+  `function_exported?/3` or `behaviour_info(:optional_callbacks)` to
+  detect spatial-capability at runtime.
+
   ## Examples
 
       iex> Comn.Repo.look()

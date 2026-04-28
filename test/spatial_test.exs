@@ -18,6 +18,10 @@ defmodule Comn.SpatialTest do
 
   use ExUnit.Case, async: true
 
+  doctest Comn.Zone
+  doctest Comn.Presence
+  doctest Comn.Repo.Graphs.Graph
+
   # ==========================================================================
   # Phase 1: Comn.Zone — Structured Locators
   # ==========================================================================

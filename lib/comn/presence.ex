@@ -10,6 +10,9 @@ defmodule Comn.Presence do
   Presence states are open-ended atoms. Conventional values are `:here`,
   `:busy`, and `:gone`. Announcing `:gone` removes the actor from the zone.
 
+  The local backend is supervised by `Comn.Supervisor` — no manual start
+  required.
+
   ## Examples
 
       iex> zone = Comn.Zone.new(realm: :local, locale: "lobby-doc")
@@ -17,6 +20,12 @@ defmodule Comn.Presence do
       iex> {:ok, actors} = Comn.Presence.who(zone)
       iex> {"alice", :here} in actors
       true
+
+      iex> zone = Comn.Zone.new(realm: :local, locale: "lobby-doc-gone")
+      iex> :ok = Comn.Presence.announce(zone, "bob", :here)
+      iex> :ok = Comn.Presence.announce(zone, "bob", :gone)
+      iex> Comn.Presence.who(zone)
+      {:ok, []}
   """
 
   @behaviour Comn
@@ -43,7 +52,21 @@ defmodule Comn.Presence do
     }
   end
 
-  @doc "Announces an actor's presence in a zone. `:gone` removes the actor."
+  @doc """
+  Announces an actor's presence in a zone.
+
+  `:gone` removes the actor; any other atom records the new state.
+  Subsequent announcements with non-`:gone` states overwrite.
+
+  ## Examples
+
+      iex> zone = Comn.Zone.new(realm: :local, locale: "doc-announce")
+      iex> :ok = Comn.Presence.announce(zone, "carol", :busy)
+      iex> {:ok, [{"carol", :busy}]} = Comn.Presence.who(zone)
+      iex> :ok = Comn.Presence.announce(zone, "carol", :gone)
+      iex> Comn.Presence.who(zone)
+      {:ok, []}
+  """
   @spec announce(Zone.t(), actor_id(), state()) :: :ok
   def announce(%Zone{} = zone, actor, :gone) do
     key = Zone.to_string(zone)
@@ -66,7 +89,17 @@ defmodule Comn.Presence do
     end)
   end
 
-  @doc "Lists `{actor, state}` pairs in a zone."
+  @doc """
+  Lists `{actor_id, state}` pairs for a zone.
+
+  Returns `{:ok, []}` for an empty or unknown zone — never an error.
+
+  ## Examples
+
+      iex> zone = Comn.Zone.new(realm: :local, locale: "doc-who-empty")
+      iex> Comn.Presence.who(zone)
+      {:ok, []}
+  """
   @spec who(Zone.t()) :: {:ok, [{actor_id(), state()}]}
   def who(%Zone{} = zone) do
     key = Zone.to_string(zone)

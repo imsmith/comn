@@ -8,17 +8,23 @@ defmodule Comn.Zone do
   locale within that region (e.g. `"kitchen"`, `"room_a"`).
 
   Zones are used as ambient context (see `Comn.Contexts`) and as spatial
-  addresses for repo operations (see Phase 2 enter/exit/discover).
+  addresses for repo operations (see `Comn.Repo` spatial callbacks
+  `enter/2`, `exit/2`, `discover/2`).
 
   ## String form
 
-  A zone serializes to a dot-delimited string:
+  A zone serializes to a dot-delimited string and round-trips through
+  `parse/1`:
 
       iex> Comn.Zone.to_string(Comn.Zone.new(realm: :mesh, region: "home", locale: "kitchen"))
       "mesh.home.kitchen"
 
       iex> Comn.Zone.to_string(Comn.Zone.local())
       "local"
+
+      iex> {:ok, zone} = Comn.Zone.parse("cluster.us-east")
+      iex> {zone.realm, zone.region, zone.locale}
+      {:cluster, "us-east", nil}
   """
 
   @behaviour Comn
@@ -36,11 +42,30 @@ defmodule Comn.Zone do
           locale: String.t() | nil
         }
 
-  @doc "The default local zone."
+  @doc """
+  The default local zone.
+
+  ## Examples
+
+      iex> Comn.Zone.local()
+      %Comn.Zone{realm: :local, region: nil, locale: nil}
+  """
   @spec local() :: t()
   def local, do: %__MODULE__{realm: :local}
 
-  @doc "Constructs a zone from a keyword list or map of fields."
+  @doc """
+  Constructs a zone from a keyword list or map of fields.
+
+  Unknown fields raise; use `parse/1` for untrusted string input.
+
+  ## Examples
+
+      iex> Comn.Zone.new(realm: :mesh, region: "home", locale: "kitchen")
+      %Comn.Zone{realm: :mesh, region: "home", locale: "kitchen"}
+
+      iex> Comn.Zone.new(%{realm: :global})
+      %Comn.Zone{realm: :global, region: nil, locale: nil}
+  """
   @spec new(keyword() | map()) :: t()
   def new(fields) when is_list(fields), do: struct!(__MODULE__, fields)
   def new(fields) when is_map(fields), do: struct!(__MODULE__, Map.to_list(fields))
@@ -48,8 +73,25 @@ defmodule Comn.Zone do
   @doc """
   Parses a dot-delimited zone string `"realm[.region[.locale]]"`.
 
-  The realm must be one of the known realms (#{inspect(@realms)}); region
-  and locale stay as strings.
+  The realm must be one of `#{inspect(@realms)}`; region and locale stay
+  as strings. Returns `{:error, :empty}` on empty input or
+  `{:error, {:unknown_realm, str}}` on unknown realms.
+
+  ## Examples
+
+      iex> {:ok, zone} = Comn.Zone.parse("mesh.home.kitchen")
+      iex> {zone.realm, zone.region, zone.locale}
+      {:mesh, "home", "kitchen"}
+
+      iex> {:ok, zone} = Comn.Zone.parse("local")
+      iex> zone.realm
+      :local
+
+      iex> Comn.Zone.parse("")
+      {:error, :empty}
+
+      iex> Comn.Zone.parse("nowhere.foo")
+      {:error, {:unknown_realm, "nowhere"}}
   """
   @spec parse(String.t()) :: {:ok, t()} | {:error, term()}
   def parse(""), do: {:error, :empty}
@@ -75,7 +117,20 @@ defmodule Comn.Zone do
     end)
   end
 
-  @doc "Serializes a zone to its dot-delimited string form."
+  @doc """
+  Serializes a zone to its dot-delimited string form.
+
+  Nil region and locale are dropped, so a zone with only a realm renders
+  as just the realm name. Round-trips with `parse/1`.
+
+  ## Examples
+
+      iex> Comn.Zone.to_string(Comn.Zone.new(realm: :mesh, region: "home"))
+      "mesh.home"
+
+      iex> Comn.Zone.to_string(Comn.Zone.local())
+      "local"
+  """
   @spec to_string(t()) :: String.t()
   def to_string(%__MODULE__{realm: realm, region: region, locale: locale}) do
     [Atom.to_string(realm), region, locale]

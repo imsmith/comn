@@ -6,20 +6,22 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 ## Status
 
-**v0.5.0** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, and runtime module discovery.
+**v0.5.0** (+ spatial-native, post-tag) — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, and zone-based spatial addressing.
 
 | Subsystem | Status | What it does |
 |---|---|---|
 | Comn | Complete | Universal `look`/`recon`/`choices`/`act` behaviour |
 | Discovery | Complete | Runtime module indexing, type/behaviour queries |
-| Supervisor | Complete | OTP supervisor for EventBus, EventLog, Events.Registry |
-| Contexts | Complete | Process-scoped request context with automatic propagation |
+| Supervisor | Complete | OTP supervisor for EventBus, EventLog, Events.Registry, Presence |
+| Contexts | Complete | Process-scoped request context with automatic propagation; zone-aware |
+| Zone | Complete | Structured spatial locator (`realm.region.locale`) |
+| Presence | Complete | Zone-scoped actor presence (`announce`/`who`); Agent-backed local impl |
 | Errors | Complete | Structured errors, categorization, compile-time registry with namespaced codes |
 | Events | Complete | Registry-based pub/sub, event log, NATS adapter, structured events |
 | Secrets | Complete | ChaCha20-Poly1305 local encryption + HashiCorp Vault Transit backend |
 | Repo.Table | Complete | ETS key-value store |
 | Repo.File | Complete | Local/NFS/IPFS file I/O |
-| Repo.Graphs | Complete | libgraph-backed directed/undirected graphs |
+| Repo.Graphs | Complete | libgraph-backed directed/undirected graphs; spatial verbs (`enter`/`exit`/`discover`/`traverse`) |
 | Repo.Cmd | Complete | Command behaviour (Shell placeholder) |
 | Repo.Batch | Complete | Buffered write-behind with auto-flush (Mem backend) |
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
@@ -37,7 +39,7 @@ defp deps do
 end
 ```
 
-The OTP application starts automatically — `Comn.Supervisor` brings up EventBus, EventLog, and Events.Registry, then discovers all registered error codes.
+The OTP application starts automatically — `Comn.Supervisor` brings up EventBus, Events.Registry, EventLog, and Presence, then discovers all registered error codes.
 
 ## The Comn Behaviour
 
@@ -270,14 +272,59 @@ alias Comn.Repo.Column.ETS
 {:ok, rows} = ETS.select(ref, where: [host: "web-1"], columns: [:ts, :value])
 ```
 
+## Spatial
+
+A `Comn.Zone` is a structured locator — `realm.region.locale` — used as ambient context and as a spatial address for repos that have a notion of place.
+
+```elixir
+zone = Comn.Zone.new(realm: :mesh, region: "home", locale: "kitchen")
+Comn.Zone.to_string(zone)         #=> "mesh.home.kitchen"
+Comn.Zone.parse("cluster.us-east") #=> {:ok, %Comn.Zone{realm: :cluster, region: "us-east"}}
+```
+
+`Comn.Contexts` defaults its `:zone` to `Comn.Zone.local()` and accepts a string for backwards compatibility (auto-parsed).
+
+### Presence (zone-scoped actors)
+
+```elixir
+zone = Comn.Zone.new(realm: :local, locale: "lobby")
+:ok = Comn.Presence.announce(zone, "alice", :here)
+{:ok, [{"alice", :here}]} = Comn.Presence.who(zone)
+:ok = Comn.Presence.announce(zone, "alice", :gone)
+```
+
+### Spatial verbs on Repo
+
+`Comn.Repo` defines three optional callbacks — `enter/2`, `exit/2`, `discover/2` — keyed by a zone. Repos with a notion of place implement them; flat repos (ETS, blob stores) do not.
+
+```elixir
+alias Comn.Repo.Graphs.Graph
+
+{:ok, g} = Graph.create()
+{:ok, g} = Graph.link(g, :a, :b)
+{:ok, g} = Graph.link(g, :b, :c)
+
+zone = Comn.Zone.new(realm: :local, locale: "a")
+{:ok, :a} = Graph.enter(g, zone)
+{:ok, [:b]} = Graph.discover(g, zone)
+
+# traverse/4 navigates and updates the calling process's context zone
+{:ok, dest, [:a, :b, :c]} = Graph.traverse(g, zone, :c, [])
+dest.locale  #=> "c"
+```
+
+Errors come back as registered codes: `repo.graph/zone_not_found`, `repo.graph/unreachable`.
+
 ## Architecture
 
 ```text
 lib/comn/
   comn.ex                    Comn behaviour (look/recon/choices/act)
   application.ex             OTP application callback
-  supervisor.ex              OTP supervisor (EventBus, EventLog, Events.Registry)
+  supervisor.ex              OTP supervisor (EventBus, Events.Registry, EventLog, Presence)
   discovery.ex               Runtime module discovery and indexing
+  zone.ex                    Structured spatial locator (realm.region.locale)
+  presence.ex                Zone-scoped actor presence behaviour + Agent backend
 
   contexts.ex                Process-scoped context management
   contexts/context_struct.ex Context data struct
@@ -306,7 +353,7 @@ lib/comn/
   secrets/container.ex       Blob container struct
   secrets/errors.ex          Secrets subsystem error codes
 
-  repo.ex                    Base repo behaviour (describe/get/set/delete/observe)
+  repo.ex                    Base repo behaviour (describe/get/set/delete/observe; optional enter/exit/discover)
   repo/table.ex              Table behaviour (create/drop/keys/count)
   repo/file.ex               File behaviour (open/load/stream/cast/read/write/close)
   repo/graphs.ex             Graph behaviour (link/unlink/traverse)
