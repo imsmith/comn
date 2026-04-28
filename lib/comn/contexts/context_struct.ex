@@ -1,6 +1,9 @@
 defmodule Comn.Contexts.ContextStruct do
   @moduledoc "Concrete context struct for passing contextual information."
 
+  alias Comn.Zone
+
+  @enforce_keys []
   defstruct [
     :request_id,
     :trace_id,
@@ -8,8 +11,8 @@ defmodule Comn.Contexts.ContextStruct do
     :user_id,
     :actor,
     :env,
-    :zone,
     :parent_event_id,
+    zone: nil,
     metadata: %{}
   ]
 
@@ -20,28 +23,48 @@ defmodule Comn.Contexts.ContextStruct do
           user_id: String.t() | nil,
           actor: String.t() | nil,
           env: String.t() | nil,
-          zone: String.t() | nil,
+          zone: Zone.t() | nil,
           parent_event_id: String.t() | nil,
           metadata: map()
         }
 
-  @doc "Creates a new empty context."
+  @doc "Creates a new empty context with the local zone."
   @spec new() :: t()
   def new do
-    %__MODULE__{}
+    %__MODULE__{zone: Zone.local()}
   end
 
-  @doc "Creates a new context from a keyword list or map of fields."
+  @doc """
+  Creates a new context from fields.
+
+  A `:zone` field given as a string is auto-parsed via `Comn.Zone.parse/1`
+  for backwards compatibility with the old string-typed zone. If `:zone` is
+  not supplied, defaults to `Comn.Zone.local()`.
+  """
   @spec new(t() | map() | keyword()) :: t()
   def new(%__MODULE__{} = ctx), do: ctx
 
   def new(fields) when is_map(fields) do
-    struct(__MODULE__, Map.to_list(fields))
+    fields |> Map.to_list() |> from_list()
   end
 
   def new(fields) when is_list(fields) do
-    struct(__MODULE__, fields)
+    from_list(fields)
   end
+
+  defp from_list(fields) do
+    fields = Keyword.update(fields, :zone, Zone.local(), &normalize_zone/1)
+    struct!(__MODULE__, fields)
+  end
+
+  defp normalize_zone(%Zone{} = z), do: z
+  defp normalize_zone(str) when is_binary(str) do
+    case Zone.parse(str) do
+      {:ok, z} -> z
+      {:error, _} -> Zone.local()
+    end
+  end
+  defp normalize_zone(nil), do: Zone.local()
 
   @doc "Returns the context as a plain map, dropping nil values."
   @spec to_map(t()) :: map()

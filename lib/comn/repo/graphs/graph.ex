@@ -21,6 +21,7 @@ defmodule Comn.Repo.Graphs.Graph do
 
   alias Comn.Repo.Graphs.GraphStruct
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Zone
 
   @behaviour Comn
   @behaviour Comn.Repo
@@ -159,6 +160,89 @@ defmodule Comn.Repo.Graphs.Graph do
   @impl Comn.Repo
   def observe(%GraphStruct{graph: g}, _opts) do
     {:ok, %{vertices: Graph.vertices(g), edges: Graph.edges(g)}}
+  end
+
+  # Spatial (Comn.Repo optional callbacks)
+
+  @doc """
+  Positions into a zone within this graph. The zone's locale must
+  correspond to an existing vertex (matched as the locale string or
+  its existing-atom form). Returns `{:ok, vertex}`.
+  """
+  @impl Comn.Repo
+  @spec enter(GraphStruct.t(), Zone.t()) :: {:ok, term()} | {:error, term()}
+  def enter(%GraphStruct{graph: g}, %Zone{} = zone) do
+    case zone_to_vertex(g, zone) do
+      {:ok, vertex} -> {:ok, vertex}
+      :error -> {:error, ErrReg.error!("repo.graph/zone_not_found", field: zone.locale)}
+    end
+  end
+
+  @doc "Clears any positional state for a zone. Currently a no-op (graph holds no per-caller state)."
+  @impl Comn.Repo
+  @spec exit(GraphStruct.t(), Zone.t()) :: :ok
+  def exit(%GraphStruct{}, %Zone{}), do: :ok
+
+  @doc "Returns vertices reachable in one hop from the zone's locale."
+  @impl Comn.Repo
+  @spec discover(GraphStruct.t(), Zone.t()) :: {:ok, list()} | {:error, term()}
+  def discover(%GraphStruct{graph: g}, %Zone{} = zone) do
+    case zone_to_vertex(g, zone) do
+      {:ok, vertex} -> {:ok, Graph.neighbors(g, vertex)}
+      :error -> {:error, ErrReg.error!("repo.graph/zone_not_found", field: zone.locale)}
+    end
+  end
+
+  @doc """
+  Spatial navigation: find a path from the zone `from` to vertex `to`,
+  return the destination zone and the path. Updates the calling
+  process's `Comn.Contexts` zone if a context is set.
+
+  Returns `{:ok, dest_zone, path}` or `{:error, _}` if unreachable.
+  """
+  @spec traverse(GraphStruct.t(), Zone.t(), term(), keyword()) ::
+          {:ok, Zone.t(), [term()]} | {:error, term()}
+  def traverse(%GraphStruct{graph: g}, %Zone{} = from, to, _opts) do
+    with {:ok, from_vertex} <- zone_to_vertex(g, from),
+         path when is_list(path) <- Graph.dijkstra(g, from_vertex, to) do
+      dest = %Zone{from | locale: vertex_to_locale(to)}
+      maybe_update_context_zone(dest)
+      {:ok, dest, path}
+    else
+      :error ->
+        {:error, ErrReg.error!("repo.graph/zone_not_found", field: from.locale)}
+
+      nil ->
+        {:error, ErrReg.error!("repo.graph/unreachable", field: to)}
+    end
+  end
+
+  defp zone_to_vertex(_g, %Zone{locale: nil}), do: :error
+
+  defp zone_to_vertex(g, %Zone{locale: locale}) do
+    cond do
+      Graph.has_vertex?(g, locale) ->
+        {:ok, locale}
+
+      is_binary(locale) ->
+        try do
+          atom = String.to_existing_atom(locale)
+          if Graph.has_vertex?(g, atom), do: {:ok, atom}, else: :error
+        rescue
+          ArgumentError -> :error
+        end
+
+      true ->
+        :error
+    end
+  end
+
+  defp vertex_to_locale(v) when is_binary(v), do: v
+  defp vertex_to_locale(v) when is_atom(v), do: Atom.to_string(v)
+  defp vertex_to_locale(v), do: inspect(v)
+
+  defp maybe_update_context_zone(%Zone{} = zone) do
+    if Comn.Contexts.get(), do: Comn.Contexts.put(:zone, zone), else: :ok
   end
 
   # Comn callbacks

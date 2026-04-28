@@ -17,6 +17,8 @@ defmodule Comn.Repo.Errors do
   # Graph
   register_error "repo.graph/missing_key",        :validation,  message: "Required :vertex or :key option was not provided"
   register_error "repo.graph/unknown_query_type",  :validation, message: "Unrecognized traversal query type"
+  register_error "repo.graph/zone_not_found",      :persistence, message: "Zone locale does not correspond to a vertex in this graph"
+  register_error "repo.graph/unreachable",         :persistence, message: "Target vertex is not reachable from the source zone"
 
   # Batch
   register_error "repo.batch/buffer_full",  :validation,  message: "Batch buffer has reached its hard limit"

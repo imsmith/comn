@@ -35,7 +35,8 @@ defmodule Comn.Supervisor do
     children = [
       {Registry, keys: :duplicate, name: Comn.EventBus},
       {Registry, keys: :duplicate, name: Comn.Events.Registry},
-      Comn.EventLog
+      Comn.EventLog,
+      Comn.Presence
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

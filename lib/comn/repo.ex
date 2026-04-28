@@ -60,6 +60,28 @@ defmodule Comn.Repo do
   """
   @callback observe(resource(), keyword()) :: Enumerable.t() | {:error, term()}
 
+  @doc """
+  Spatial: position into a zone within this repo.
+
+  Optional. Spatial repos (graphs, presence-aware stores) implement; flat
+  repos (ETS tables, blob stores) do not. Returns `{:ok, position}` where
+  position is repo-defined context, or `{:error, _}` if the zone is not
+  reachable in this repo.
+  """
+  @callback enter(resource(), Comn.Zone.t()) :: {:ok, term()} | {:error, term()}
+
+  @doc "Spatial: clear positional state for a zone. Optional."
+  @callback exit(resource(), Comn.Zone.t()) :: :ok | {:error, term()}
+
+  @doc """
+  Spatial: list zones reachable from the given zone.
+
+  Optional. Returns `{:ok, [zone_or_locator]}` for spatial repos.
+  """
+  @callback discover(resource(), Comn.Zone.t()) :: {:ok, list()} | {:error, term()}
+
+  @optional_callbacks enter: 2, exit: 2, discover: 2
+
   @impl Comn
   def look, do: "Repo — common I/O behaviour for data repositories (tables, files, graphs, commands)"
 
