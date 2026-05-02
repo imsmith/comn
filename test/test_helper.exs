@@ -1,5 +1,3 @@
-Code.require_file("support/security_test_case.ex", __DIR__)
-
 # EventBus Registry, Events.Registry, EventLog, and error code discovery
 # are all started by Comn.Supervisor via Comn.Application.
 
