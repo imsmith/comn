@@ -26,6 +26,7 @@ defmodule Comn.Errors.Registry do
   ## Declaring errors
 
       defmodule MyApp.Auth.Errors do
+        @moduledoc false
         use Comn.Errors.Registry
 
         register_error "auth/invalid_token",   :auth, message: "Token is invalid or expired"
@@ -264,6 +265,7 @@ defmodule Comn.Errors.Registry do
   @comn_error_modules [
     Comn.Secrets.Errors,
     Comn.Repo.Errors,
+    Comn.Repo.Queue.Errors,
     Comn.Events.Errors
   ]
 
