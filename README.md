@@ -26,7 +26,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Batch | Complete | Buffered write-behind with auto-flush (Mem backend) |
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
-| Repo.Queue | Planned | Ordered, durable, ackable (RabbitMQ/Oban pattern) |
+| Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
 | Repo.Stream | Planned | Append-only, replayable (Kafka pattern) |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |

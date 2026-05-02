@@ -2,6 +2,8 @@ defmodule Comn.Repo.QueueTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
+  doctest Comn.Repo.Queue
+
   alias Comn.Errors.Registry
   alias Comn.Repo.Queue
   alias Comn.Repo.Queue.Handle
