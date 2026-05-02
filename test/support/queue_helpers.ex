@@ -27,7 +27,6 @@ defmodule Comn.Repo.QueueHelpers do
       end
 
     {:ok, q} = Comn.Repo.Queue.open(name, open_opts)
-    ExUnit.Callbacks.on_exit(fn -> Comn.Repo.Queue.close(q) end)
     q
   end
 end
