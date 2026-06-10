@@ -44,6 +44,14 @@ defmodule Mix.Tasks.Comn.Install do
     |> Igniter.Project.Deps.add_dep(comn_dep(opts))
     |> maybe_context_plug(opts)
     |> maybe_error_registry(opts)
+    |> Igniter.add_notice("""
+    Comn installed.
+
+      * Run `mix deps.get`.
+      * Implement `@behaviour Comn` on discoverable infrastructure modules.
+      * Set request context at boundaries (the generated Context plug does this).
+      * Declare error codes with `register_error/3` in your Errors registry.
+    """)
   end
 
   defp maybe_error_registry(igniter, opts) do
@@ -91,14 +99,54 @@ defmodule Mix.Tasks.Comn.Install do
       line = "plug #{inspect(plug_module)}"
 
       igniter
-      |> Igniter.Libs.Phoenix.append_to_pipeline(:browser, line, router: router)
-      |> Igniter.Libs.Phoenix.append_to_pipeline(:api, line, router: router)
+      |> append_to_pipeline_once(:browser, line, plug_module, router)
+      |> append_to_pipeline_once(:api, line, plug_module, router)
     else
       Igniter.add_warning(
         igniter,
         "No Phoenix router found; skipped wiring #{inspect(plug_module)}. Add it to your pipelines manually."
       )
     end
+  end
+
+  # Like Igniter.Libs.Phoenix.append_to_pipeline/4 but skips insertion when
+  # the plug call is already present in the target pipeline.
+  defp append_to_pipeline_once(igniter, pipeline_name, line, plug_module, router) do
+    Igniter.Project.Module.find_and_update_module!(igniter, router, fn zipper ->
+      case Igniter.Code.Function.move_to_function_call_in_current_scope(
+             zipper,
+             :pipeline,
+             2,
+             fn z -> Igniter.Code.Function.argument_equals?(z, 0, pipeline_name) end
+           ) do
+        {:ok, pipeline_zipper} ->
+          case Igniter.Code.Common.move_to_do_block(pipeline_zipper) do
+            {:ok, do_zipper} ->
+              already_present =
+                match?(
+                  {:ok, _},
+                  Igniter.Code.Function.move_to_function_call_in_current_scope(
+                    do_zipper,
+                    :plug,
+                    1,
+                    fn z -> Igniter.Code.Function.argument_equals?(z, 0, plug_module) end
+                  )
+                )
+
+              if already_present do
+                {:ok, zipper}
+              else
+                {:ok, Igniter.Code.Common.add_code(do_zipper, line)}
+              end
+
+            :error ->
+              {:ok, zipper}
+          end
+
+        _ ->
+          {:ok, zipper}
+      end
+    end)
   end
 
   defp plug_body do

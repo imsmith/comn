@@ -39,6 +39,17 @@ defmodule Mix.Tasks.Comn.InstallTest do
     refute_creates(igniter, "lib/test_web/plugs/context.ex")
   end
 
+  test "is idempotent — a second run produces no further changes" do
+    {:ok, after_first, _} =
+      phx_test_project()
+      |> Igniter.compose_task("comn.install", [])
+      |> apply_igniter()
+
+    after_first
+    |> Igniter.compose_task("comn.install", [])
+    |> assert_unchanged()
+  end
+
   test "generates the Contexts boundary plug and wires it into pipelines" do
     igniter =
       phx_test_project()
