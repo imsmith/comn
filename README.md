@@ -41,6 +41,24 @@ end
 
 The OTP application starts automatically — `Comn.Supervisor` brings up EventBus, Events.Registry, EventLog, and Presence, then discovers all registered error codes.
 
+### Automated install
+
+From inside a Phoenix app:
+
+```bash
+mix comn.install
+```
+
+This adds the dep, generates a `Comn.Contexts` boundary plug wired into your
+router pipelines, and a starter error registry. Suppress pieces with
+`--no-context-plug` / `--no-error-registry`.
+
+To wire in both comn and the busybody dev directory in one shot:
+
+```bash
+mix comn.bootstrap
+```
+
 ## The Comn Behaviour
 
 Every module in the library implements `@behaviour Comn`:
