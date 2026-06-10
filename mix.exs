@@ -29,10 +29,10 @@ defmodule Comn.MixProject do
       {:exqlite, "~> 0.27"},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
-      {:igniter, "~> 0.8", only: [:dev, :test]}
+      {:igniter, "~> 0.8", optional: true}
     ]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_),     do: ["lib"]
+  defp elixirc_paths(_), do: ["lib"]
 end
