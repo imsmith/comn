@@ -19,6 +19,10 @@ if Code.ensure_loaded?(Igniter) do
       * `--name`              - app name (passed through)
       * `--no-context-plug`   - passed through to comn.install
       * `--no-error-registry` - passed through to comn.install
+
+    Requires [Igniter](https://hexdocs.pm/igniter) in the host project's deps
+    (`{:igniter, "~> 0.8", only: [:dev, :test]}`). Without it, this task is an
+    inert stub that prints an install hint.
     """
 
     use Igniter.Mix.Task

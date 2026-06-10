@@ -43,7 +43,14 @@ The OTP application starts automatically — `Comn.Supervisor` brings up EventBu
 
 ### Automated install
 
-From inside a Phoenix app:
+The installers are [Igniter](https://hexdocs.pm/igniter) tasks, so the host
+project needs Igniter in its deps:
+
+```elixir
+{:igniter, "~> 0.8", only: [:dev, :test]}
+```
+
+Then, from inside a Phoenix app:
 
 ```bash
 mix comn.install

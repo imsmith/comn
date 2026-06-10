@@ -17,6 +17,10 @@ if Code.ensure_loaded?(Igniter) do
       * `--name` - app name for generated artifacts (default: OTP app)
       * `--no-context-plug` - skip the Contexts boundary plug
       * `--no-error-registry` - skip the starter error registry
+
+    Requires [Igniter](https://hexdocs.pm/igniter) in the host project's deps
+    (`{:igniter, "~> 0.8", only: [:dev, :test]}`). Without it, this task is an
+    inert stub that prints an install hint.
     """
 
     use Igniter.Mix.Task

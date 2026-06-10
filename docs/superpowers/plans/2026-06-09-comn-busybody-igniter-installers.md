@@ -12,11 +12,21 @@
 
 ---
 
+> **Correction (post-implementation).** This plan originally scoped Igniter as
+> `only: [:dev, :test]` in comn and busybody. That is wrong for a library that
+> *ships* an installer: dev/test-only deps are pruned when the library is itself
+> a dependency, so the `use Igniter.Mix.Task` task modules fail to compile in
+> consumer projects. The shipped code uses `{:igniter, "~> 0.8", optional: true}`
+> and wraps each task module in `if Code.ensure_loaded?(Igniter) do … else <stub>
+> end` (the shape emitted by `mix igniter.gen.task`). Consumer apps add
+> `{:igniter, "~> 0.8", only: [:dev, :test]}` to run the installers. Fixed in comn
+> `c373592`, busybody `c142ce1`. The dep lines below are updated to match.
+
 ## Verified Igniter API surface (v0.8.1)
 
 Use these exact signatures throughout. Do not invent variants.
 
-- Dep line for a library that **ships** a task: `{:igniter, "~> 0.8", only: [:dev, :test]}`.
+- Dep line for a library that **ships** a task: `{:igniter, "~> 0.8", optional: true}` — the library-author pattern. **Not** `only: [:dev, :test]` (pruned for dependents, so the task modules won't compile in consumers). Wrap each task module in `if Code.ensure_loaded?(Igniter) do … else <stub using `use Mix.Task`> end`. Consumers add `{:igniter, "~> 0.8", only: [:dev, :test]}` to run the installers.
 - Task module: `use Igniter.Mix.Task`; callbacks `info(argv, composing_task) :: %Igniter.Mix.Task.Info{}` and `igniter(igniter) :: Igniter.t()` (single-arg; `igniter/2` is deprecated).
 - Parsed args inside `igniter/1`: named options `igniter.args.options[:key]` (keyword list); pass-through flags `igniter.args.argv_flags`; positionals `igniter.args.positional`.
 - `Igniter.Project.Deps.add_dep(igniter, dep_tuple, opts \\ [])` — `dep_tuple` is a literal Mix tuple; `:only`/`:path`/`:git` live **inside** the tuple. Idempotent (skips if present).
@@ -41,7 +51,7 @@ Use these exact signatures throughout. Do not invent variants.
 
 ```text
 comn/
-  mix.exs                                   MODIFY: add {:igniter, "~> 0.8", only: [:dev, :test]}
+  mix.exs                                   MODIFY: add {:igniter, "~> 0.8", optional: true}
   lib/mix/tasks/comn.install.ex             CREATE: Igniter installer for comn
   lib/mix/tasks/comn.bootstrap.ex           CREATE: combined installer
   test/mix/tasks/comn_install_test.exs      CREATE
@@ -49,7 +59,7 @@ comn/
   README.md                                 MODIFY: document installers
 
 busybody/
-  mix.exs                                   MODIFY: add {:igniter, "~> 0.8", only: [:dev, :test]}
+  mix.exs                                   MODIFY: add {:igniter, "~> 0.8", optional: true}
   lib/mix/tasks/busybody.install.ex         REPLACE: regex task -> Igniter task
   test/mix/tasks/busybody_install_test.exs  CREATE
   README.md                                 MODIFY: document the Igniter installer
@@ -67,7 +77,7 @@ busybody/
 In `/home/imsmith/github/comn/mix.exs`, inside `defp deps do [...]`, add as the last entry (after `{:faker, ...}`):
 
 ```elixir
-      {:igniter, "~> 0.8", only: [:dev, :test]}
+      {:igniter, "~> 0.8", optional: true}
 ```
 
 Ensure the previous line gets a trailing comma. Final list tail:
@@ -75,7 +85,7 @@ Ensure the previous line gets a trailing comma. Final list tail:
 ```elixir
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
-      {:igniter, "~> 0.8", only: [:dev, :test]}
+      {:igniter, "~> 0.8", optional: true}
     ]
 ```
 
@@ -529,7 +539,7 @@ git commit -m "feat(comn.install): pin idempotency and add next-steps notice"
 In `/home/imsmith/github/busybody/mix.exs` `deps/0`, add as the last entry:
 
 ```elixir
-      {:igniter, "~> 0.8", only: [:dev, :test]}
+      {:igniter, "~> 0.8", optional: true}
 ```
 
 Ensure the prior line (`{:bandit, "~> 1.5"}`) gets a trailing comma.

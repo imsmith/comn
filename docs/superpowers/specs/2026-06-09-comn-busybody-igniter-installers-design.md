@@ -222,7 +222,13 @@ in-memory synthetic Phoenix projects, no disk app required. Coverage:
 
 ## Implementation Order
 
-1. Add `igniter` dep to comn and busybody.
+> **Packaging note.** comn and busybody *ship* installer tasks, so they declare
+> `{:igniter, "~> 0.8", optional: true}` (not `only: [:dev, :test]`, which is
+> pruned for dependents and breaks consumer compilation), and each task module is
+> wrapped in `if Code.ensure_loaded?(Igniter) do … else <stub> end`. Consumer apps
+> add `{:igniter, "~> 0.8", only: [:dev, :test]}` to run the installers.
+
+1. Add `igniter` dep (`optional: true`) to comn and busybody; guard the task modules.
 2. `comn.install` (Igniter task) + tests.
 3. `busybody.install` rewrite (Igniter task), delete old regex task, + tests.
 4. `comn.bootstrap` (compose) + tests.
