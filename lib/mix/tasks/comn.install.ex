@@ -176,9 +176,8 @@ defmodule Mix.Tasks.Comn.Install do
   end
 
   defp comn_dep(opts) do
-    cond do
-      opts[:git] -> {:comn, git: opts[:git]}
-      true -> {:comn, path: opts[:path] || "../comn"}
-    end
+    if opts[:git],
+      do: {:comn, git: opts[:git]},
+      else: {:comn, path: opts[:path] || "../comn"}
   end
 end
