@@ -11,6 +11,34 @@ defmodule Mix.Tasks.Comn.InstallTest do
     """)
   end
 
+  test "generates a starter error registry at lib/<app>/errors.ex" do
+    igniter =
+      phx_test_project()
+      |> Igniter.compose_task("comn.install", ["--no-context-plug"])
+
+    assert_creates(igniter, "lib/test/errors.ex", """
+    defmodule Test.Errors do
+      @moduledoc \"\"\"
+      Compile-time error registry for this app. Declare codes with
+      `register_error/3`; look them up via `Comn.Errors.Registry`.
+      \"\"\"
+      use Comn.Errors.Registry
+
+      # register_error "app/invalid_input", :validation,
+      #   message: "Input was invalid", status: 422
+    end
+    """)
+  end
+
+  test "--no-error-registry and --no-context-plug suppress their artifacts" do
+    igniter =
+      phx_test_project()
+      |> Igniter.compose_task("comn.install", ["--no-context-plug", "--no-error-registry"])
+
+    refute_creates(igniter, "lib/test/errors.ex")
+    refute_creates(igniter, "lib/test_web/plugs/context.ex")
+  end
+
   test "generates the Contexts boundary plug and wires it into pipelines" do
     igniter =
       phx_test_project()

@@ -43,6 +43,32 @@ defmodule Mix.Tasks.Comn.Install do
     igniter
     |> Igniter.Project.Deps.add_dep(comn_dep(opts))
     |> maybe_context_plug(opts)
+    |> maybe_error_registry(opts)
+  end
+
+  defp maybe_error_registry(igniter, opts) do
+    if opts[:error_registry] == false do
+      igniter
+    else
+      app = opts[:name] && String.to_atom(opts[:name])
+      app = app || Igniter.Project.Application.app_name(igniter)
+      registry_module = Module.concat([Macro.camelize(to_string(app)), "Errors"])
+
+      Igniter.Project.Module.create_module(igniter, registry_module, registry_body())
+    end
+  end
+
+  defp registry_body do
+    """
+    @moduledoc \"\"\"
+    Compile-time error registry for this app. Declare codes with
+    `register_error/3`; look them up via `Comn.Errors.Registry`.
+    \"\"\"
+    use Comn.Errors.Registry
+
+    # register_error "app/invalid_input", :validation,
+    #   message: "Input was invalid", status: 422
+    """
   end
 
   defp maybe_context_plug(igniter, opts) do
