@@ -4,6 +4,10 @@ defmodule Mix.Tasks.Comn.Bootstrap do
   Combined installer. Adds the comn and busybody path deps, then composes
   their installers.
 
+  Path-dep oriented: it wires comn and busybody as local sibling path deps.
+  For a git-dep install, use the individual installers (`mix comn.install
+  --git ...` / `mix busybody.install --git ...`) instead.
+
       mix comn.bootstrap
 
   ## Options
