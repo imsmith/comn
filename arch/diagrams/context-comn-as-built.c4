@@ -1,0 +1,80 @@
+// As-built system context for Comn.
+//
+// NOTE: this directory already contains the hand-written `comn.c4`, which owns
+// the `specification { }` block for this project. LikeC4 merges every .c4 file
+// in a directory into one model, and element kinds may be declared only once,
+// so this file deliberately does NOT repeat the specification. It reuses the
+// kinds declared in comn.c4: actor, system, container, component; ipc, message, rpc.
+//
+// Every element below corresponds to a module that exists in lib/ as of v0.5.0.
+
+model {
+
+    hostapp = actor {
+        title 'Host Elixir Application'
+        description 'Any OTP application that lists :comn as a dependency and calls Comn.* modules directly. Observed consumers: docindex (curly-galoshes), cozybase.'
+        technology 'Elixir / OTP'
+    }
+
+    developer = actor {
+        title 'Developer'
+        description 'Runs the Igniter mix tasks that wire Comn into a host Phoenix app.'
+        technology 'mix CLI'
+    }
+
+    natsserver = system {
+        title 'NATS Server'
+        description 'External message broker. Reached only when the host app starts Comn.Events.NATS; it is not in Comn.Supervisor.'
+        technology 'NATS / gnat 1.11'
+    }
+
+    vaultserver = system {
+        title 'HashiCorp Vault'
+        description 'Transit secrets engine. All encrypt/decrypt for the Vault secrets backend happens server-side.'
+        technology 'Vault HTTP API over Req'
+    }
+
+    ipfsdaemon = system {
+        title 'IPFS Daemon'
+        description 'Local IPFS node HTTP API used for content-addressed file I/O.'
+        technology 'IPFS HTTP API over Req'
+    }
+
+    hostfs = system {
+        title 'Host Filesystem'
+        description 'Local disk and NFS mount points read and written by the file repo backends.'
+        technology 'POSIX filesystem'
+    }
+
+    sqlitefile = system {
+        title 'SQLite Queue File'
+        description 'On-disk SQLite database holding durable queue items, one file per queue.'
+        technology 'SQLite via exqlite 0.27'
+    }
+
+    comnab = system {
+        title 'Comn (as-built)'
+        description 'Shared Elixir foundation: universal look/recon/choices/act introspection, structured errors with a compile-time code registry, pub/sub events, secrets, spatial zones and presence, and a family of repository behaviours with backends.'
+        technology 'Elixir OTP application :comn v0.5.0'
+    }
+
+    developer -[ipc]-> comnab 'Runs mix comn.install / mix comn.bootstrap'
+    hostapp -[ipc]-> comnab 'Depends on :comn; calls Comn.* modules and adds Comn.Supervisor children'
+    comnab -[message]-> hostapp 'Delivers pub/sub events and %Comn.Errors.ErrorStruct{} results'
+
+    comnab -[rpc]-> natsserver 'Publishes and subscribes to subjects (Comn.Events.NATS)'
+    comnab -[rpc]-> vaultserver 'Transit encrypt/decrypt and AppRole login (Comn.Secrets.Vault)'
+    comnab -[rpc]-> ipfsdaemon 'add / cat / pin over the daemon HTTP API (Comn.Repo.File.IPFS)'
+    comnab -[ipc]-> hostfs 'Opens, reads, writes and streams files (Comn.Repo.File.Local, .NFS)'
+    comnab -[ipc]-> sqlitefile 'Persists queue items and reservations (Comn.Repo.Queue.SQLite)'
+}
+
+views {
+
+    view asbuilt_context {
+        title 'Comn — System Context (as-built)'
+        description 'What actually talks to Comn, and what Comn actually reaches out to, derived from lib/ at v0.5.0.'
+
+        include hostapp, developer, comnab, natsserver, vaultserver, ipfsdaemon, hostfs, sqlitefile
+    }
+}

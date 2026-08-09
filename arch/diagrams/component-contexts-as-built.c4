@@ -1,0 +1,55 @@
+// As-built components of the Contexts container.
+
+model {
+    extend comnab.contexts {
+
+        contextsapi = component {
+            title 'Comn.Contexts'
+            description 'Process-scoped context management using the process dictionary. Stores a ContextStruct in the calling process so request metadata propagates without threading it through call sites. Implements @behaviour Comn.'
+            technology 'Elixir process dictionary'
+        }
+
+        contextprotocol = component {
+            title 'Comn.Context'
+            description 'Protocol converting an arbitrary term into a ContextStruct. Impls for Map, List and ContextStruct all live in lib/comn/context.ex.'
+            technology 'Elixir protocol'
+        }
+
+        contextstruct = component {
+            title 'Comn.Contexts.ContextStruct'
+            description 'Concrete context struct carrying request/trace/correlation ids, actor and a Comn.Zone.'
+            technology 'Elixir struct'
+        }
+
+        policystruct = component {
+            title 'Comn.Contexts.PolicyStruct'
+            description 'A named set of business rules. :name is enforced.'
+            technology 'Elixir struct'
+        }
+
+        rulestruct = component {
+            title 'Comn.Contexts.RuleStruct'
+            description 'A business rule. :name, :condition and :action are enforced.'
+            technology 'Elixir struct'
+        }
+
+        contextsapi -[ipc]-> contextstruct 'Stores and retrieves'
+        contextprotocol -[ipc]-> contextstruct 'Produces'
+        policystruct -[ipc]-> rulestruct 'Contains'
+    }
+
+    comnab.kernel.zone -[ipc]-> comnab.contexts.contextstruct 'Embedded as the :zone field'
+    comnab.contexts.contextstruct -[ipc]-> comnab.errors.errorstruct 'Populates request_id, trace_id, correlation_id'
+    comnab.contexts.contextstruct -[ipc]-> comnab.events.eventstruct 'Enriches on construction'
+    hostapp -[ipc]-> comnab.contexts.contextsapi 'Comn.Contexts.new/1 in a boundary plug'
+}
+
+views {
+
+    view asbuilt_contexts of comnab.contexts {
+        title 'Comn Contexts — Components (as-built)'
+        description 'Ambient request context and the policy/rule structs. PolicyStruct and RuleStruct are data definitions only — no evaluation engine exists in lib/.'
+
+        include *, hostapp
+    }
+}

@@ -1,0 +1,65 @@
+// As-built components of the Kernel container.
+
+model {
+    extend comnab.kernel {
+
+        comnbehaviour = component {
+            title 'Comn'
+            description 'The universal behaviour every subsystem implements: look/0 (human summary), recon/0 (machine metadata), choices/0 (available actions), act/1 (perform one).'
+            technology 'Elixir behaviour'
+        }
+
+        discovery = component {
+            title 'Comn.Discovery'
+            description 'Scans loaded modules for the four Comn callbacks and indexes them, including consumer modules outside :comn. Supports type and behaviour queries.'
+            technology 'Elixir module reflection'
+        }
+
+        application = component {
+            title 'Comn.Application'
+            description 'OTP application callback. Starts Comn.Supervisor, then runs Comn.Errors.Registry.discover/0 and Comn.Discovery.discover/0.'
+            technology 'Elixir Application'
+        }
+
+        supervisor = component {
+            title 'Comn.Supervisor'
+            description 'one_for_one supervisor. Children: Registry(:duplicate, Comn.EventBus), Registry(:duplicate, Comn.Events.Registry), Comn.EventLog, Comn.Presence. Comn.Events.NATS is deliberately NOT started here.'
+            technology 'Elixir Supervisor'
+        }
+
+        zone = component {
+            title 'Comn.Zone'
+            description 'Structured spatial locator realm.region.locale. Identifies where something lives; embedded in context and event structs.'
+            technology 'Elixir struct'
+        }
+
+        presence = component {
+            title 'Comn.Presence'
+            description 'Zone-scoped presence behaviour — announce/3 and who/1 — with an Agent-backed local implementation started by Comn.Supervisor.'
+            technology 'Elixir behaviour + Agent'
+        }
+
+        application -[ipc]-> supervisor 'Starts'
+        application -[ipc]-> discovery 'Calls discover/0 after boot'
+        supervisor -[ipc]-> presence 'Supervises'
+        discovery -[ipc]-> comnbehaviour 'Indexes modules declaring'
+        presence -[ipc]-> zone 'Scopes announcements by'
+        presence -[ipc]-> comnbehaviour 'Implements'
+        zone -[ipc]-> comnbehaviour 'Implements'
+    }
+
+    comnab.kernel.supervisor -[ipc]-> comnab.events 'Supervises EventBus, Events.Registry and EventLog'
+    comnab.kernel.application -[ipc]-> comnab.errors 'Triggers Errors.Registry.discover/0'
+    comnab.kernel.zone -[ipc]-> comnab.contexts 'Embedded in ContextStruct'
+    hostapp -[ipc]-> comnab.kernel.supervisor 'Adds to its own supervision tree'
+}
+
+views {
+
+    view asbuilt_kernel of comnab.kernel {
+        title 'Comn Kernel — Components (as-built)'
+        description 'The introspection behaviour, its discovery machinery, the OTP boot path, and the spatial primitives. None of this appears in the hand-written comn.c4.'
+
+        include *, hostapp
+    }
+}

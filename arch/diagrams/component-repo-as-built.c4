@@ -1,0 +1,238 @@
+// As-built components of the Repo container.
+//
+// Only modules that actually contain code are modelled. The following files
+// exist under lib/comn/repo/ but are ZERO BYTES and define no module, so they
+// are deliberately absent from this diagram:
+//   bus.ex, merkel.ex, merkel/git.ex, merkel/github.ex, table/ecto.ex
+
+model {
+    extend comnab.repo {
+
+        repocore = component {
+            title 'Comn.Repo'
+            description 'Core behaviour: describe/1, get/2, set/3, list/1, delete/2. Every other repo behaviour extends these five verbs. Also implements @behaviour Comn.'
+            technology 'Elixir behaviour'
+        }
+
+        repostruct = component {
+            title 'Comn.RepoStruct'
+            description 'Base struct for repo resource metadata: id, name, type, data. :type is enforced.'
+            technology 'Elixir struct'
+        }
+
+        repoerrors = component {
+            title 'Comn.Repo.Errors'
+            description 'Registered error codes for the repo subsystem, declared with use Comn.Errors.Registry.'
+            technology 'Elixir macro registration'
+        }
+
+        table = component {
+            title 'Comn.Repo.Table'
+            description 'Behaviour for table-style key-value repositories. Adds create/drop/keys and table lifecycle verbs on top of Comn.Repo.'
+            technology 'Elixir behaviour'
+        }
+
+        tableets = component {
+            title 'Comn.Repo.Table.ETS'
+            description 'ETS-backed key-value store. Implements Comn.Repo, Comn.Repo.Table and Comn.'
+            technology 'Erlang Term Storage'
+        }
+
+        column = component {
+            title 'Comn.Repo.Column'
+            description 'Behaviour for column-oriented stores: append-heavy, schema-aware, projection-friendly operations over Comn.Repo.'
+            technology 'Elixir behaviour'
+        }
+
+        columnets = component {
+            title 'Comn.Repo.Column.ETS'
+            description 'In-memory column store using two ETS tables per store — one for rows, one for schema.'
+            technology 'Erlang Term Storage'
+        }
+
+        file = component {
+            title 'Comn.Repo.File'
+            description 'Behaviour driving a file lifecycle state machine: open, load, stream, read, write, close.'
+            technology 'Elixir behaviour'
+        }
+
+        filestruct = component {
+            title 'Comn.Repo.File.FileStruct'
+            description 'File handle struct carrying lifecycle state :init | :open | :loaded | :closed.'
+            technology 'Elixir struct'
+        }
+
+        filelocal = component {
+            title 'Comn.Repo.File.Local'
+            description 'Local filesystem backend following the open -> load -> read/write/stream -> close state machine.'
+            technology 'Elixir File / IO'
+        }
+
+        filenfs = component {
+            title 'Comn.Repo.File.NFS'
+            description 'Wraps Comn.Repo.File.Local with path resolution relative to a configured NFS mount point.'
+            technology 'NFS mount point'
+        }
+
+        fileipfs = component {
+            title 'Comn.Repo.File.IPFS'
+            description 'Content-addressed file I/O through a local IPFS daemon HTTP API.'
+            technology 'IPFS HTTP API over Req'
+        }
+
+        graphs = component {
+            title 'Comn.Repo.Graphs'
+            description 'Behaviour adding what is structurally unique to graphs — link, traverse and spatial verbs — on top of Comn.Repo.'
+            technology 'Elixir behaviour'
+        }
+
+        graph = component {
+            title 'Comn.Repo.Graphs.Graph'
+            description 'libgraph-backed implementation operating directly on a GraphStruct. No process, no ETS.'
+            technology 'libgraph 0.16'
+        }
+
+        graphstruct = component {
+            title 'Comn.Repo.Graphs.GraphStruct'
+            description 'Struct representing a graph held in the repository.'
+            technology 'Elixir struct'
+        }
+
+        batch = component {
+            title 'Comn.Repo.Batch'
+            description 'Behaviour for buffered write-through stores: accumulate then flush.'
+            technology 'Elixir behaviour'
+        }
+
+        batchmem = component {
+            title 'Comn.Repo.Batch.Mem'
+            description 'GenServer buffering items in process state and flushing via a configurable callback.'
+            technology 'GenServer'
+        }
+
+        stream = component {
+            title 'Comn.Repo.Stream'
+            description 'Behaviour for append-only, replayable event streams — a Kafka-style log abstraction over Comn.Repo.'
+            technology 'Elixir behaviour'
+        }
+
+        streammem = component {
+            title 'Comn.Repo.Stream.Mem'
+            description 'ETS :ordered_set per stream keyed by integer offset. 290 lines of working code.'
+            technology 'Erlang Term Storage'
+        }
+
+        queue = component {
+            title 'Comn.Repo.Queue'
+            description 'Public backend-agnostic facade for durable, crash-safe FIFO/LIFO job queues: open, push, pop, find, close.'
+            technology 'Elixir facade module'
+        }
+
+        queuebackend = component {
+            title 'Comn.Repo.Queue.Backend'
+            description 'Private contract implemented by the Mem and SQLite backends. @moduledoc false — callers never name it.'
+            technology 'Elixir behaviour'
+        }
+
+        queuehandle = component {
+            title 'Comn.Repo.Queue.Handle'
+            description 'Opaque handle returned by Comn.Repo.Queue.open/2.'
+            technology 'Elixir struct'
+        }
+
+        queuemem = component {
+            title 'Comn.Repo.Queue.Mem'
+            description 'ETS-backed in-memory queue. A GenServer owns the table and serialises push, reserve, ack and release. Tokens are monotonic integers.'
+            technology 'GenServer + ETS'
+        }
+
+        queuesqlite = component {
+            title 'Comn.Repo.Queue.SQLite'
+            description 'Durable queue in a single SQLite file, one GenServer per open queue. Reservations are tracked in-row.'
+            technology 'GenServer + exqlite'
+        }
+
+        queueerrors = component {
+            title 'Comn.Repo.Queue.Errors'
+            description 'Registered error codes under the repo.queue/ prefix.'
+            technology 'Elixir macro registration'
+        }
+
+        cmd = component {
+            title 'Comn.Repo.Cmd'
+            description 'Behaviour adding operational verbs — validate, apply, reset — to the Comn.Repo core.'
+            technology 'Elixir behaviour'
+        }
+
+        cmdshell = component {
+            title 'Comn.Repo.Cmd.Shell'
+            description 'NOT IMPLEMENTED. 31-line stub; every verb returns {:error, :not_implemented}. Present only to satisfy @behaviour Comn introspection.'
+            technology 'Elixir stub'
+        }
+
+        actorrepo = component {
+            title 'Comn.Repo.Actor'
+            description 'NOT IMPLEMENTED. 32-line stub; recon/0 reports status: :not_implemented. Intended for tasks, API calls and agent messaging.'
+            technology 'Elixir stub'
+        }
+
+        table -[ipc]-> repocore 'Extends'
+        column -[ipc]-> repocore 'Extends'
+        file -[ipc]-> repocore 'Extends'
+        graphs -[ipc]-> repocore 'Extends'
+        batch -[ipc]-> repocore 'Extends'
+        stream -[ipc]-> repocore 'Extends'
+        cmd -[ipc]-> repocore 'Extends'
+        actorrepo -[ipc]-> repocore 'Declares extends: Comn.Repo (stub)'
+
+        tableets -[ipc]-> table 'Implements'
+        columnets -[ipc]-> column 'Implements'
+        filelocal -[ipc]-> file 'Implements'
+        filenfs -[ipc]-> filelocal 'Delegates to, with mount-relative paths'
+        fileipfs -[ipc]-> file 'Implements'
+        graph -[ipc]-> graphs 'Implements'
+        batchmem -[ipc]-> batch 'Implements'
+        streammem -[ipc]-> stream 'Implements'
+        cmdshell -[ipc]-> cmd 'Declares extends: Comn.Repo.Cmd (stub)'
+
+        file -[ipc]-> filestruct 'Returns and threads'
+        graph -[ipc]-> graphstruct 'Operates directly on'
+        repocore -[ipc]-> repostruct 'Describes resources as'
+
+        queue -[ipc]-> queuebackend 'Dispatches to the configured backend'
+        queue -[ipc]-> queuehandle 'Returns'
+        queuemem -[ipc]-> queuebackend 'Implements'
+        queuesqlite -[ipc]-> queuebackend 'Implements'
+        queue -[ipc]-> queueerrors 'Raises codes registered by'
+        repocore -[ipc]-> repoerrors 'Raises codes registered by'
+    }
+
+    comnab.repo.fileipfs -[rpc]-> ipfsdaemon 'add / cat over HTTP'
+    comnab.repo.filelocal -[ipc]-> hostfs 'Reads and writes files'
+    comnab.repo.filenfs -[ipc]-> hostfs 'Reads and writes under the mount point'
+    comnab.repo.queuesqlite -[ipc]-> sqlitefile 'Stores items and reservations'
+}
+
+views {
+
+    view asbuilt_repo of comnab.repo {
+        title 'Comn.Repo — Components (as-built)'
+        description 'Every module with code under lib/comn/repo. Behaviours on the left of each pair, concrete backends on the right. Cmd.Shell and Repo.Actor are stubs that answer :not_implemented; Bus, Merkel and Table.Ecto have no code at all and do not appear.'
+
+        include *
+    }
+
+    view asbuilt_queue of comnab.repo.queue {
+        title 'Comn.Repo.Queue — Facade and Backends (as-built)'
+        description 'The durable queue subsystem: a public facade over a private backend contract with in-memory and SQLite implementations. This is the subsystem docindex (curly-galoshes) consumes.'
+
+        include
+            comnab.repo.queue,
+            comnab.repo.queuebackend,
+            comnab.repo.queuehandle,
+            comnab.repo.queuemem,
+            comnab.repo.queuesqlite,
+            comnab.repo.queueerrors,
+            sqlitefile
+    }
+}

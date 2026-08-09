@@ -1,0 +1,98 @@
+// As-built components of the Events container.
+
+model {
+    extend comnab.events {
+
+        eventsbehaviour = component {
+            title 'Comn.Events'
+            description 'Behaviour for pub/sub event systems: start_link, broadcast, subscribe, unsubscribe. Implements @behaviour Comn.'
+            technology 'Elixir behaviour'
+        }
+
+        eventbus = component {
+            title 'Comn.EventBus'
+            description 'Local pub/sub via a :duplicate-keys Elixir Registry, topic-based dispatch. Started by Comn.Supervisor.'
+            technology 'Elixir Registry'
+        }
+
+        eventsregistry = component {
+            title 'Comn.Events.Registry'
+            description 'Adapts the built-in Registry to the Comn.Events behaviour. Functionally identical to Comn.EventBus — both are started by Comn.Supervisor.'
+            technology 'Elixir Registry'
+        }
+
+        eventlog = component {
+            title 'Comn.EventLog'
+            description 'In-memory append-only event log backed by an Agent. Records anything implementing the Comn.Event protocol.'
+            technology 'Elixir Agent'
+        }
+
+        nats = component {
+            title 'Comn.Events.NATS'
+            description 'NATS adapter wrapping a Gnat connection in a named GenServer that manages subscriptions. NOT started by Comn.Supervisor — the host app must add it with connection config.'
+            technology 'GenServer + gnat 1.11'
+        }
+
+        eventprotocol = component {
+            title 'Comn.Event'
+            description 'Protocol converting an arbitrary term into a Comn.Events.EventStruct.'
+            technology 'Elixir protocol'
+        }
+
+        eventstruct = component {
+            title 'Comn.Events.EventStruct'
+            description 'Immutable activity-log struct. The constructor enriches from the ambient Comn.Contexts when one is set.'
+            technology 'Elixir struct'
+        }
+
+        eventsimplmap = component {
+            title 'Comn.Event impl for Map'
+            description 'lib/comn/events/impl/for_map.ex'
+            technology 'defimpl'
+        }
+
+        eventsimpltuple = component {
+            title 'Comn.Event impl for Tuple'
+            description 'lib/comn/events/impl/for_tuple.ex'
+            technology 'defimpl'
+        }
+
+        eventsimplstruct = component {
+            title 'Comn.Event impl for EventStruct'
+            description 'lib/comn/events/impl/for_struct.ex — identity impl.'
+            technology 'defimpl'
+        }
+
+        eventserrors = component {
+            title 'Comn.Events.Errors'
+            description 'Registered error codes for the events subsystem.'
+            technology 'Elixir macro registration'
+        }
+
+        eventbus -[ipc]-> eventsbehaviour 'Implements'
+        eventsregistry -[ipc]-> eventsbehaviour 'Implements'
+        nats -[ipc]-> eventsbehaviour 'Implements'
+        eventlog -[ipc]-> eventprotocol 'Records terms converted through'
+        eventprotocol -[ipc]-> eventstruct 'Produces'
+        eventsimplmap -[ipc]-> eventprotocol 'Implements'
+        eventsimpltuple -[ipc]-> eventprotocol 'Implements'
+        eventsimplstruct -[ipc]-> eventprotocol 'Implements'
+        eventsbehaviour -[ipc]-> eventserrors 'Raises codes registered by'
+
+        eventbus -[message]-> eventlog 'Published structs are appended'
+    }
+
+    comnab.contexts -[ipc]-> comnab.events.eventstruct 'Enriches on construction'
+    comnab.events.nats -[rpc]-> natsserver 'Publish / subscribe over the Gnat connection'
+    comnab.events.eventbus -[message]-> hostapp 'Dispatches to subscriber processes'
+}
+
+views {
+
+    view asbuilt_events of comnab.events {
+        title 'Comn Events — Components (as-built)'
+        description 'Three interchangeable pub/sub adapters, an Agent-backed log, and the Comn.Event protocol. Note that NATS is the only adapter not started by Comn.Supervisor.'
+
+        include *, hostapp, natsserver
+    }
+}

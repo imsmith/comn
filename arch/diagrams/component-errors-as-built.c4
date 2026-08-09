@@ -1,0 +1,79 @@
+// As-built components of the Errors container.
+//
+// The real namespace is Comn.Errors.* with a single protocol at Comn.Error.
+// There is no Comn.Error.ErrorBehavior, Comn.Error.Impl or Comn.Error.Protocol.
+
+model {
+    extend comnab.errors {
+
+        errorsapi = component {
+            title 'Comn.Errors'
+            description 'Public API for structured error handling: wrapping arbitrary terms, categorisation, and creation. Implements @behaviour Comn.'
+            technology 'Elixir module'
+        }
+
+        errorprotocol = component {
+            title 'Comn.Error'
+            description 'Protocol converting an arbitrary term into a Comn.Errors.ErrorStruct.'
+            technology 'Elixir protocol'
+        }
+
+        errorstruct = component {
+            title 'Comn.Errors.ErrorStruct'
+            description 'Standardised machine-readable error struct. Context fields request_id, trace_id and correlation_id are populated automatically from the ambient Comn.Contexts.'
+            technology 'Elixir struct'
+        }
+
+        errorregistry = component {
+            title 'Comn.Errors.Registry'
+            description 'Compile-time error-code registry with runtime lookup. Modules call register_error/3 via use Comn.Errors.Registry; codes accumulate as module attributes and are indexed at boot. Consumers raise codes with error!/2.'
+            technology 'Elixir macros + runtime index'
+        }
+
+        errorimplmap = component {
+            title 'Comn.Error impl for Map'
+            description 'lib/comn/errors/impl/for_map.ex'
+            technology 'defimpl'
+        }
+
+        errorimpltuple = component {
+            title 'Comn.Error impl for Tuple'
+            description 'lib/comn/errors/impl/for_tuple.ex'
+            technology 'defimpl'
+        }
+
+        errorimplstruct = component {
+            title 'Comn.Error impl for ErrorStruct'
+            description 'lib/comn/errors/impl/for_struct.ex — identity impl.'
+            technology 'defimpl'
+        }
+
+        errorimplstring = component {
+            title 'Comn.Error impls for BitString and Atom'
+            description 'lib/comn/errors/impl/for_string.ex — also defines String.Chars for ErrorStruct.'
+            technology 'defimpl'
+        }
+
+        errorsapi -[ipc]-> errorprotocol 'Wraps terms through'
+        errorprotocol -[ipc]-> errorstruct 'Produces'
+        errorimplmap -[ipc]-> errorprotocol 'Implements'
+        errorimpltuple -[ipc]-> errorprotocol 'Implements'
+        errorimplstruct -[ipc]-> errorprotocol 'Implements'
+        errorimplstring -[ipc]-> errorprotocol 'Implements'
+        errorregistry -[ipc]-> errorstruct 'Builds from registered codes'
+        errorsapi -[ipc]-> errorregistry 'Looks up codes in'
+    }
+
+    comnab.contexts -[ipc]-> comnab.errors.errorstruct 'Supplies request_id, trace_id, correlation_id'
+    hostapp -[ipc]-> comnab.errors.errorregistry 'use Comn.Errors.Registry; register_error/3'
+}
+
+views {
+
+    view asbuilt_errors of comnab.errors {
+        title 'Comn Errors — Components (as-built)'
+        description 'One protocol (Comn.Error), one struct, four impl files, a public API module, and the compile-time code registry that the hand-written comn.c4 omits entirely.'
+
+        include *, hostapp
+    }
+}

@@ -1,0 +1,108 @@
+// As-built containers of Comn. Specification lives in comn.c4 (see the note in
+// context-comn-as-built.c4). Cross-file references are fully qualified.
+//
+// A "container" here is a source grouping under lib/comn that ships as part of
+// the single :comn OTP application — Comn is not an umbrella, so these are
+// logical groupings, not separately deployable units.
+
+model {
+    extend comnab {
+
+        kernel = container {
+            title 'Kernel'
+            description 'The Comn behaviour itself (look/recon/choices/act), runtime module discovery, the OTP application and supervisor, spatial zones, and zone-scoped presence. lib/comn/comn.ex, discovery.ex, application.ex, supervisor.ex, zone.ex, presence.ex.'
+            technology 'Elixir behaviour + OTP supervisor'
+        }
+
+        contexts = container {
+            title 'Contexts'
+            description 'Process-dictionary-scoped request context (request_id, trace_id, correlation_id, actor, zone) plus policy and rule structs. lib/comn/contexts.ex, context.ex, contexts/.'
+            technology 'Elixir modules, protocol, structs'
+        }
+
+        errors = container {
+            title 'Errors'
+            description 'Structured error struct, the Comn.Error conversion protocol with four impls, and a compile-time error-code registry with runtime lookup. lib/comn/errors.ex, error.ex, errors/.'
+            technology 'Elixir protocol + macro registry'
+        }
+
+        events = container {
+            title 'Events'
+            description 'Pub/sub behaviour with three adapters (Registry-backed EventBus, Events.Registry, NATS), an Agent-backed append-only event log, and the Comn.Event conversion protocol. lib/comn/events.ex, event.ex, events/.'
+            technology 'Elixir Registry, Agent, GenServer'
+        }
+
+        repo = container {
+            title 'Repo'
+            description 'Family of storage behaviours over a common five-verb core (describe/get/set/list/delete) with concrete backends. lib/comn/repo.ex, repo/.'
+            technology 'Elixir behaviours + ETS, SQLite, filesystem, libgraph backends'
+        }
+
+        secrets = container {
+            title 'Secrets'
+            description 'Locking/unlocking behaviour with a local :crypto backend (Ed25519 identity, ChaCha20-Poly1305 AEAD) and a Vault Transit backend; key, blob and container structs. lib/comn/secrets.ex, secret.ex, secrets.ex, secrets/.'
+            technology 'Erlang :crypto, Vault Transit'
+        }
+
+        infra = container {
+            title 'Infra'
+            description 'PLACEHOLDER ONLY. lib/comn/infra.ex declares a stub behaviour whose callbacks return {:error, :not_implemented}; compute.ex, connectivity.ex, linux.ex, proxmox.ex, storage.ex and unifi.ex are all zero-byte files.'
+            technology 'Elixir behaviour stub'
+        }
+
+        installers = container {
+            title 'Installers'
+            description 'Igniter mix tasks that add the path deps and generate a Comn.Contexts boundary plug and a starter error registry in a host Phoenix app. lib/mix/tasks/comn.install.ex, comn.bootstrap.ex.'
+            technology 'Igniter 0.8 mix tasks (optional dep)'
+        }
+
+        kernel -[ipc]-> contexts 'Zone structs are embedded in context structs'
+        kernel -[ipc]-> errors 'Discovery indexes modules; Application triggers Errors.Registry.discover/0'
+
+        contexts -[ipc]-> errors 'Enriches ErrorStruct with request/trace/correlation ids'
+        contexts -[ipc]-> events 'Enriches EventStruct with ambient context'
+
+        events -[ipc]-> errors 'Registers events/* error codes'
+        repo -[ipc]-> errors 'Registers repo/* and repo.queue/* error codes'
+        secrets -[ipc]-> errors 'Registers secrets/* error codes'
+
+        installers -[ipc]-> contexts 'Generates a boundary plug that sets Comn.Contexts'
+        installers -[ipc]-> errors 'Generates a starter error registry module'
+    }
+
+    hostapp -[ipc]-> comnab.kernel 'Adds Comn.Supervisor to its own supervision tree'
+    hostapp -[ipc]-> comnab.repo 'Opens queues, tables, files, graphs'
+    hostapp -[ipc]-> comnab.errors 'Declares error codes with use Comn.Errors.Registry'
+    developer -[ipc]-> comnab.installers 'mix comn.install'
+
+    comnab.events -[rpc]-> natsserver 'Gnat connection, subscribe/publish'
+    comnab.secrets -[rpc]-> vaultserver 'Transit encrypt/decrypt'
+    comnab.repo -[rpc]-> ipfsdaemon 'HTTP API calls'
+    comnab.repo -[ipc]-> hostfs 'File I/O'
+    comnab.repo -[ipc]-> sqlitefile 'Queue persistence'
+}
+
+views {
+
+    view asbuilt_containers of comnab {
+        title 'Comn — Containers (as-built)'
+        description 'The eight source groupings that actually exist under lib/. Infra is a placeholder; everything else has working code.'
+
+        include
+            comnab.kernel,
+            comnab.contexts,
+            comnab.errors,
+            comnab.events,
+            comnab.repo,
+            comnab.secrets,
+            comnab.infra,
+            comnab.installers,
+            hostapp,
+            developer,
+            natsserver,
+            vaultserver,
+            ipfsdaemon,
+            hostfs,
+            sqlitefile
+    }
+}
