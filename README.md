@@ -273,6 +273,10 @@ fact = EventStruct.new(:domain, "order.placed", %{id: 1})
 [^fact] = Stream.observe(s, as: :events) |> Enum.to_list()
 ```
 
+Anything `Comn.Event` can convert is an event by default, so
+`set(h, event: %{type: :domain, topic: "order.placed", data: %{id: 1}})` and the
+tuple form work on every shape too.
+
 A file of events is a log (one encoded line per fact), a column store turns
 the headers into columns, a graph makes the event a vertex keyed by its id.
 The shared spec in `test/support/event_sink_conformance.ex` runs against every

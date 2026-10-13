@@ -76,6 +76,13 @@ defmodule Comn.EventSinkConformance do
           assert {:error, %ErrorStruct{}} = @sink.set(h, event: %{not: "an event"})
         end
 
+        @tag :event_sink
+        test "set/2 accepts anything Comn.Event can convert", %{h: h} do
+          # a map and a tuple are events by default; the shape stores an EventStruct
+          h = put!(h, %{type: :domain, topic: "sink.map", data: %{n: 1}})
+          put!(h, {:domain, "sink.tuple", %{n: 2}})
+        end
+
         if @sink_retains do
           @tag :event_sink
           test "get/2 by id returns the same event", %{h: h} do
@@ -97,6 +104,14 @@ defmodule Comn.EventSinkConformance do
             seen = @sink.observe(h, as: :events) |> Enum.to_list()
             assert length(seen) == 3
             assert Enum.all?(events, &(&1 in seen))
+          end
+
+          @tag :event_sink
+          test "a converted map comes back as an EventStruct", %{h: h} do
+            h = put!(h, %{type: :domain, topic: "sink.converted", data: %{n: 1}})
+
+            assert [%EventStruct{topic: "sink.converted", data: %{n: 1}}] =
+                     @sink.observe(h, as: :events) |> Enum.to_list()
           end
 
           @tag :event_sink

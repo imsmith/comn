@@ -116,13 +116,19 @@ defmodule Comn.Repo do
   @spec events_view?(keyword()) :: boolean()
   def events_view?(opts) when is_list(opts), do: Keyword.get(opts, :as) == :events
 
-  @doc "Fetches and validates the `event:` option."
+  @doc """
+  Fetches the `event:` option and converts it through the `Comn.Event`
+  protocol, so a map or tuple is an event by default. Anything the
+  protocol rejects is `repo/invalid_event`.
+  """
   @spec fetch_event(keyword()) :: {:ok, Comn.Events.EventStruct.t()} | {:error, Comn.Errors.ErrorStruct.t()}
   def fetch_event(opts) when is_list(opts) do
-    case Keyword.fetch(opts, :event) do
-      {:ok, %Comn.Events.EventStruct{} = e} -> {:ok, e}
-      {:ok, other} -> {:error, Comn.Errors.Registry.error!("repo/invalid_event", field: inspect(other))}
+    with {:ok, term} <- Keyword.fetch(opts, :event),
+         {:ok, %Comn.Events.EventStruct{} = e} <- Comn.Event.to_event(term) do
+      {:ok, e}
+    else
       :error -> {:error, Comn.Errors.Registry.error!("repo/invalid_event", message: "missing :event option")}
+      {:error, _} -> {:error, Comn.Errors.Registry.error!("repo/invalid_event", field: inspect(Keyword.get(opts, :event)))}
     end
   end
 
