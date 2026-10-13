@@ -45,6 +45,7 @@ defmodule Comn.Presence do
   @agent __MODULE__.Agent
 
   @doc false
+  @spec child_spec(term()) :: Supervisor.child_spec()
   def child_spec(_opts) do
     %{
       id: @agent,

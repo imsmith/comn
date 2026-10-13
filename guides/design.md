@@ -37,7 +37,7 @@ Three module types implement this contract differently:
 
 Why this matters: orchestration layers, TUIs, CLI tools, and autonomous agents
 can navigate the entire system without reading source. A process can call
-`Comn.Repo.choices/0` to find all available implementations, select one, call
+`c:Comn.choices/0` to find all available implementations, select one, call
 its `recon/0` to confirm it supports the required callbacks, then call `act/1`
 with the appropriate inputs. Discovery is not documentation — it is live
 metadata, queryable at runtime, always in sync with the code.
@@ -565,20 +565,25 @@ EventStruct, enrichment pipeline, telemetry hooks. Bus is the transport layer
 underneath all of that — what you use when you need pub/sub without the event
 machinery, or when you are building the event machinery itself.
 
-**Queue** (planned) is ordered, durable, and ackable. The pattern is RabbitMQ or
+**Queue** is ordered, durable, and ackable. The pattern is RabbitMQ or
 Oban: messages are enqueued, workers dequeue and acknowledge, unacknowledged
 messages are retried or dead-lettered. Queue differs from Batch in direction and
 durability: Batch is write-behind for outbound I/O; Queue is a work-distribution
 mechanism where delivery guarantees matter. Queue differs from Bus in that Bus
-is fire-and-forget by design; Queue tracks delivery state per message.
+is fire-and-forget by design; Queue tracks delivery state per message. The
+facade is `Comn.Repo.Queue`; backends (`Mem`, `SQLite`) implement a private
+backend contract and are selected by the `:backend` option to `open/2`. Crash safety lives in
+`pop/2`: a raise or caller exit returns the item to the queue.
 
-**Stream** (planned) is append-only and replayable. The pattern is Kafka: events
+**Stream** is append-only and replayable. The pattern is Kafka: events
 are appended to a log, consumers read from an offset, old data is retained until
 a retention policy expires it. Stream differs from Queue in that consumption is
 non-destructive — multiple consumers can read the same data at different offsets
 independently. It differs from Bus in that the log is durable: a consumer that
 falls behind can catch up; a Bus subscriber that disconnects misses what it
-missed.
+missed. The Mem backend is an ETS `:ordered_set` with monotonic
+integer offsets; offsets are opaque per backend so a Kafka or NATS adapter can
+use its own.
 
 **Merkel** (planned) is content-addressed and immutable. The pattern is Git or
 IPFS: data is stored by a hash of its content, not by a mutable key. You cannot

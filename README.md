@@ -6,7 +6,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 ## Status
 
-**v0.5.0** (+ spatial-native, post-tag) — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, and zone-based spatial addressing.
+**v0.5.2** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, and zone-based spatial addressing.
 
 | Subsystem | Status | What it does |
 |---|---|---|
@@ -27,9 +27,16 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
-| Repo.Stream | Planned | Append-only, replayable (Kafka pattern) |
+| Repo.Stream | Complete | Append-only, replayable event log with offset cursors (Mem backend) |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |
+
+## Requirements
+
+- Elixir 1.20 or later
+- Erlang/OTP 29 or later
+
+The pinned toolchain is in `.tool-versions` (asdf / mise).
 
 ## Installation
 
@@ -297,6 +304,40 @@ alias Comn.Repo.Column.ETS
 {:ok, rows} = ETS.select(ref, where: [host: "web-1"], columns: [:ts, :value])
 ```
 
+### Queue (durable, ackable jobs)
+
+```elixir
+alias Comn.Repo.Queue
+
+{:ok, q} = Queue.open("jobs", backend: :mem, discipline: :fifo)
+:ok = Queue.push(q, %{n: 1})
+[%{n: 1}] = Queue.peek(q, 1)
+
+# pop/2 runs the callback; if it raises or the caller dies the item is requeued
+{:ok, :done} = Queue.pop(q, fn %{n: _} -> :done end)
+:empty = Queue.pop(q, & &1)
+
+# SQLite backend survives restarts
+{:ok, q} = Queue.open("jobs", backend: :sqlite, path: "/var/lib/app/jobs.queue")
+```
+
+### Stream (append-only, replayable log)
+
+```elixir
+alias Comn.Repo.Stream.Mem
+alias Comn.Events.EventStruct
+
+:ok = Mem.create(:audit)
+{:ok, 1} = Mem.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
+{:ok, 2} = Mem.append(:audit, EventStruct.new(:auth, "user.logout", %{id: 1}))
+
+{:ok, [{1, _}, {2, _}]} = Mem.read(:audit, :tail, 10)   # from the earliest offset
+{:ok, [{2, _}]}         = Mem.read(:audit, 2, 10)       # from a caller-tracked offset
+{:ok, 2}                = Mem.head(:audit)
+```
+
+Consumers track their own offsets. `delete/2` returns `repo.stream/append_only`.
+
 ## Spatial
 
 A `Comn.Zone` is a structured locator — `realm.region.locale` — used as ambient context and as a spatial address for repos that have a notion of place.
@@ -386,8 +427,12 @@ lib/comn/
   repo/batch.ex              Batch behaviour (push/flush/size/drain/status)
   repo/column.ex             Column behaviour (create/put/select/delete/schema/count/drop)
   repo/bus.ex                Bus behaviour (planned)
-  repo/queue.ex              Queue behaviour (planned)
-  repo/stream.ex             Stream behaviour (planned)
+  repo/queue.ex              Queue facade (open/push/pop/peek/find/remove/close)
+  repo/queue/backend.ex      Queue backend behaviour
+  repo/queue/mem.ex          ETS queue backend
+  repo/queue/sqlite.ex       SQLite queue backend
+  repo/stream.ex             Stream behaviour (append/append_many/read/head/tail)
+  repo/stream/mem.ex         ETS stream backend
   repo/merkel.ex             Merkel behaviour (planned)
   repo/table/ets.ex          ETS key-value implementation
   repo/file/local.ex         Local filesystem implementation
@@ -401,6 +446,9 @@ lib/comn/
   repo/errors.ex             Repo subsystem error codes
 
   infra.ex                   Infrastructure management (placeholder)
+
+  mix/tasks/comn.install.ex  Igniter installer (deps, Contexts plug, error registry)
+  mix/tasks/comn.bootstrap.ex Igniter installer for comn + busybody together
 ```
 
 ## Running Tests
@@ -408,6 +456,15 @@ lib/comn/
 ```bash
 mix test                    # All tests (Vault tests auto-excluded)
 VAULT_TOKEN=xxx mix test    # Include Vault integration tests
+```
+
+Every `iex>` example in a moduledoc or function doc is a doctest and runs
+with the suite (`test/doctest_test.exs` plus per-module test files).
+
+## Documentation
+
+```bash
+mix docs                    # Builds HTML docs into doc/ via ex_doc
 ```
 
 ## License

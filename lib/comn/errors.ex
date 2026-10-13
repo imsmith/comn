@@ -30,6 +30,7 @@ defmodule Comn.Errors do
   @categories [:validation, :persistence, :network, :auth, :internal, :unknown]
 
   @doc "Returns the list of known error categories."
+  @spec categories() :: [atom()]
   def categories, do: @categories
 
   @doc "Wraps any term into an ErrorStruct via the Comn.Error protocol, enriched with ambient context."

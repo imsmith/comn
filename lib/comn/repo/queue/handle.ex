@@ -1,8 +1,11 @@
 defmodule Comn.Repo.Queue.Handle do
-  @moduledoc false
+  @moduledoc """
+  Opaque handle returned by `Comn.Repo.Queue.open/2`.
 
-  # Opaque handle returned by Comn.Repo.Queue.open/2. Callers should
-  # treat this as a black box.
+  Carries the backend module, its private state, the queue name, and the
+  discipline (`:fifo` or `:lifo`). Callers pass it back to every
+  `Comn.Repo.Queue` function and should not inspect or build it directly.
+  """
 
   @enforce_keys [:backend, :state, :name, :discipline]
   defstruct [:backend, :state, :name, :discipline]

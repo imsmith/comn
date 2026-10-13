@@ -42,6 +42,7 @@ defmodule Comn.Events.NATS do
 
   Options: `:host`, `:port`, `:tls`, `:ssl_opts`, `:name`.
   """
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     {name, opts} = Keyword.pop(opts, :name, __MODULE__)
     {server_opts, gen_opts} = Keyword.split(opts, [:host, :port, :tls, :ssl_opts])
@@ -56,6 +57,7 @@ defmodule Comn.Events.NATS do
   Messages are forwarded to the local EventBus. Uses the default named
   process unless `:name` is provided.
   """
+  @spec subscribe(String.t(), keyword()) :: {:ok, non_neg_integer() | String.t()} | {:error, term()}
   def subscribe(topic, opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
     GenServer.call(name, {:subscribe, topic, self()})
@@ -64,6 +66,7 @@ defmodule Comn.Events.NATS do
   @doc """
   Unsubscribes from a NATS topic by subscription ID.
   """
+  @spec unsubscribe(non_neg_integer() | String.t(), keyword()) :: :ok
   def unsubscribe(subscription_id, opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
     GenServer.call(name, {:unsubscribe, subscription_id})
@@ -72,6 +75,7 @@ defmodule Comn.Events.NATS do
   @doc """
   Publishes a payload to a NATS topic.
   """
+  @spec broadcast(String.t(), term(), keyword()) :: :ok
   def broadcast(topic, payload, opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
     GenServer.call(name, {:broadcast, topic, payload})

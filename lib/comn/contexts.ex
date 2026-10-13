@@ -13,7 +13,6 @@ defmodule Comn.Contexts do
       iex> ctx = Comn.Contexts.new(request_id: "req-1")
       iex> ctx.request_id
       "req-1"
-
       iex> Comn.Contexts.fetch(:request_id)
       "req-1"
 

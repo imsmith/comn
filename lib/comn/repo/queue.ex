@@ -56,11 +56,13 @@ defmodule Comn.Repo.Queue do
     end
   end
 
+  @doc "Closes the queue and releases backend resources."
   @spec close(t()) :: :ok
   def close(%Handle{backend: b, state: s}), do: b.close(s)
 
   # ---- operations ----
 
+  @doc "Appends `item` to the queue."
   @spec push(t(), term()) :: :ok | {:error, Comn.Errors.ErrorStruct.t()}
   def push(%Handle{backend: b, state: s}, item) do
     case b.push(s, item) do
@@ -105,19 +107,23 @@ defmodule Comn.Repo.Queue do
     end
   end
 
+  @doc "Returns up to `n` head items in discipline order without reserving them."
   @spec peek(t(), pos_integer()) :: [term()]
   def peek(%Handle{backend: b, state: s}, n \\ 1) when is_integer(n) and n > 0 do
     b.peek(s, n)
   end
 
+  @doc "Returns the number of items currently in the queue."
   @spec size(t()) :: non_neg_integer()
   def size(%Handle{backend: b, state: s}), do: b.size(s)
 
+  @doc "Returns the first item for which `fun` returns true, or `:not_found`."
   @spec find(t(), (term() -> boolean())) :: {:ok, term()} | :not_found
   def find(%Handle{backend: b, state: s}, fun) when is_function(fun, 1) do
     b.find(s, fun)
   end
 
+  @doc "Removes and returns the first item for which `fun` returns true, or `:not_found`."
   @spec remove(t(), (term() -> boolean())) :: {:ok, term()} | :not_found
   def remove(%Handle{backend: b, state: s}, fun) when is_function(fun, 1) do
     b.remove(s, fun)

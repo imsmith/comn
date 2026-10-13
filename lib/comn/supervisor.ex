@@ -14,9 +14,10 @@ defmodule Comn.Supervisor do
   - `Comn.EventBus` — Registry-based pub/sub (`:duplicate` keys)
   - `Comn.Events.Registry` — Registry-based event adapter (`:duplicate` keys)
   - `Comn.EventLog` — Agent-backed append-only event log
+  - `Comn.Presence` — Agent-backed zone-scoped actor presence
 
-  Also runs `Comn.Errors.Registry.discover/0` to index all compiled error
-  codes into the runtime registry.
+  Error-code and module discovery run after this supervisor is up; see
+  `Comn.Application`.
 
   Optional processes like `Comn.Events.NATS` are not started here — add
   them to your own supervision tree with the appropriate connection config.
