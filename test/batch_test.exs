@@ -27,7 +27,13 @@ defmodule Comn.Repo.Batch.MemTest do
     )
 
     on_exit(fn ->
-      if Process.alive?(pid), do: GenServer.stop(pid)
+      # Linked to the test process, so it may exit between alive? and stop.
+      try do
+        GenServer.stop(pid)
+      catch
+        :exit, _ -> :ok
+      end
+
       try do
         :ets.delete(flushed_name)
       rescue
