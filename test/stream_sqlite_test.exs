@@ -1,9 +1,6 @@
 defmodule Comn.StreamSQLiteTest do
   @moduledoc """
-  Phase 3: SQLite-backed durable stream.
-
-  Runs the shared conformance spec, then the lifecycle and durability
-  tests that only make sense for a file-backed stream.
+  Phase 3: :sqlite durable stream backend, through the facade.
 
   To run:
     mix test test/stream_sqlite_test.exs
@@ -11,128 +8,125 @@ defmodule Comn.StreamSQLiteTest do
 
   use ExUnit.Case, async: true
 
-  # Must precede `use Comn.StreamConformance`: module tags only reach tests
-  # defined after them, and the conformance macro defines its tests here.
+  # Must precede the conformance `use` lines: module tags only reach tests
+  # defined after them.
   @moduletag :tmp_dir
 
-  use Comn.StreamConformance, backend: Comn.Repo.Stream.SQLite
-  use Comn.EventSinkConformance, backend: Comn.Repo.Stream.SQLite
+  use Comn.StreamConformance
+  use Comn.EventSinkConformance, backend: Comn.Repo.Stream
 
-  def open_sink(ctx), do: open_stream(ctx)
-
-  doctest Comn.Repo.Stream.SQLite
-
-  alias Comn.Repo.Stream.SQLite
+  alias Comn.Repo.Stream
 
   defp fresh_name, do: :"sqlite_stream_#{:erlang.unique_integer([:positive])}"
 
   def open_stream(%{tmp_dir: dir}) do
     name = fresh_name()
-    :ok = SQLite.open(name, path: Path.join(dir, "#{name}.db"))
-    {name, fn -> SQLite.drop(name) end}
+    {:ok, s} = Stream.open(name, backend: :sqlite, path: Path.join(dir, "#{name}.db"))
+    {s, fn -> Stream.drop(s) end}
   end
 
-  describe "SQLite lifecycle" do
+  def open_sink(ctx), do: open_stream(ctx)
+
+  describe ":sqlite lifecycle" do
     @tag :stream_phase3
-    test "open/2 requires a :path", %{tmp_dir: _} do
+    test "open/2 requires a :path" do
       assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/invalid_opts"}} =
-               SQLite.open(fresh_name(), [])
+               Stream.open(fresh_name(), backend: :sqlite)
     end
 
     @tag :stream_phase3
     test "open/2 twice under the same name returns already_exists", %{tmp_dir: dir} do
       name = fresh_name()
       path = Path.join(dir, "dup.db")
-      :ok = SQLite.open(name, path: path)
+      {:ok, s} = Stream.open(name, backend: :sqlite, path: path)
 
       assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/already_exists"}} =
-               SQLite.open(name, path: path)
+               Stream.open(name, backend: :sqlite, path: path)
 
-      SQLite.drop(name)
+      Stream.drop(s)
     end
 
     @tag :stream_phase3
     test "open/2 creates parent directories", %{tmp_dir: dir} do
-      name = fresh_name()
       path = Path.join([dir, "nested", "deeper", "s.db"])
-      assert :ok = SQLite.open(name, path: path)
+      {:ok, s} = Stream.open(fresh_name(), backend: :sqlite, path: path)
       assert File.exists?(path)
-      SQLite.drop(name)
+      Stream.drop(s)
     end
 
     @tag :stream_phase3
     test "close/1 stops the stream and keeps the file", %{tmp_dir: dir} do
-      name = fresh_name()
       path = Path.join(dir, "keep.db")
-      :ok = SQLite.open(name, path: path)
-      assert :ok = SQLite.close(name)
-      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} = SQLite.head(name)
+      {:ok, s} = Stream.open(fresh_name(), backend: :sqlite, path: path)
+      assert :ok = Stream.close(s)
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} = Stream.head(s)
       assert File.exists?(path)
-      assert :ok = SQLite.close(name)
+      assert :ok = Stream.close(s)
     end
 
     @tag :stream_phase3
     test "drop/1 stops the stream and deletes the file", %{tmp_dir: dir} do
-      name = fresh_name()
       path = Path.join(dir, "gone.db")
-      :ok = SQLite.open(name, path: path)
-      assert :ok = SQLite.drop(name)
+      {:ok, s} = Stream.open(fresh_name(), backend: :sqlite, path: path)
+      assert :ok = Stream.drop(s)
       refute File.exists?(path)
-      assert :ok = SQLite.drop(name)
+      assert :ok = Stream.drop(s)
+    end
+
+    @tag :stream_phase3
+    test "child_spec/1 starts a supervised stream", %{tmp_dir: dir} do
+      name = fresh_name()
+      spec = {Stream, name: name, backend: :sqlite, path: Path.join(dir, "sup.db")}
+      {:ok, sup} = Supervisor.start_link([spec], strategy: :one_for_one)
+      assert is_pid(Process.whereis(name))
+      Supervisor.stop(sup)
+      assert nil == Process.whereis(name)
     end
   end
 
-  describe "SQLite durability" do
+  describe ":sqlite durability" do
     @tag :stream_phase3
-    test "events, offsets and group positions survive close and reopen", %{tmp_dir: dir} do
+    test "events and offsets survive close and reopen", %{tmp_dir: dir} do
       name = fresh_name()
       path = Path.join(dir, "durable.db")
-      :ok = SQLite.open(name, path: path)
+      {:ok, s} = Stream.open(name, backend: :sqlite, path: path)
 
-      {:ok, [o1, o2, o3]} = SQLite.append_many(name, Enum.map(1..3, &event(%{n: &1})))
-      :ok = SQLite.commit(name, :billing, o2)
-      :ok = SQLite.close(name)
+      {:ok, [o1, _, o3]} = Stream.append_many(s, Enum.map(1..3, &event(%{n: &1})))
+      :ok = Stream.close(s)
 
-      :ok = SQLite.open(name, path: path)
-      assert {:ok, ^o3} = SQLite.head(name)
-      assert {:ok, ^o1} = SQLite.tail(name)
-      assert {:ok, ^o2} = SQLite.position(name, :billing)
-
-      {:ok, events} = SQLite.read(name, :head, 10)
+      {:ok, s} = Stream.open(name, backend: :sqlite, path: path)
+      assert {:ok, ^o3} = Stream.head(s)
+      assert {:ok, ^o1} = Stream.tail(s)
+      {:ok, events} = Stream.read(s, :head, 10)
       assert Enum.map(events, fn {_o, e} -> e.data.n end) == [1, 2, 3]
 
       # offsets keep climbing after reopen; nothing is reused
-      {:ok, o4} = SQLite.append(name, event(%{n: 4}))
+      {:ok, o4} = Stream.append(s, event(%{n: 4}))
       assert o4 > o3
-      SQLite.drop(name)
+      Stream.drop(s)
     end
 
     @tag :stream_phase3
     test "the same file can be reopened under a different name", %{tmp_dir: dir} do
       path = Path.join(dir, "rename.db")
-      a = fresh_name()
-      :ok = SQLite.open(a, path: path)
-      {:ok, o} = SQLite.append(a, event(%{n: 1}))
-      :ok = SQLite.close(a)
+      {:ok, a} = Stream.open(fresh_name(), backend: :sqlite, path: path)
+      {:ok, o} = Stream.append(a, event(%{n: 1}))
+      :ok = Stream.close(a)
 
-      b = fresh_name()
-      :ok = SQLite.open(b, path: path)
-      assert {:ok, ^o} = SQLite.head(b)
-      SQLite.drop(b)
+      {:ok, b} = Stream.open(fresh_name(), backend: :sqlite, path: path)
+      assert {:ok, ^o} = Stream.head(b)
+      Stream.drop(b)
     end
 
     @tag :stream_phase3
     test "subscribers are delivered in append order from one serialised writer", %{tmp_dir: dir} do
-      name = fresh_name()
-      :ok = SQLite.open(name, path: Path.join(dir, "order.db"))
-      {:ok, _} = SQLite.subscribe(name, [])
+      {:ok, s} = Stream.open(fresh_name(), backend: :sqlite, path: Path.join(dir, "order.db"))
+      name = s.name
+      {:ok, _} = Stream.subscribe(s)
 
-      tasks =
-        for n <- 1..20 do
-          Task.async(fn -> SQLite.append(name, event(%{n: n})) end)
-        end
-
-      Enum.each(tasks, &Task.await/1)
+      1..20
+      |> Enum.map(fn n -> Task.async(fn -> Stream.append(s, event(%{n: n})) end) end)
+      |> Enum.each(&Task.await/1)
 
       offsets =
         for _ <- 1..20 do
@@ -144,7 +138,7 @@ defmodule Comn.StreamSQLiteTest do
         end
 
       assert offsets == Enum.sort(offsets)
-      SQLite.drop(name)
+      Stream.drop(s)
     end
   end
 end

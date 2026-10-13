@@ -11,7 +11,10 @@ defmodule Comn.MixProject do
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
       name: "Comn",
-      docs: [main: "readme", extras: ["README.md", "guides/design.md"]],
+      docs: [
+        main: "readme",
+        extras: ["README.md", "guides/design.md", "docs/adr/0001-every-repo-shape-is-an-event-sink.md"]
+      ],
       dialyzer: [plt_add_apps: [:mix]]
     ]
   end

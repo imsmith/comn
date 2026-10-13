@@ -27,7 +27,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
-| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; consumer groups; backends: Mem (ETS), SQLite, NATS JetStream |
+| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; one facade over Mem (ETS), SQLite, NATS JetStream |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |
 
@@ -268,9 +268,9 @@ fact = EventStruct.new(:domain, "order.placed", %{id: 1})
 :ok = Queue.set(q, event: fact)                         # enqueued
 {:ok, ^fact} = Queue.get(q, id: fact.id)                # non-destructive
 
-:ok = Stream.Mem.create(:orders_log)
-{:ok, _offset} = Stream.Mem.set(:orders_log, event: fact)   # appended
-[^fact] = Stream.Mem.observe(:orders_log, as: :events) |> Enum.to_list()
+{:ok, s} = Stream.open(:orders_log, backend: :mem)
+{:ok, _offset} = Stream.set(s, event: fact)                 # appended
+[^fact] = Stream.observe(s, as: :events) |> Enum.to_list()
 ```
 
 A file of events is a log (one encoded line per fact), a column store turns
@@ -354,17 +354,24 @@ alias Comn.Repo.Queue
 
 ### Stream (append-only, replayable log)
 
+One facade, three backends. The backend is a word in one option and the
+calling code is otherwise identical:
+
 ```elixir
-alias Comn.Repo.Stream.Mem
+alias Comn.Repo.Stream
 alias Comn.Events.EventStruct
 
-:ok = Mem.create(:audit)
-{:ok, 1} = Mem.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
-{:ok, 2} = Mem.append(:audit, EventStruct.new(:auth, "user.logout", %{id: 1}))
+{:ok, s} = Stream.open(:audit, backend: :mem)
+# {:ok, s} = Stream.open(:audit, backend: :sqlite, path: "/var/lib/app/audit.db")
+# {:ok, s} = Stream.open(:audit, backend: :jetstream, conn: :gnat)
 
-{:ok, [{1, _}, {2, _}]} = Mem.read(:audit, :head, 10)   # first 10 (Unix head)
-{:ok, [{2, _}]}         = Mem.read(:audit, 2, 10)       # from a caller-tracked offset
-{:ok, 2}                = Mem.head(:audit)
+{:ok, 1} = Stream.append(s, EventStruct.new(:auth, "user.login", %{id: 1}))
+{:ok, 2} = Stream.append(s, EventStruct.new(:auth, "user.logout", %{id: 1}))
+
+{:ok, [{1, _}, {2, _}]} = Stream.read(s, :head, 10)   # first 10 (Unix head)
+{:ok, [{2, _}]}         = Stream.read(s, 2, 10)       # forward from a caller-tracked offset
+{:ok, 2}                = Stream.head(s)              # latest offset
+{:ok, 1}                = Stream.tail(s)              # earliest offset
 ```
 
 Consumers track their own offsets. `delete/2` returns `repo.stream/append_only`.
@@ -373,55 +380,24 @@ Live delivery is a plain message. Subscribe first, then `read` from your last
 offset to catch up, dropping any live message whose offset you already saw:
 
 ```elixir
-{:ok, ref} = Mem.subscribe(:audit, [])
-{:ok, 3} = Mem.append(:audit, EventStruct.new(:auth, "user.login", %{id: 2}))
+{:ok, ref} = Stream.subscribe(s)
+{:ok, 3} = Stream.append(s, EventStruct.new(:auth, "user.login", %{id: 2}))
 receive do
   {:stream, :audit, 3, %EventStruct{topic: "user.login"}} -> :ok
 end
-:ok = Mem.unsubscribe(:audit, ref)
+:ok = Stream.unsubscribe(s, ref)
 ```
 
-Consumer groups are a bookmark per group name, nothing more:
+Lifecycle: `close/1` releases the handle and a durable backend keeps its data;
+`drop/1` deletes the stream. A durable stream under a supervisor:
 
 ```elixir
-{:ok, nil} = Mem.position(:audit, :billing)        # never committed: start from :head
-{:ok, batch} = Mem.read(:audit, :head, 100)
-{last, _} = List.last(batch)
-:ok = Mem.commit(:audit, :billing, last)
-{:ok, ^last} = Mem.position(:audit, :billing)      # next run reads from last + 1
+children = [{Comn.Repo.Stream, name: :audit, backend: :sqlite, path: "/var/lib/app/audit.db"}]
 ```
 
-The SQLite backend has the same API and survives restarts. Its process is not
-linked to the opener; `close` keeps the file, `drop` deletes it:
-
-```elixir
-alias Comn.Repo.Stream.SQLite
-
-:ok = SQLite.open(:audit, path: "/var/lib/app/audit.db")
-{:ok, 1} = SQLite.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
-:ok = SQLite.close(:audit)
-:ok = SQLite.open(:audit, path: "/var/lib/app/audit.db")
-{:ok, 1} = SQLite.head(:audit)
-
-# or under a supervisor
-children = [{SQLite, name: :audit, path: "/var/lib/app/audit.db"}]
-```
-
-The JetStream backend maps each stream to a NATS JetStream stream on subject
-`comn.stream.<name>`; the offset is JetStream's own stream sequence. Group
-positions live in the KV bucket `comn_stream_groups`. It needs a `Gnat`
-connection:
-
-```elixir
-alias Comn.Repo.Stream.JetStream
-
-{:ok, _} = Gnat.start_link(%{host: "127.0.0.1", port: 4222}, name: :gnat)
-:ok = JetStream.open(:audit, conn: :gnat)
-{:ok, seq} = JetStream.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
-{:ok, [{^seq, _}]} = JetStream.read(:audit, :tail, 1)
-:ok = JetStream.close(:audit)            # local process only; server stream kept
-:ok = JetStream.drop(:audit)             # also deletes the server stream
-```
+The `:jetstream` backend maps each stream to a NATS JetStream stream on subject
+`comn.stream.<name>`; the offset is JetStream's own stream sequence. It needs a
+running `Gnat` connection passed as `conn:`.
 
 ## Spatial
 
@@ -516,10 +492,12 @@ lib/comn/
   repo/queue/backend.ex      Queue backend behaviour
   repo/queue/mem.ex          ETS queue backend
   repo/queue/sqlite.ex       SQLite queue backend
-  repo/stream.ex             Stream behaviour (append/append_many/read/head/tail; optional subscribe/unsubscribe, commit/position)
-  repo/stream/mem.ex         ETS stream backend
-  repo/stream/sqlite.ex      SQLite durable stream backend (one GenServer per stream)
-  repo/stream/jetstream.ex   NATS JetStream stream backend (offset = stream sequence)
+  repo/stream.ex             Stream facade (open/close/drop/append/read/head/tail/subscribe)
+  repo/stream/handle.ex      Opaque stream handle
+  repo/stream/backend.ex     Private backend contract
+  repo/stream/mem.ex         ETS backend
+  repo/stream/sqlite.ex      SQLite durable backend (one GenServer per stream)
+  repo/stream/jetstream.ex   NATS JetStream backend (offset = stream sequence)
   repo/merkel.ex             Merkel behaviour (planned)
   repo/table/ets.ex          ETS key-value implementation
   repo/file/local.ex         Local filesystem implementation

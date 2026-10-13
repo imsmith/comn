@@ -1,330 +1,92 @@
 defmodule Comn.Repo.Stream.Mem do
-  @moduledoc """
-  ETS-backed in-memory implementation of `Comn.Repo.Stream`.
+  @moduledoc false
+  # ETS-backed in-memory stream backend. The named :ordered_set table is the
+  # stream: integer offsets as keys (monotonic from 1 via a counter row at
+  # the reserved key :_next_offset), EventStructs as values. No process; the
+  # table dies with the process that opened it. Nothing is durable, so close
+  # and drop are the same.
+  #
+  # ponytail: dispatch runs in the appender, so concurrent appenders can
+  # deliver out of order. Offsets make gaps detectable; read/3 fills them.
 
-  Each stream is a named ETS `:ordered_set` with integer offsets as keys
-  and `Comn.Events.EventStruct` as values. Offsets are monotonic and
-  start at 1, allocated via `:ets.update_counter/3` against a counter
-  row stored at the reserved key `:_next_offset`.
-
-  No supervised process is needed — the ETS table itself is the stream.
-  Consumer-group positions live in a sibling table `name.groups`, created
-  and dropped with the stream. Drop the stream to delete both.
-
-  ## Caveats
-
-  - Tables are owned by the calling process. If that process exits, the
-    table dies with it. For long-lived streams, call `create/1` from a
-    long-lived process (e.g. an application supervisor child).
-  - Counter row uses key `:_next_offset` (an atom) which never collides
-    with valid integer offsets.
-  - Live delivery is in the appender's process. With several processes
-    appending concurrently a subscriber can see offsets out of order;
-    the offset is always in the message, so gaps are detectable and
-    `read/3` fills them.
-
-  ## Subscribing
-
-      iex> name = String.to_atom("mem_sub_#{:erlang.unique_integer([:positive])}")
-      iex> :ok = Comn.Repo.Stream.Mem.create(name)
-      iex> {:ok, ref} = Comn.Repo.Stream.Mem.subscribe(name, [])
-      iex> {:ok, offset} = Comn.Repo.Stream.Mem.append(name, Comn.Events.EventStruct.new(:test, "doc.live", %{}))
-      iex> receive do
-      ...>   {:stream, ^name, ^offset, %Comn.Events.EventStruct{topic: topic}} -> topic
-      ...> end
-      "doc.live"
-      iex> Comn.Repo.Stream.Mem.unsubscribe(name, ref)
-      :ok
-      iex> Comn.Repo.Stream.Mem.drop(name)
-      :ok
-
-  Implements `@behaviour Comn.Repo.Stream` and `@behaviour Comn`.
-
-  ## Examples
-
-      iex> name = String.to_atom("mem_doc_#{:erlang.unique_integer([:positive])}")
-      iex> :ok = Comn.Repo.Stream.Mem.create(name)
-      iex> event = Comn.Events.EventStruct.new(:test, "doc.example", %{})
-      iex> {:ok, offset} = Comn.Repo.Stream.Mem.append(name, event)
-      iex> {:ok, ^offset} = Comn.Repo.Stream.Mem.head(name)
-      iex> Comn.Repo.Stream.Mem.drop(name)
-      :ok
-
-  ## Consumer groups
-
-      iex> name = String.to_atom("mem_grp_#{:erlang.unique_integer([:positive])}")
-      iex> :ok = Comn.Repo.Stream.Mem.create(name)
-      iex> {:ok, nil} = Comn.Repo.Stream.Mem.position(name, :billing)
-      iex> {:ok, offset} = Comn.Repo.Stream.Mem.append(name, Comn.Events.EventStruct.new(:test, "doc.group", %{}))
-      iex> :ok = Comn.Repo.Stream.Mem.commit(name, :billing, offset)
-      iex> {:ok, ^offset} = Comn.Repo.Stream.Mem.position(name, :billing)
-      iex> Comn.Repo.Stream.Mem.drop(name)
-      :ok
-  """
-
-  @behaviour Comn
-  @behaviour Comn.Repo
-  @behaviour Comn.Repo.Stream
+  @behaviour Comn.Repo.Stream.Backend
 
   alias Comn.Errors.Registry, as: ErrReg
-  alias Comn.Events.EventStruct
 
   @counter_key :_next_offset
 
-  # Subscribers live in the shared Comn.EventBus registry under {:stream, name}.
-  @registry Comn.EventBus
-
-  # Lifecycle
-
-  @doc """
-  Creates a new stream as a named ETS table.
-
-  Returns `{:error, ErrorStruct}` with code `repo.stream/already_exists`
-  if a stream of this name already exists.
-  """
-  @spec create(atom()) :: :ok | {:error, term()}
-  def create(name) when is_atom(name) do
+  @impl true
+  def open(name, _opts) when is_atom(name) do
     case :ets.whereis(name) do
       :undefined ->
         :ets.new(name, [:ordered_set, :public, :named_table])
         :ets.insert(name, {@counter_key, 0})
-        :ets.new(groups_table(name), [:set, :public, :named_table])
-        :ok
+        {:ok, name}
 
       _ref ->
         {:error, ErrReg.error!("repo.stream/already_exists", field: name)}
     end
   end
 
-  @doc "Drops the stream's ETS table. Idempotent."
-  @spec drop(atom()) :: :ok
-  def drop(name) when is_atom(name) do
-    case :ets.whereis(name) do
-      :undefined ->
-        :ok
+  @impl true
+  def close(name), do: drop(name)
 
-      _ ->
-        :ets.delete(name)
-        :ets.delete(groups_table(name))
-        :ok
-    end
+  @impl true
+  def drop(name) do
+    if :ets.whereis(name) != :undefined, do: :ets.delete(name)
+    :ok
   end
 
-  # Comn.Repo.Stream
-
-  @impl Comn.Repo.Stream
-  def append(name, %EventStruct{} = event) when is_atom(name) do
+  @impl true
+  def append(name, events) do
     with :ok <- ensure_exists(name) do
-      offset = :ets.update_counter(name, @counter_key, 1)
-      :ets.insert(name, {offset, event})
-      notify(name, offset, event)
-      {:ok, offset}
-    end
-  end
-
-  def append(name, _not_event) when is_atom(name) do
-    case ensure_exists(name) do
-      :ok -> {:error, ErrReg.error!("repo.stream/invalid_event")}
-      err -> err
-    end
-  end
-
-  @impl Comn.Repo.Stream
-  def append_many(name, events) when is_atom(name) and is_list(events) do
-    with :ok <- ensure_exists(name),
-         :ok <- validate_events(events) do
       offsets =
-        Enum.map(events, fn event ->
+        for event <- events do
           offset = :ets.update_counter(name, @counter_key, 1)
           :ets.insert(name, {offset, event})
-          notify(name, offset, event)
+          Comn.Repo.Stream.notify(name, offset, event)
           offset
-        end)
+        end
 
       {:ok, offsets}
     end
   end
 
-  @impl Comn.Repo.Stream
-  def read(name, cursor, count) when is_atom(name) and is_integer(count) and count > 0 do
+  @impl true
+  def read(name, cursor, count) do
     with :ok <- ensure_exists(name) do
-      do_read(name, cursor, count)
+      case cursor do
+        :head -> {:ok, forward(name, first_offset(name), count)}
+        :tail -> {:ok, backward(name, :ets.last(name), count, [])}
+        o when is_integer(o) -> {:ok, forward(name, o, count)}
+        bad -> {:error, ErrReg.error!("repo.stream/invalid_offset", field: inspect(bad))}
+      end
     end
   end
 
-  @impl Comn.Repo.Stream
-  def head(name) when is_atom(name) do
-    # Erlang term order: numbers < atoms. So in an ordered_set the
-    # counter atom sorts after all integer offsets — the last integer
-    # offset is the one immediately before the counter row.
+  @impl true
+  def head(name) do
     with :ok <- ensure_exists(name) do
+      # the atom counter key sorts last; the newest offset is just before it
       case :ets.prev(name, @counter_key) do
-        :"$end_of_table" -> {:ok, nil}
-        offset -> {:ok, offset}
+        o when is_integer(o) -> {:ok, o}
+        _ -> {:ok, nil}
       end
     end
   end
 
-  @impl Comn.Repo.Stream
-  def tail(name) when is_atom(name) do
-    with :ok <- ensure_exists(name) do
-      case :ets.first(name) do
-        :"$end_of_table" -> {:ok, nil}
-        @counter_key -> {:ok, nil}
-        offset -> {:ok, offset}
-      end
-    end
+  @impl true
+  def tail(name) do
+    with :ok <- ensure_exists(name), do: {:ok, first_offset(name)}
   end
 
-  @impl Comn.Repo.Stream
-  def subscribe(name, _opts) when is_atom(name) do
-    with :ok <- ensure_exists(name) do
-      ref = make_ref()
-      {:ok, _owner} = Registry.register(@registry, {:stream, name}, ref)
-      {:ok, ref}
-    end
+  @impl true
+  def count(name) do
+    with :ok <- ensure_exists(name), do: {:ok, :ets.info(name, :size) - 1}
   end
 
-  @impl Comn.Repo.Stream
-  def unsubscribe(name, ref) when is_atom(name) and is_reference(ref) do
-    Registry.unregister_match(@registry, {:stream, name}, ref)
-  end
-
-  @impl Comn.Repo.Stream
-  def commit(name, group, offset) when is_atom(name) do
-    with :ok <- ensure_exists(name) do
-      if is_integer(offset) and :ets.member(name, offset) do
-        :ets.insert(groups_table(name), {group, offset})
-        :ok
-      else
-        {:error, ErrReg.error!("repo.stream/invalid_offset", field: inspect(offset))}
-      end
-    end
-  end
-
-  @impl Comn.Repo.Stream
-  def position(name, group) when is_atom(name) do
-    with :ok <- ensure_exists(name) do
-      case :ets.lookup(groups_table(name), group) do
-        [{^group, offset}] -> {:ok, offset}
-        [] -> {:ok, nil}
-      end
-    end
-  end
-
-  defp groups_table(name), do: :"#{name}.groups"
-
-  # ponytail: dispatch runs in the appender, so concurrent appenders can
-  # deliver out of order. Serialise through a GenServer if that matters.
-  defp notify(name, offset, event) do
-    Registry.dispatch(@registry, {:stream, name}, fn entries ->
-      for {pid, _ref} <- entries, do: send(pid, {:stream, name, offset, event})
-    end)
-  end
-
-  # Comn.Repo
-
-  @impl Comn.Repo
-  def describe(name) when is_atom(name) do
-    with :ok <- ensure_exists(name),
-         {:ok, head} <- head(name),
-         {:ok, tail} <- tail(name) do
-      count = :ets.info(name, :size) - 1
-      {:ok, %{name: name, head: head, tail: tail, count: count}}
-    end
-  end
-
-  @impl Comn.Repo
-  def get(name, id: id) when is_atom(name) do
-    case Enum.find(observe(name, as: :events), &(&1.id == id)) do
-      nil -> Comn.Repo.not_found(id)
-      e -> {:ok, e}
-    end
-  end
-
-  def get(name, opts) when is_atom(name) and is_list(opts) do
-    with :ok <- ensure_exists(name) do
-      offset = Keyword.get(opts, :offset)
-
-      case :ets.lookup(name, offset) do
-        [{^offset, %EventStruct{} = event}] -> {:ok, event}
-        _ -> {:error, ErrReg.error!("repo.stream/invalid_offset", field: offset)}
-      end
-    end
-  end
-
-  @impl Comn.Repo
-  def set(name, opts) when is_atom(name) and is_list(opts) do
-    case Keyword.fetch(opts, :event) do
-      {:ok, event} -> append(name, event)
-      :error -> {:error, ErrReg.error!("repo.stream/invalid_event")}
-    end
-  end
-
-  @impl Comn.Repo
-  def delete(_name, _opts) do
-    {:error, ErrReg.error!("repo.stream/append_only")}
-  end
-
-  @impl Comn.Repo
-  def observe(name, opts) when is_atom(name) and is_list(opts) do
-    pairs = observe_pairs(name)
-    if Comn.Repo.events_view?(opts), do: Stream.map(pairs, &elem(&1, 1)), else: pairs
-  end
-
-  defp observe_pairs(name) do
-    Stream.resource(
-      fn -> {name, :head} end,
-      fn
-        :done ->
-          {:halt, nil}
-
-        {n, cursor} ->
-          case do_read(n, cursor, 100) do
-            {:ok, []} ->
-              {:halt, nil}
-
-            {:ok, batch} ->
-              {last_offset, _} = List.last(batch)
-              {batch, {n, last_offset + 1}}
-          end
-      end,
-      fn _ -> :ok end
-    )
-  end
-
-  # Comn
-
-  @impl Comn
-  def look, do: "Stream.Mem — ETS-backed in-memory append-only stream"
-
-  @impl Comn
-  def recon do
-    %{
-      type: :implementation,
-      implements: Comn.Repo.Stream,
-      backend: :ets,
-      durable?: false
-    }
-  end
-
-  @impl Comn
-  def choices do
-    %{actions: [:create, :drop, :append, :read, :head, :tail]}
-  end
-
-  @impl Comn
-  def act(%{action: :create, name: n}), do: {:ok, create(n)}
-  def act(%{action: :drop, name: n}), do: {:ok, drop(n)}
-  def act(%{action: :append, name: n, event: e}), do: append(n, e)
-  def act(%{action: :read, name: n, from: f, count: c}), do: read(n, f, c)
-  def act(%{action: :head, name: n}), do: head(n)
-  def act(%{action: :tail, name: n}), do: tail(n)
-  def act(%{action: :subscribe, name: n}), do: subscribe(n, [])
-  def act(%{action: :unsubscribe, name: n, ref: r}), do: {:ok, unsubscribe(n, r)}
-  def act(%{action: :commit, name: n, group: g, offset: o}), do: commit(n, g, o)
-  def act(%{action: :position, name: n, group: g}), do: position(n, g)
-  def act(input), do: Comn.unknown_action(input)
+  @impl true
+  def subscribe(_name), do: :ok
 
   # Internals
 
@@ -335,60 +97,36 @@ defmodule Comn.Repo.Stream.Mem do
     end
   end
 
-  defp validate_events(events) do
-    if Enum.all?(events, &match?(%EventStruct{}, &1)) do
-      :ok
-    else
-      {:error, ErrReg.error!("repo.stream/invalid_event")}
+  # integer keys sort before the atom counter key, so the first integer is :ets.first
+  defp first_offset(name) do
+    case :ets.first(name) do
+      o when is_integer(o) -> o
+      _ -> nil
     end
   end
 
-  defp do_read(name, :head, count) do
-    rows = take_forward(name, :ets.first(name), count, [])
-    {:ok, rows}
-  end
+  defp forward(_name, nil, _n), do: []
 
-  defp do_read(name, :tail, count) do
-    rows = take_backward(name, :ets.last(name), count, [])
-    {:ok, rows}
-  end
-
-  defp do_read(name, offset, count) when is_integer(offset) do
-    rows = take_forward(name, offset, count, [])
-    {:ok, rows}
-  end
-
-  defp take_forward(_name, :"$end_of_table", _n, acc), do: Enum.reverse(acc)
-  defp take_forward(_name, _key, 0, acc), do: Enum.reverse(acc)
-
-  defp take_forward(name, @counter_key, n, acc) do
-    take_forward(name, :ets.next(name, @counter_key), n, acc)
-  end
-
-  defp take_forward(name, key, n, acc) when is_integer(key) do
-    case :ets.lookup(name, key) do
-      [{^key, %EventStruct{} = event}] ->
-        take_forward(name, :ets.next(name, key), n - 1, [{key, event} | acc])
-
-      _ ->
-        Enum.reverse(acc)
+  defp forward(name, from, n) do
+    :ets.select(
+      name,
+      [{{:"$1", :"$2"}, [{:is_integer, :"$1"}, {:>=, :"$1", from}], [{{:"$1", :"$2"}}]}],
+      n
+    )
+    |> case do
+      {rows, _cont} -> rows
+      :"$end_of_table" -> []
     end
   end
 
-  defp take_backward(_name, :"$end_of_table", _n, acc), do: acc
-  defp take_backward(_name, _key, 0, acc), do: acc
+  defp backward(_name, _key, 0, acc), do: acc
+  defp backward(_name, :"$end_of_table", _n, acc), do: acc
 
-  defp take_backward(name, @counter_key, n, acc) do
-    take_backward(name, :ets.prev(name, @counter_key), n, acc)
-  end
+  defp backward(name, @counter_key, n, acc),
+    do: backward(name, :ets.prev(name, @counter_key), n, acc)
 
-  defp take_backward(name, key, n, acc) when is_integer(key) do
-    case :ets.lookup(name, key) do
-      [{^key, %EventStruct{} = event}] ->
-        take_backward(name, :ets.prev(name, key), n - 1, [{key, event} | acc])
-
-      _ ->
-        acc
-    end
+  defp backward(name, key, n, acc) when is_integer(key) do
+    [{^key, event}] = :ets.lookup(name, key)
+    backward(name, :ets.prev(name, key), n - 1, [{key, event} | acc])
   end
 end

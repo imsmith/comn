@@ -194,13 +194,13 @@ Hex, three days old, and has no callers.
 
 ## Action Items
 
-1. [ ] `Comn.EventSinkConformance` macro in `test/support/`; wire it for
+1. [x] `Comn.EventSinkConformance` macro in `test/support/`; wire it for
        Table.ETS, Column.ETS, Graph, File.Local, Batch.Mem, Queue (Mem,
        SQLite), Stream (Mem, SQLite, JetStream gated). Watch it fail.
-2. [ ] `set(h, event:)`, `get(h, id:)`, and event-yielding `observe/2`
+2. [x] `set(h, event:)`, `get(h, id:)`, and event-yielding `observe/2`
        on each existing shape, one commit per shape.
-3. [ ] Queue implements `Comn.Repo`.
-4. [ ] Stream facade and handle; backends private; remove
+3. [x] Queue implements `Comn.Repo`.
+4. [x] Stream facade and handle; backends private; remove
        `commit`/`position`; update conformance, README, guide.
 5. [ ] `Comn.Repo.Bus` behaviour + Registry backend, through the same
        spec.
