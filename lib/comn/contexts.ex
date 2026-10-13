@@ -121,5 +121,5 @@ defmodule Comn.Contexts do
   def act(%{action: :new}), do: {:ok, new()}
   def act(%{action: :get}), do: {:ok, get()}
   def act(%{action: :set, context: ctx}), do: {:ok, set(ctx)}
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

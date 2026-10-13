@@ -5,6 +5,7 @@ defmodule Comn.BehaviourTest do
   """
 
   use ExUnit.Case, async: true
+  alias Comn.Errors.ErrorStruct
 
   @all_modules [
     # Behaviours
@@ -79,20 +80,20 @@ defmodule Comn.BehaviourTest do
     end
   end
 
-  describe "behaviour modules return :behaviour_only from act/1" do
+  describe "behaviour modules return comn/behaviour_only from act/1" do
     for mod <- (@behaviour_modules -- @placeholder_modules) do
       @mod mod
-      test "#{inspect(mod)}.act/1 returns {:error, :behaviour_only}" do
-        assert {:error, :behaviour_only} = @mod.act(%{})
+      test "#{inspect(mod)}.act/1 returns comn/behaviour_only" do
+        assert {:error, %ErrorStruct{code: "comn/behaviour_only"}} = @mod.act(%{})
       end
     end
   end
 
-  describe "placeholder modules return :not_implemented from act/1" do
+  describe "placeholder modules return comn/not_implemented from act/1" do
     for mod <- @placeholder_modules do
       @mod mod
-      test "#{inspect(mod)}.act/1 returns {:error, :not_implemented}" do
-        assert {:error, :not_implemented} = @mod.act(%{})
+      test "#{inspect(mod)}.act/1 returns comn/not_implemented" do
+        assert {:error, %ErrorStruct{code: "comn/not_implemented"}} = @mod.act(%{})
       end
     end
   end
@@ -116,8 +117,9 @@ defmodule Comn.BehaviourTest do
 
     for mod <- @impl_modules do
       @mod mod
-      test "#{inspect(mod)}.act/1 returns {:error, :unknown_action} for bogus input" do
-        assert {:error, :unknown_action} = @mod.act(%{action: :bogus_action_that_does_not_exist})
+      test "#{inspect(mod)}.act/1 returns comn/unknown_action for bogus input" do
+        assert {:error, %ErrorStruct{code: "comn/unknown_action", field: ":bogus_action_that_does_not_exist"}} =
+                 @mod.act(%{action: :bogus_action_that_does_not_exist})
       end
     end
   end

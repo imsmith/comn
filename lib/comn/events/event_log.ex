@@ -121,5 +121,5 @@ defmodule Comn.EventLog do
   def act(%{action: :for_topic, topic: topic}), do: {:ok, for_topic(topic)}
   def act(%{action: :for_type, type: type}), do: {:ok, for_type(type)}
   def act(%{action: :since, timestamp: ts}), do: {:ok, since(ts)}
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

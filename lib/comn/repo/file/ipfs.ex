@@ -255,5 +255,5 @@ defmodule Comn.Repo.File.IPFS do
     end
   end
 
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

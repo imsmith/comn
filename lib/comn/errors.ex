@@ -119,5 +119,5 @@ defmodule Comn.Errors do
   def act(%{action: :new, category: cat, message: msg} = input) do
     {:ok, new(cat, msg, Map.get(input, :field), Map.get(input, :suggestion))}
   end
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

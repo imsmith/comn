@@ -12,8 +12,7 @@ defmodule Comn.Infra do
       iex> Comn.Infra.look()
       "Infra — placeholder for infrastructure management (not yet implemented)"
 
-      iex> Comn.Infra.act(%{})
-      {:error, :not_implemented}
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "comn/not_implemented"}} = Comn.Infra.act(%{})
   """
 
   @behaviour Comn
@@ -30,5 +29,5 @@ defmodule Comn.Infra do
   def choices, do: %{}
 
   @impl Comn
-  def act(_input), do: {:error, :not_implemented}
+  def act(_input), do: Comn.not_implemented()
 end

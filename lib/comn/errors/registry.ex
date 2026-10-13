@@ -263,6 +263,7 @@ defmodule Comn.Errors.Registry do
   # Comn's own error modules. Ensures they are loaded before discovery
   # scans :code.all_loaded/0, since the BEAM only loads modules on first reference.
   @comn_error_modules [
+    Comn.Errors.Core,
     Comn.Secrets.Errors,
     Comn.Repo.Errors,
     Comn.Repo.Queue.Errors,

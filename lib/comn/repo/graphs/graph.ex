@@ -345,5 +345,5 @@ defmodule Comn.Repo.Graphs.Graph do
     link(graph, from, to, Map.to_list(Map.drop(input, [:action, :graph, :from, :to])))
   end
 
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

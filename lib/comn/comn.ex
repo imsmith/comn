@@ -24,10 +24,10 @@ defmodule Comn do
 
       iex> %{implementations: ["ETS"]} = Comn.Repo.Table.choices()
 
-  Behaviour-only modules return `{:error, :behaviour_only}` from `act/1`:
+  Behaviour-only modules return a registered `comn/behaviour_only` error
+  from `act/1`:
 
-      iex> Comn.Repo.act(%{})
-      {:error, :behaviour_only}
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "comn/behaviour_only"}} = Comn.Repo.act(%{})
   """
 
   @doc """
@@ -79,8 +79,35 @@ defmodule Comn do
   Takes a map of inputs (as informed by `choices/0` and `recon/0`) and
   performs the module's work. Returns `{:ok, result}` or `{:error, reason}`.
 
-  Behaviour-only modules return `{:error, :behaviour_only}`.
-  Unimplemented modules return `{:error, :not_implemented}`.
+  Errors are always a `Comn.Errors.ErrorStruct`. Three codes are shared by
+  every module and have helpers here: behaviour-only modules return
+  `behaviour_only/0`, placeholders return `not_implemented/0`, and any
+  implementation's fallback clause returns `unknown_action/1`.
   """
-  @callback act(map()) :: {:ok, term()} | {:error, term()}
+  @callback act(map()) :: {:ok, term()} | {:error, Comn.Errors.ErrorStruct.t()}
+
+  alias Comn.Errors.ErrorStruct
+  alias Comn.Errors.Registry
+
+  @doc "`act/1` result for a behaviour-only module (`comn/behaviour_only`)."
+  @spec behaviour_only() :: {:error, ErrorStruct.t()}
+  def behaviour_only, do: {:error, Registry.error!("comn/behaviour_only")}
+
+  @doc "`act/1` result for a placeholder module (`comn/not_implemented`)."
+  @spec not_implemented() :: {:error, ErrorStruct.t()}
+  def not_implemented, do: {:error, Registry.error!("comn/not_implemented")}
+
+  @doc """
+  `act/1` fallback for an unrecognised input (`comn/unknown_action`).
+
+  The `:action` key of the input, if any, is recorded in `field`.
+
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "comn/unknown_action", field: ":bogus"}} =
+      ...>   Comn.unknown_action(%{action: :bogus})
+  """
+  @spec unknown_action(term()) :: {:error, ErrorStruct.t()}
+  def unknown_action(input) do
+    field = if is_map(input) and Map.has_key?(input, :action), do: inspect(input.action)
+    {:error, Registry.error!("comn/unknown_action", field: field)}
+  end
 end

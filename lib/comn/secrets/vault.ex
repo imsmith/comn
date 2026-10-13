@@ -343,5 +343,5 @@ defmodule Comn.Secrets.Vault do
   def act(%{action: :unlock, locked: locked, key: key}), do: unlock(locked, key)
   def act(%{action: :wrap, blobs: blobs, key: key}), do: wrap(blobs, key)
   def act(%{action: :unwrap, locked: locked, key: key}), do: unwrap(locked, key)
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

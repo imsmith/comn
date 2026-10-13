@@ -134,5 +134,5 @@ defmodule Comn.Presence do
   @impl Comn
   def act(%{action: :announce, zone: z, actor: a, state: s}), do: {:ok, announce(z, a, s)}
   def act(%{action: :who, zone: z}), do: who(z)
-  def act(_), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

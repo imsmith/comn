@@ -150,7 +150,7 @@ defmodule Comn.Repo.Queue do
   @impl Comn
   def act(%{action: :open, name: n, opts: o}), do: open(n, o)
   def act(%{action: :open, name: n}),          do: open(n, [])
-  def act(_),                                  do: {:error, :unknown_action}
+  def act(input),                              do: Comn.unknown_action(input)
 
   # ---- internals ----
 

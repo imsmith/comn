@@ -10,8 +10,7 @@ defmodule Comn.Repo.Actor do
 
   ## Examples
 
-      iex> Comn.Repo.Actor.act(%{})
-      {:error, :not_implemented}
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "comn/not_implemented"}} = Comn.Repo.Actor.act(%{})
   """
 
   @behaviour Comn
@@ -28,5 +27,5 @@ defmodule Comn.Repo.Actor do
   def choices, do: %{}
 
   @impl Comn
-  def act(_input), do: {:error, :not_implemented}
+  def act(_input), do: Comn.not_implemented()
 end

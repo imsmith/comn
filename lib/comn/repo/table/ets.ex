@@ -179,7 +179,7 @@ defmodule Comn.Repo.Table.ETS do
     delete(name, key: key)
   end
 
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 
   # Helpers
 

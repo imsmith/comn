@@ -160,5 +160,5 @@ defmodule Comn.Secrets do
   end
 
   @impl Comn
-  def act(_input), do: {:error, :behaviour_only}
+  def act(_input), do: Comn.behaviour_only()
 end

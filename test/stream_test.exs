@@ -54,7 +54,7 @@ defmodule Comn.StreamTest do
       assert is_binary(StreamBehaviour.look())
       assert is_map(StreamBehaviour.recon())
       assert is_map(StreamBehaviour.choices())
-      assert {:error, :behaviour_only} = StreamBehaviour.act(%{})
+      assert {:error, %Comn.Errors.ErrorStruct{code: "comn/behaviour_only"}} = StreamBehaviour.act(%{})
     end
   end
 

@@ -258,7 +258,7 @@ defmodule Comn.Repo.Column.ETS do
   def act(%{action: :project, store: store, fields: fields, filters: filters}), do: project(store, fields, filters)
   def act(%{action: :append, store: store, row: row}), do: append_row(store, row)
   def act(%{action: :flush, store: store}), do: flush(store)
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 
   # -- Private helpers --
 

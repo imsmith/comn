@@ -163,5 +163,5 @@ defmodule Comn.Zone do
   def act(%{action: :to_string, zone: %__MODULE__{} = z}), do: {:ok, __MODULE__.to_string(z)}
   def act(%{action: :new, fields: f}), do: {:ok, new(f)}
   def act(%{action: :local}), do: {:ok, local()}
-  def act(_), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

@@ -51,5 +51,5 @@ defmodule Comn.Events.Registry do
   @impl Comn
   def act(%{action: :subscribe, topic: topic}), do: subscribe(topic)
   def act(%{action: :broadcast, topic: topic, payload: payload}), do: {:ok, broadcast(topic, payload)}
-  def act(_input), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 end

@@ -94,7 +94,7 @@ Comn.Repo.Table.ETS.act(%{action: :create, name: :my_table})
 #=> {:ok, #Reference<...>}
 ```
 
-Behaviour-only modules return `{:error, :behaviour_only}` from `act/1`. Placeholders return `{:error, :not_implemented}`.
+Behaviour-only modules return a `comn/behaviour_only` error from `act/1`. Placeholders return `comn/not_implemented`. An implementation given an input it does not recognise returns `comn/unknown_action`. All three are `Comn.Errors.ErrorStruct` values built by helpers on `Comn`.
 
 ### When to add it
 

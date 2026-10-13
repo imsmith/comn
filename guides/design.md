@@ -26,7 +26,7 @@ Three module types implement this contract differently:
 
 - **Behaviour modules** (e.g. `Comn.Repo`, `Comn.Events`) define the contract.
   They answer `look`, `recon`, and `choices` with metadata about what
-  implementations must provide. Their `act/1` returns `{:error, :behaviour_only}`
+  implementations must provide. Their `act/1` returns a `comn/behaviour_only` error
   — they describe the shape, they don't do the work.
 - **Implementation modules** (e.g. `Comn.Repo.Table.ETS`) do the work.
   Their `recon/0` reports `:type => :implementation` and their `act/1`

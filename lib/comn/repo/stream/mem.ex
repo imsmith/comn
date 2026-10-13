@@ -220,7 +220,7 @@ defmodule Comn.Repo.Stream.Mem do
   def act(%{action: :read, name: n, from: f, count: c}), do: read(n, f, c)
   def act(%{action: :head, name: n}), do: head(n)
   def act(%{action: :tail, name: n}), do: tail(n)
-  def act(_), do: {:error, :unknown_action}
+  def act(input), do: Comn.unknown_action(input)
 
   # Internals
 
