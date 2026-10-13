@@ -13,7 +13,9 @@ defmodule Comn.StreamConformance do
       end
 
   `open_stream/1` receives the ExUnit context and returns the stream name
-  plus a cleanup function. Everything below is exercised through the
+  plus a cleanup function. Any `@moduletag` the backend needs (`:tmp_dir`,
+  `:nats`) must be declared **before** the `use` line, since the tests are
+  defined at that point. Everything below is exercised through the
   behaviour callbacks only; lifecycle verbs (`create`/`open`/`drop`) are
   backend-specific and tested in the backend's own module.
 

@@ -83,7 +83,7 @@ defmodule Comn.StreamTest do
       assert is_binary(StreamBehaviour.look())
       assert is_map(StreamBehaviour.recon())
       assert %{implementations: impls} = StreamBehaviour.choices()
-      assert "Mem" in impls and "SQLite" in impls
+      assert "Mem" in impls and "SQLite" in impls and "JetStream" in impls
 
       assert {:error, %Comn.Errors.ErrorStruct{code: "comn/behaviour_only"}} =
                StreamBehaviour.act(%{})

@@ -172,7 +172,7 @@ defmodule Comn.Repo.Stream do
 
   @impl Comn
   def choices do
-    %{implementations: ["Mem", "SQLite"]}
+    %{implementations: ["Mem", "SQLite", "JetStream"]}
   end
 
   @impl Comn

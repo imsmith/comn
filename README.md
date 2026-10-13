@@ -27,7 +27,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
-| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; consumer groups; backends: Mem (ETS), SQLite |
+| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; consumer groups; backends: Mem (ETS), SQLite, NATS JetStream |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |
 
@@ -376,6 +376,22 @@ alias Comn.Repo.Stream.SQLite
 children = [{SQLite, name: :audit, path: "/var/lib/app/audit.db"}]
 ```
 
+The JetStream backend maps each stream to a NATS JetStream stream on subject
+`comn.stream.<name>`; the offset is JetStream's own stream sequence. Group
+positions live in the KV bucket `comn_stream_groups`. It needs a `Gnat`
+connection:
+
+```elixir
+alias Comn.Repo.Stream.JetStream
+
+{:ok, _} = Gnat.start_link(%{host: "127.0.0.1", port: 4222}, name: :gnat)
+:ok = JetStream.open(:audit, conn: :gnat)
+{:ok, seq} = JetStream.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
+{:ok, [{^seq, _}]} = JetStream.read(:audit, :tail, 1)
+:ok = JetStream.close(:audit)            # local process only; server stream kept
+:ok = JetStream.drop(:audit)             # also deletes the server stream
+```
+
 ## Spatial
 
 A `Comn.Zone` is a structured locator — `realm.region.locale` — used as ambient context and as a spatial address for repos that have a notion of place.
@@ -472,6 +488,7 @@ lib/comn/
   repo/stream.ex             Stream behaviour (append/append_many/read/head/tail; optional subscribe/unsubscribe, commit/position)
   repo/stream/mem.ex         ETS stream backend
   repo/stream/sqlite.ex      SQLite durable stream backend (one GenServer per stream)
+  repo/stream/jetstream.ex   NATS JetStream stream backend (offset = stream sequence)
   repo/merkel.ex             Merkel behaviour (planned)
   repo/table/ets.ex          ETS key-value implementation
   repo/file/local.ex         Local filesystem implementation
@@ -495,6 +512,13 @@ lib/comn/
 ```bash
 mix test                    # All tests (Vault tests auto-excluded)
 VAULT_TOKEN=xxx mix test    # Include Vault integration tests
+NATS_URL=nats://127.0.0.1:4222 mix test   # Include JetStream tests (needs a -js server)
+```
+
+A throwaway JetStream server for the tests:
+
+```bash
+podman run -d --name comn-nats -p 4222:4222 docker.io/library/nats:latest -js
 ```
 
 Every `iex>` example in a moduledoc or function doc is a doctest and runs

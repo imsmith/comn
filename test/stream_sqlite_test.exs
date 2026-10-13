@@ -10,9 +10,12 @@ defmodule Comn.StreamSQLiteTest do
   """
 
   use ExUnit.Case, async: true
-  use Comn.StreamConformance, backend: Comn.Repo.Stream.SQLite
 
+  # Must precede `use Comn.StreamConformance`: module tags only reach tests
+  # defined after them, and the conformance macro defines its tests here.
   @moduletag :tmp_dir
+
+  use Comn.StreamConformance, backend: Comn.Repo.Stream.SQLite
 
   doctest Comn.Repo.Stream.SQLite
 
