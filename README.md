@@ -6,7 +6,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 ## Status
 
-**v0.6.1** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, zone-based spatial addressing, and durable event streams (Mem, SQLite, NATS JetStream).
+**v0.6.2** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, zone-based spatial addressing, and Repo shapes that are all event sinks (ADR-0001): Table, Column, File, Graph, Batch, Queue, Stream, Bus, Merkel.
 
 | Subsystem | Status | What it does |
 |---|---|---|
