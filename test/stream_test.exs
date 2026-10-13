@@ -5,14 +5,15 @@ defmodule Comn.StreamTest do
   Phase 1:  Behaviour + Mem backend (caller-tracked offsets, append-only)
   Phase 2a: Live subscribe — `{:stream, name, offset, event}` delivered to
             subscriber pids on append; no replay, catch-up is read/3
+  Phase 2b: Consumer groups — commit/3 and position/2 so the backend
+            remembers how far a named group has processed
 
   Future phases (out of scope here):
-  - Phase 2b: Consumer-group offset tracking
   - Phase 3:  File-backed durable backend
   - Phase 4:  Kafka / NATS JetStream adapters
 
   To run:
-    mix test test/stream_test.exs --include stream_phase1 --include stream_phase2a
+    mix test test/stream_test.exs --include stream_phase1 --include stream_phase2a --include stream_phase2b
   """
 
   use ExUnit.Case, async: true
@@ -361,6 +362,114 @@ defmodule Comn.StreamTest do
 
       # live delivery of the same event is a duplicate the caller drops by offset
       assert_receive {:stream, ^name, ^o3, _}
+    end
+  end
+
+  # ==========================================================================
+  # Phase 2b: consumer groups
+  # ==========================================================================
+
+  describe "Comn.Repo.Stream behaviour (phase 2b)" do
+    @tag :stream_phase2b
+    test "commit/3 and position/2 are optional callbacks" do
+      optional = StreamBehaviour.behaviour_info(:optional_callbacks)
+      assert {:commit, 3} in optional
+      assert {:position, 2} in optional
+    end
+
+    @tag :stream_phase2b
+    test "recon/0 lists commit and position" do
+      %{callbacks: cbs} = StreamBehaviour.recon()
+      assert :commit in cbs
+      assert :position in cbs
+    end
+  end
+
+  describe "Mem consumer groups" do
+    setup do
+      name = fresh_name()
+      :ok = Mem.create(name)
+      on_exit(fn -> Mem.drop(name) end)
+      %{name: name}
+    end
+
+    @tag :stream_phase2b
+    test "position/2 is nil before any commit", %{name: name} do
+      assert {:ok, nil} = Mem.position(name, :billing)
+    end
+
+    @tag :stream_phase2b
+    test "commit/3 then position/2 round-trips", %{name: name} do
+      {:ok, o} = Mem.append(name, event())
+      assert :ok = Mem.commit(name, :billing, o)
+      assert {:ok, ^o} = Mem.position(name, :billing)
+    end
+
+    @tag :stream_phase2b
+    test "a later commit overwrites the earlier one", %{name: name} do
+      {:ok, [o1, o2]} = Mem.append_many(name, [event(), event()])
+      :ok = Mem.commit(name, :billing, o1)
+      :ok = Mem.commit(name, :billing, o2)
+      assert {:ok, ^o2} = Mem.position(name, :billing)
+    end
+
+    @tag :stream_phase2b
+    test "groups are independent", %{name: name} do
+      {:ok, [o1, o2]} = Mem.append_many(name, [event(), event()])
+      :ok = Mem.commit(name, :billing, o1)
+      :ok = Mem.commit(name, :audit, o2)
+      assert {:ok, ^o1} = Mem.position(name, :billing)
+      assert {:ok, ^o2} = Mem.position(name, :audit)
+    end
+
+    @tag :stream_phase2b
+    test "committing an offset the stream never issued errors", %{name: name} do
+      {:ok, _} = Mem.append(name, event())
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/invalid_offset"}} =
+               Mem.commit(name, :billing, 99)
+      assert {:ok, nil} = Mem.position(name, :billing)
+    end
+
+    @tag :stream_phase2b
+    test "commit/3 and position/2 on a missing stream return not_found" do
+      missing = fresh_name()
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} =
+               Mem.commit(missing, :billing, 1)
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} =
+               Mem.position(missing, :billing)
+    end
+
+    @tag :stream_phase2b
+    test "drop/1 removes group state" do
+      name = fresh_name()
+      :ok = Mem.create(name)
+      {:ok, o} = Mem.append(name, event())
+      :ok = Mem.commit(name, :billing, o)
+      :ok = Mem.drop(name)
+      :ok = Mem.create(name)
+      assert {:ok, nil} = Mem.position(name, :billing)
+      Mem.drop(name)
+    end
+
+    @tag :stream_phase2b
+    test "consumer loop processes every event exactly once across two runs", %{name: name} do
+      {:ok, _} = Mem.append_many(name, Enum.map(1..5, &event(%{n: &1})))
+
+      run = fn ->
+        {:ok, pos} = Mem.position(name, :billing)
+        from = if pos, do: pos + 1, else: :tail
+        {:ok, batch} = Mem.read(name, from, 100)
+
+        for {o, e} <- batch do
+          :ok = Mem.commit(name, :billing, o)
+          e.data.n
+        end
+      end
+
+      assert run.() == [1, 2, 3, 4, 5]
+      {:ok, _} = Mem.append_many(name, Enum.map(6..7, &event(%{n: &1})))
+      assert run.() == [6, 7]
+      assert run.() == []
     end
   end
 

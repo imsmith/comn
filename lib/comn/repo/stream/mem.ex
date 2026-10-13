@@ -8,7 +8,8 @@ defmodule Comn.Repo.Stream.Mem do
   row stored at the reserved key `:_next_offset`.
 
   No supervised process is needed — the ETS table itself is the stream.
-  Drop the table to delete the stream.
+  Consumer-group positions live in a sibling table `name.groups`, created
+  and dropped with the stream. Drop the stream to delete both.
 
   ## Caveats
 
@@ -48,6 +49,17 @@ defmodule Comn.Repo.Stream.Mem do
       iex> {:ok, ^offset} = Comn.Repo.Stream.Mem.head(name)
       iex> Comn.Repo.Stream.Mem.drop(name)
       :ok
+
+  ## Consumer groups
+
+      iex> name = String.to_atom("mem_grp_#{:erlang.unique_integer([:positive])}")
+      iex> :ok = Comn.Repo.Stream.Mem.create(name)
+      iex> {:ok, nil} = Comn.Repo.Stream.Mem.position(name, :billing)
+      iex> {:ok, offset} = Comn.Repo.Stream.Mem.append(name, Comn.Events.EventStruct.new(:test, "doc.group", %{}))
+      iex> :ok = Comn.Repo.Stream.Mem.commit(name, :billing, offset)
+      iex> {:ok, ^offset} = Comn.Repo.Stream.Mem.position(name, :billing)
+      iex> Comn.Repo.Stream.Mem.drop(name)
+      :ok
   """
 
   @behaviour Comn
@@ -76,6 +88,7 @@ defmodule Comn.Repo.Stream.Mem do
       :undefined ->
         :ets.new(name, [:ordered_set, :public, :named_table])
         :ets.insert(name, {@counter_key, 0})
+        :ets.new(groups_table(name), [:set, :public, :named_table])
         :ok
 
       _ref ->
@@ -88,7 +101,7 @@ defmodule Comn.Repo.Stream.Mem do
   def drop(name) when is_atom(name) do
     case :ets.whereis(name) do
       :undefined -> :ok
-      _ -> :ets.delete(name) && :ok
+      _ -> :ets.delete(name) && :ets.delete(groups_table(name)) && :ok
     end
   end
 
@@ -171,6 +184,30 @@ defmodule Comn.Repo.Stream.Mem do
   def unsubscribe(name, ref) when is_atom(name) and is_reference(ref) do
     Registry.unregister_match(@registry, {:stream, name}, ref)
   end
+
+  @impl Comn.Repo.Stream
+  def commit(name, group, offset) when is_atom(name) do
+    with :ok <- ensure_exists(name) do
+      if is_integer(offset) and :ets.member(name, offset) do
+        :ets.insert(groups_table(name), {group, offset})
+        :ok
+      else
+        {:error, ErrReg.error!("repo.stream/invalid_offset", field: inspect(offset))}
+      end
+    end
+  end
+
+  @impl Comn.Repo.Stream
+  def position(name, group) when is_atom(name) do
+    with :ok <- ensure_exists(name) do
+      case :ets.lookup(groups_table(name), group) do
+        [{^group, offset}] -> {:ok, offset}
+        [] -> {:ok, nil}
+      end
+    end
+  end
+
+  defp groups_table(name), do: :"#{name}.groups"
 
   # ponytail: dispatch runs in the appender, so concurrent appenders can
   # deliver out of order. Serialise through a GenServer if that matters.
@@ -268,6 +305,8 @@ defmodule Comn.Repo.Stream.Mem do
   def act(%{action: :tail, name: n}), do: tail(n)
   def act(%{action: :subscribe, name: n}), do: subscribe(n, [])
   def act(%{action: :unsubscribe, name: n, ref: r}), do: {:ok, unsubscribe(n, r)}
+  def act(%{action: :commit, name: n, group: g, offset: o}), do: commit(n, g, o)
+  def act(%{action: :position, name: n, group: g}), do: position(n, g)
   def act(input), do: Comn.unknown_action(input)
 
   # Internals

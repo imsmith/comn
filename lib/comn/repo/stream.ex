@@ -13,9 +13,10 @@ defmodule Comn.Repo.Stream do
   partition+offset tuples, NATS sequence numbers). The only canonical
   accessors are `head/1` (latest offset) and `tail/1` (earliest offset).
 
-  Caller-tracked offsets in v1: callers pass the offset they want to
-  read from on each call. Durable consumer groups (where the backend
-  remembers per-consumer offsets) are out of scope here.
+  Offsets are caller-tracked by default: callers pass the offset they
+  want to read from on each call. Backends may also remember how far a
+  named consumer group has processed via the optional `commit/3` and
+  `position/2`; see "Consumer groups" below.
 
   ## Live subscribe
 
@@ -24,6 +25,14 @@ defmodule Comn.Repo.Stream do
   appended after it subscribed. There is no replay option: to catch up,
   subscribe first, then `read/3` from the last offset you processed and
   drop any live message whose offset you have already seen.
+
+  ## Consumer groups
+
+  Backends may implement the optional `commit/3` and `position/2`. A
+  group is any term; the backend stores one offset per group per stream.
+  There is no membership or rebalancing, only the bookmark. A consumer
+  loop is: `position/2`, `read/3` from the offset after it (or `:tail`
+  when nil), process, `commit/3`, repeat.
 
   Also implements `@behaviour Comn` for uniform introspection.
 
@@ -116,7 +125,24 @@ defmodule Comn.Repo.Stream do
   @doc "Cancels a subscription made by `subscribe/2`."
   @callback unsubscribe(stream(), reference()) :: :ok
 
-  @optional_callbacks subscribe: 2, unsubscribe: 2
+  @doc """
+  Records that `group` has processed through `offset`. Later commits
+  overwrite earlier ones.
+
+  Errors: `repo.stream/not_found`, `repo.stream/invalid_offset` (offset
+  was never issued by this stream).
+  """
+  @callback commit(stream(), group :: term(), offset()) :: :ok | {:error, term()}
+
+  @doc """
+  Returns the last committed offset for `group`, or `nil` if it has
+  never committed.
+
+  Errors: `repo.stream/not_found`.
+  """
+  @callback position(stream(), group :: term()) :: {:ok, offset() | nil} | {:error, term()}
+
+  @optional_callbacks subscribe: 2, unsubscribe: 2, commit: 3, position: 2
 
   # Comn callbacks
 
@@ -126,7 +152,17 @@ defmodule Comn.Repo.Stream do
   @impl Comn
   def recon do
     %{
-      callbacks: [:append, :append_many, :read, :head, :tail, :subscribe, :unsubscribe],
+      callbacks: [
+        :append,
+        :append_many,
+        :read,
+        :head,
+        :tail,
+        :subscribe,
+        :unsubscribe,
+        :commit,
+        :position
+      ],
       extends: Comn.Repo,
       type: :behaviour
     }

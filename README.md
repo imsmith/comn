@@ -27,7 +27,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
-| Repo.Stream | Complete | Append-only, replayable event log with offset cursors and live subscribe (Mem backend) |
+| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; consumer-group positions (Mem backend) |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |
 
@@ -350,6 +350,16 @@ end
 :ok = Mem.unsubscribe(:audit, ref)
 ```
 
+Consumer groups are a bookmark per group name, nothing more:
+
+```elixir
+{:ok, nil} = Mem.position(:audit, :billing)        # never committed: start from :tail
+{:ok, batch} = Mem.read(:audit, :tail, 100)
+{last, _} = List.last(batch)
+:ok = Mem.commit(:audit, :billing, last)
+{:ok, ^last} = Mem.position(:audit, :billing)      # next run reads from last + 1
+```
+
 ## Spatial
 
 A `Comn.Zone` is a structured locator — `realm.region.locale` — used as ambient context and as a spatial address for repos that have a notion of place.
@@ -443,7 +453,7 @@ lib/comn/
   repo/queue/backend.ex      Queue backend behaviour
   repo/queue/mem.ex          ETS queue backend
   repo/queue/sqlite.ex       SQLite queue backend
-  repo/stream.ex             Stream behaviour (append/append_many/read/head/tail; optional subscribe/unsubscribe)
+  repo/stream.ex             Stream behaviour (append/append_many/read/head/tail; optional subscribe/unsubscribe, commit/position)
   repo/stream/mem.ex         ETS stream backend
   repo/merkel.ex             Merkel behaviour (planned)
   repo/table/ets.ex          ETS key-value implementation
