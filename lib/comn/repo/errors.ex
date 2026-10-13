@@ -12,6 +12,7 @@ defmodule Comn.Repo.Errors do
   # Table
   register_error "repo.table/not_found",      :persistence, message: "Table or key does not exist"
   register_error "repo.table/already_exists",  :persistence, message: "Table already exists"
+  register_error "repo.table/invalid_opts",    :validation,  message: "Table backend options are missing or malformed"
 
   # File
   register_error "repo.file/invalid_state",   :validation,  message: "File handle is not in the expected lifecycle state"

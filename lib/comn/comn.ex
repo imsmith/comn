@@ -22,7 +22,7 @@ defmodule Comn do
 
       iex> %{type: :behaviour} = Comn.Events.recon()
 
-      iex> %{implementations: ["ETS"]} = Comn.Repo.Table.choices()
+      iex> %{backends: ["ets", "ecto"]} = Comn.Repo.Table.choices()
 
   Behaviour-only modules return a registered `comn/behaviour_only` error
   from `act/1`:

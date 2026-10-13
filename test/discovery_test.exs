@@ -22,7 +22,6 @@ defmodule Comn.DiscoveryTest do
       assert Comn.Events in behaviours
       assert Comn.Secrets in behaviours
       assert Comn.Repo.File in behaviours
-      assert Comn.Repo.Table in behaviours
       assert Comn.Repo.Graphs in behaviours
       assert Comn.Repo.Cmd in behaviours
       assert Comn.Infra in behaviours

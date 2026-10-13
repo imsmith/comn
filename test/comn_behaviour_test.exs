@@ -36,7 +36,7 @@ defmodule Comn.BehaviourTest do
     Comn.Errors
   ]
 
-  @behaviour_modules [Comn.Repo, Comn.Repo.Cmd, Comn.Repo.Table, Comn.Repo.File, Comn.Repo.Graphs, Comn.Events, Comn.Secrets, Comn.Infra]
+  @behaviour_modules [Comn.Repo, Comn.Repo.Cmd, Comn.Repo.File, Comn.Repo.Graphs, Comn.Events, Comn.Secrets, Comn.Infra]
   @placeholder_modules [Comn.Infra, Comn.Repo.Actor, Comn.Repo.Cmd.Shell]
 
   describe "Comn behaviour defines four callbacks" do

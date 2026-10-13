@@ -19,7 +19,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Errors | Complete | Structured errors, categorization, compile-time registry with namespaced codes |
 | Events | Complete | Registry-based pub/sub, event log, NATS adapter, structured events |
 | Secrets | Complete | ChaCha20-Poly1305 local encryption + HashiCorp Vault Transit backend |
-| Repo.Table | Complete | ETS key-value store |
+| Repo.Table | Complete | Key-value facade over fungible backends: ETS, Ecto |
 | Repo.File | Complete | Local/NFS/IPFS file I/O |
 | Repo.Graphs | Complete | libgraph-backed directed/undirected graphs; spatial verbs (`enter`/`exit`/`discover`/`traverse`) |
 | Repo.Cmd | Complete | Command behaviour (Shell placeholder) |
@@ -284,17 +284,21 @@ backend; passing it is what makes a backend a Comn backend.
 
 Pluggable repository backends sharing a common `Comn.Repo` behaviour (`describe`, `get`, `set`, `delete`, `observe`). Each specialization adds its own callbacks.
 
-### Tables (ETS)
+### Tables (ETS, Ecto)
 
 ```elixir
-alias Comn.Repo.Table.ETS
+alias Comn.Repo.Table
 
-{:ok, _} = ETS.create(:my_cache)
-:ok = ETS.set(:my_cache, key: "user:1", value: %{name: "Ian"})
-{:ok, %{name: "Ian"}} = ETS.get(:my_cache, key: "user:1")
-{:ok, 1} = ETS.count(:my_cache)
-:ok = ETS.drop(:my_cache)
+{:ok, t} = Table.open(:my_cache, backend: :ets)
+:ok = Table.set(t, "user:1", %{name: "Ian"})
+{:ok, %{name: "Ian"}} = Table.get(t, "user:1")
+{:ok, 1} = Table.count(t)
+:ok = Table.drop(t)
 ```
+
+`Comn.Repo.Table.ETS` keeps its direct surface (`create`/`set`/`get`/`drop`)
+for existing callers; new code goes through the facade so the backend is a
+word in one option.
 
 ### Files (Local, NFS, IPFS)
 
@@ -529,7 +533,10 @@ lib/comn/
   secrets/errors.ex          Secrets subsystem error codes
 
   repo.ex                    Base repo behaviour (describe/get/set/delete/observe; optional enter/exit/discover)
-  repo/table.ex              Table behaviour (create/drop/keys/count)
+  repo/table.ex              Table facade (open/close/drop/get/set/delete/keys/count) + direct-backend behaviour
+  repo/table/handle.ex       Opaque table handle
+  repo/table/backend.ex      Private backend contract
+  repo/table/ets_adapter.ex  Backend contract over Table.ETS
   repo/file.ex               File behaviour (open/load/stream/cast/read/write/close)
   repo/graphs.ex             Graph behaviour (link/unlink/traverse)
   repo/cmd.ex                Command behaviour (validate/apply/reset/enable/...)
