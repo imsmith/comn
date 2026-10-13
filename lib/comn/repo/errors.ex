@@ -13,6 +13,9 @@ defmodule Comn.Repo.Errors do
   register_error "repo.table/not_found",      :persistence, message: "Table or key does not exist"
   register_error "repo.table/already_exists",  :persistence, message: "Table already exists"
   register_error "repo.table/invalid_opts",    :validation,  message: "Table backend options are missing or malformed"
+  register_error "repo.table/invalid_schema",  :validation,  message: "Not an Ecto schema module with a primary key"
+  register_error "repo.table/set_failed",      :persistence, message: "The set saga rolled back"
+  register_error "repo.table/delete_failed",   :persistence, message: "The delete saga rolled back"
 
   # File
   register_error "repo.file/invalid_state",   :validation,  message: "File handle is not in the expected lifecycle state"

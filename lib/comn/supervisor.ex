@@ -15,6 +15,7 @@ defmodule Comn.Supervisor do
   - `Comn.Events.Registry` — Registry-based event adapter (`:duplicate` keys)
   - `Comn.EventLog` — Agent-backed append-only event log
   - `Comn.Presence` — Agent-backed zone-scoped actor presence
+  - `Comn.Repo.Table.Ecto.Supervisor` — dynamic Ecto repos built from configuration
 
   Error-code and module discovery run after this supervisor is up; see
   `Comn.Application`.
@@ -37,7 +38,9 @@ defmodule Comn.Supervisor do
       {Registry, keys: :duplicate, name: Comn.EventBus},
       {Registry, keys: :duplicate, name: Comn.Events.Registry},
       Comn.EventLog,
-      Comn.Presence
+      Comn.Presence,
+      # Dynamic Ecto repos built from configuration by Comn.Repo.Table.Ecto
+      {DynamicSupervisor, name: Comn.Repo.Table.Ecto.Supervisor, strategy: :one_for_one}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

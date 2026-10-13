@@ -93,9 +93,18 @@ defmodule Comn.Repo.Table do
 
   def get(%Handle{backend: b, state: s}, key, opts), do: b.get(s, key, opts)
 
-  @doc "Stores `value` under `key`."
+  @doc """
+  Stores `value` under `key`. Per-call options (e.g. `schema:`) go to the
+  backend. The Repo forms also take them: `set(t, [event: e], schema: S)`.
+  """
   @spec set(t(), term(), term(), keyword()) :: :ok | {:error, Comn.Errors.ErrorStruct.t()}
-  def set(%Handle{backend: b, state: s}, key, value, opts \\ []), do: b.set(s, key, value, opts)
+  def set(handle, key, value, opts \\ [])
+
+  def set(%Handle{} = t, [{k, _} | _] = repo_opts, extra, [])
+      when k in [:event, :key] and is_list(extra),
+      do: set(t, repo_opts ++ extra)
+
+  def set(%Handle{backend: b, state: s}, key, value, opts), do: b.set(s, key, value, opts)
 
   @doc "Removes `key`. Idempotent."
   @spec delete(t(), term(), keyword()) :: :ok | {:error, Comn.Errors.ErrorStruct.t()}

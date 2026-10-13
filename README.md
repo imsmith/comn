@@ -35,6 +35,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 - Elixir 1.20 or later
 - Erlang/OTP 29 or later
+- Optional: `ecto_sql` (plus an adapter) for the `:ecto` table backend; `igniter` for the installers
 
 The pinned toolchain is in `.tool-versions` (asdf / mise).
 
@@ -300,6 +301,32 @@ alias Comn.Repo.Table
 for existing callers; new code goes through the facade so the backend is a
 word in one option.
 
+The `:ecto` backend works on any Ecto adapter and holds to four rules. The
+repository is configuration, not a module Comn knows about. Every mutation
+is against a schema, the default being the event itself. There are no
+migrations: the schema module is the declaration and the database is
+converged to it on first use. And every mutation is a saga: a transaction
+with an upsert, followed by a system event on `Comn.EventBus` saying
+whether it committed or rolled back.
+
+```elixir
+{:ok, t} = Table.open(:sessions, backend: :ecto,
+  ecto: [adapter: Ecto.Adapters.SQLite3, database: "/var/lib/app/kv.db"])
+# ecto: "config/repo.exs" (a file returning that keyword) or repo: MyApp.Repo also work
+
+:ok = Table.set(t, :k, %{any: :term})                      # default schema: the event, table comn_sessions
+{:ok, %{any: :term}} = Table.get(t, :k)
+
+fact = EventStruct.new(:domain, "session.opened", %{user: "ian", count: 1})
+:ok = Table.set(t, [event: fact], schema: MyApp.SessionRow) # cast + upsert on the pk
+{:ok, %MyApp.SessionRow{user: "ian"}} = Table.get(t, fact.id, schema: MyApp.SessionRow)
+
+Comn.EventBus.subscribe("comn.repo.table")                  # repo.table.set / .delete, status :ok | :failed
+```
+
+`ecto_sql` is an optional dependency; without it the `:ecto` backend is
+simply absent from `Table.open/2`.
+
 ### Files (Local, NFS, IPFS)
 
 ```elixir
@@ -537,6 +564,10 @@ lib/comn/
   repo/table/handle.ex       Opaque table handle
   repo/table/backend.ex      Private backend contract
   repo/table/ets_adapter.ex  Backend contract over Table.ETS
+  repo/table/ecto.ex         Ecto backend: sagas, schema-directed upserts, converge instead of migrate
+  repo/table/ecto/event_row.ex  Default schema: the event as a row
+  repo/table/ecto/term.ex    Ecto type storing any term faithfully
+  repo/table/ecto/repos.ex   Repository from configuration (keyword, .exs file, or module)
   repo/file.ex               File behaviour (open/load/stream/cast/read/write/close)
   repo/graphs.ex             Graph behaviour (link/unlink/traverse)
   repo/cmd.ex                Command behaviour (validate/apply/reset/enable/...)

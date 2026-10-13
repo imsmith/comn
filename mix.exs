@@ -33,6 +33,8 @@ defmodule Comn.MixProject do
       {:req, "~> 0.5"},
       {:libgraph, "~> 0.16"},
       {:exqlite, "~> 0.27"},
+      {:ecto_sql, "~> 3.12", optional: true},
+      {:ecto_sqlite3, "~> 0.21", only: :test},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
       {:igniter, "~> 0.8", optional: true},
