@@ -18,6 +18,9 @@ defmodule Comn.StreamJetStreamTest do
   @moduletag :nats
 
   use Comn.StreamConformance, backend: Comn.Repo.Stream.JetStream
+  use Comn.EventSinkConformance, backend: Comn.Repo.Stream.JetStream
+
+  def open_sink(ctx), do: open_stream(ctx)
 
   alias Comn.Repo.Stream.JetStream
 

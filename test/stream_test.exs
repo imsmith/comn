@@ -20,6 +20,9 @@ defmodule Comn.StreamTest do
 
   use ExUnit.Case, async: true
   use Comn.StreamConformance, backend: Comn.Repo.Stream.Mem
+  use Comn.EventSinkConformance, backend: Comn.Repo.Stream.Mem
+
+  def open_sink(ctx), do: open_stream(ctx)
 
   doctest Comn.Repo.Stream.Mem
 

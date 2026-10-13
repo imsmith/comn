@@ -17,6 +17,7 @@ defmodule Comn.Repo.Queue do
   """
 
   @behaviour Comn
+  @behaviour Comn.Repo
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Repo.Queue.Handle
@@ -127,6 +128,42 @@ defmodule Comn.Repo.Queue do
   @spec remove(t(), (term() -> boolean())) :: {:ok, term()} | :not_found
   def remove(%Handle{backend: b, state: s}, fun) when is_function(fun, 1) do
     b.remove(s, fun)
+  end
+
+  # ---- @behaviour Comn.Repo (ADR-0001: a queue is an event sink) ----
+
+  @impl Comn.Repo
+  def describe(%Handle{name: name, discipline: d, backend: b} = q) do
+    {:ok, %{name: name, discipline: d, backend: b, size: size(q)}}
+  end
+
+  @impl Comn.Repo
+  def get(%Handle{} = q, [id: id]) do
+    case find(q, &match?(%Comn.Events.EventStruct{id: ^id}, &1)) do
+      {:ok, e} -> {:ok, e}
+      :not_found -> Comn.Repo.not_found(id)
+    end
+  end
+
+  def get(%Handle{}, _opts), do: {:error, ErrReg.error!("repo/event_not_found", message: "queues are read by id or by pop/2")}
+
+  @impl Comn.Repo
+  def set(%Handle{} = q, opts) do
+    with {:ok, e} <- Comn.Repo.fetch_event(opts), do: push(q, e)
+  end
+
+  @impl Comn.Repo
+  def delete(%Handle{} = q, [id: id]) do
+    case remove(q, &match?(%Comn.Events.EventStruct{id: ^id}, &1)) do
+      {:ok, _} -> :ok
+      :not_found -> Comn.Repo.not_found(id)
+    end
+  end
+
+  @impl Comn.Repo
+  def observe(%Handle{} = q, opts) do
+    items = case size(q), do: (0 -> []; n -> peek(q, n))
+    if Comn.Repo.events_view?(opts), do: Enum.filter(items, &is_struct(&1, Comn.Events.EventStruct)), else: items
   end
 
   # ---- @behaviour Comn ----

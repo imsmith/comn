@@ -59,6 +59,10 @@ defmodule Comn.Repo.File.Local do
         data when is_binary(data) ->
           {:ok, %{fs | buffer: data, state: :loaded}}
 
+        # an empty file reads as :eof, which is an empty buffer, not an error
+        :eof ->
+          {:ok, %{fs | buffer: "", state: :loaded}}
+
         {:error, reason} ->
           {:error, reason}
       end
@@ -143,11 +147,27 @@ defmodule Comn.Repo.File.Local do
 
   @spec get(Comn.Repo.resource(), keyword()) :: {:ok, term()} | {:error, term()}
   @impl Comn.Repo
+  def get(%FileStruct{state: :loaded, path: path}, [id: id]) do
+    path
+    |> File.stream!()
+    |> Stream.map(&Comn.Repo.decode_line/1)
+    |> Enum.find(&match?(%Comn.Events.EventStruct{id: ^id}, &1))
+    |> case do
+      nil -> Comn.Repo.not_found(id)
+      e -> {:ok, e}
+    end
+  end
+
   def get(%FileStruct{state: :loaded, buffer: buffer}, _opts), do: {:ok, buffer}
   def get(%FileStruct{state: state}, _opts), do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   @spec set(Comn.Repo.resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
   @impl Comn.Repo
+  def set(%FileStruct{state: :loaded} = fs, [event: _] = opts) do
+    # a file of events is a log: one encoded line per fact
+    with {:ok, e} <- Comn.Repo.fetch_event(opts), do: write(fs, Comn.Repo.encode_line(e))
+  end
+
   def set(%FileStruct{state: :loaded} = fs, opts) do
     data = Keyword.fetch!(opts, :value)
     write(fs, data)
@@ -164,8 +184,10 @@ defmodule Comn.Repo.File.Local do
 
   @spec observe(Comn.Repo.resource(), keyword()) :: Enumerable.t() | {:error, term()}
   @impl Comn.Repo
-  def observe(%FileStruct{state: :loaded, path: path}, _opts) do
-    File.stream!(path)
+  def observe(%FileStruct{state: :loaded, path: path}, opts) do
+    if Comn.Repo.events_view?(opts),
+      do: path |> File.stream!() |> Stream.map(&Comn.Repo.decode_line/1) |> Stream.reject(&is_nil/1),
+      else: File.stream!(path)
   end
 
   def observe(%FileStruct{state: state}, _opts),

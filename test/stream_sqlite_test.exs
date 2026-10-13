@@ -16,6 +16,9 @@ defmodule Comn.StreamSQLiteTest do
   @moduletag :tmp_dir
 
   use Comn.StreamConformance, backend: Comn.Repo.Stream.SQLite
+  use Comn.EventSinkConformance, backend: Comn.Repo.Stream.SQLite
+
+  def open_sink(ctx), do: open_stream(ctx)
 
   doctest Comn.Repo.Stream.SQLite
 

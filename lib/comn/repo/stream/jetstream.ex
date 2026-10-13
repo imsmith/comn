@@ -149,6 +149,13 @@ defmodule Comn.Repo.Stream.JetStream do
   def describe(name) when is_atom(name), do: call(name, :describe)
 
   @impl Comn.Repo
+  def get(name, id: id) when is_atom(name) do
+    case Enum.find(observe(name, as: :events), &(&1.id == id)) do
+      nil -> Comn.Repo.not_found(id)
+      e -> {:ok, e}
+    end
+  end
+
   def get(name, opts) when is_atom(name) and is_list(opts) do
     call(name, {:get, Keyword.get(opts, :offset)})
   end
@@ -165,7 +172,12 @@ defmodule Comn.Repo.Stream.JetStream do
   def delete(_name, _opts), do: {:error, ErrReg.error!("repo.stream/append_only")}
 
   @impl Comn.Repo
-  def observe(name, _opts) when is_atom(name) do
+  def observe(name, opts) when is_atom(name) and is_list(opts) do
+    pairs = observe_pairs(name)
+    if Comn.Repo.events_view?(opts), do: Stream.map(pairs, &elem(&1, 1)), else: pairs
+  end
+
+  defp observe_pairs(name) do
     Stream.resource(
       fn -> :head end,
       fn

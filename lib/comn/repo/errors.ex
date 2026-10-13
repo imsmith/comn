@@ -5,6 +5,10 @@ defmodule Comn.Repo.Errors do
 
   use Comn.Errors.Registry
 
+  # Canonical event forms (ADR-0001), any shape
+  register_error "repo/invalid_event", :validation,  message: "Value under :event is not a Comn.Events.EventStruct"
+  register_error "repo/event_not_found", :persistence, message: "No event with that id in this resource"
+
   # Table
   register_error "repo.table/not_found",      :persistence, message: "Table or key does not exist"
   register_error "repo.table/already_exists",  :persistence, message: "Table already exists"

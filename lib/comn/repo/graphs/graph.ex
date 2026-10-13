@@ -132,6 +132,13 @@ defmodule Comn.Repo.Graphs.Graph do
   end
 
   @impl Comn.Repo
+  def get(%GraphStruct{graph: g}, [id: id]) do
+    case Graph.vertex_labels(g, id) do
+      [%Comn.Events.EventStruct{} = e | _] -> {:ok, e}
+      _ -> Comn.Repo.not_found(id)
+    end
+  end
+
   def get(%GraphStruct{graph: g}, opts) do
     vertex = Keyword.get(opts, :vertex)
 
@@ -145,6 +152,13 @@ defmodule Comn.Repo.Graphs.Graph do
   end
 
   @impl Comn.Repo
+  def set(%GraphStruct{graph: g} = gs, [event: _] = opts) do
+    # the event is a vertex keyed by its id, carried as the vertex label
+    with {:ok, e} <- Comn.Repo.fetch_event(opts) do
+      {:ok, %{gs | graph: Graph.add_vertex(g, e.id, [e])}}
+    end
+  end
+
   def set(%GraphStruct{graph: g} = gs, opts) do
     vertex = Keyword.get(opts, :vertex)
 
@@ -167,8 +181,12 @@ defmodule Comn.Repo.Graphs.Graph do
   end
 
   @impl Comn.Repo
-  def observe(%GraphStruct{graph: g}, _opts) do
-    {:ok, %{vertices: Graph.vertices(g), edges: Graph.edges(g)}}
+  def observe(%GraphStruct{graph: g}, opts) do
+    if Comn.Repo.events_view?(opts) do
+      for v <- Graph.vertices(g), %Comn.Events.EventStruct{} = e <- Graph.vertex_labels(g, v), do: e
+    else
+      {:ok, %{vertices: Graph.vertices(g), edges: Graph.edges(g)}}
+    end
   end
 
   # Spatial (Comn.Repo optional callbacks)

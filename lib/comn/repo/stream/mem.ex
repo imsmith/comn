@@ -235,6 +235,13 @@ defmodule Comn.Repo.Stream.Mem do
   end
 
   @impl Comn.Repo
+  def get(name, id: id) when is_atom(name) do
+    case Enum.find(observe(name, as: :events), &(&1.id == id)) do
+      nil -> Comn.Repo.not_found(id)
+      e -> {:ok, e}
+    end
+  end
+
   def get(name, opts) when is_atom(name) and is_list(opts) do
     with :ok <- ensure_exists(name) do
       offset = Keyword.get(opts, :offset)
@@ -260,7 +267,12 @@ defmodule Comn.Repo.Stream.Mem do
   end
 
   @impl Comn.Repo
-  def observe(name, _opts) when is_atom(name) do
+  def observe(name, opts) when is_atom(name) and is_list(opts) do
+    pairs = observe_pairs(name)
+    if Comn.Repo.events_view?(opts), do: Stream.map(pairs, &elem(&1, 1)), else: pairs
+  end
+
+  defp observe_pairs(name) do
     Stream.resource(
       fn -> {name, :head} end,
       fn

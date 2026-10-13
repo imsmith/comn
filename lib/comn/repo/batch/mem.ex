@@ -79,13 +79,26 @@ defmodule Comn.Repo.Batch.Mem do
   end
 
   @impl Comn.Repo
+  def get(store, [id: id]) do
+    case Enum.find(observe(store, as: :events), &(&1.id == id)) do
+      nil -> Comn.Repo.not_found(id)
+      e -> {:ok, e}
+    end
+  end
+
   def get(_store, _opts) do
     {:error, ErrReg.error!("repo.batch/flush_failed",
       message: "Batch stores are write-only; use the flush callback to consume data")}
   end
 
   @impl Comn.Repo
-  def set(store \\ __MODULE__, opts) do
+  def set(store \\ __MODULE__, opts)
+
+  def set(store, [event: _] = opts) do
+    with {:ok, e} <- Comn.Repo.fetch_event(opts), do: add(store, e)
+  end
+
+  def set(store, opts) do
     item = Keyword.fetch!(opts, :value)
     add(store, item)
   end
@@ -97,8 +110,9 @@ defmodule Comn.Repo.Batch.Mem do
   end
 
   @impl Comn.Repo
-  def observe(store \\ __MODULE__, _opts) do
-    GenServer.call(store, :observe)
+  def observe(store \\ __MODULE__, opts) do
+    buffer = GenServer.call(store, :observe)
+    if Comn.Repo.events_view?(opts), do: Enum.filter(buffer, &is_struct(&1, Comn.Events.EventStruct)), else: buffer
   end
 
   # -- Comn callbacks --

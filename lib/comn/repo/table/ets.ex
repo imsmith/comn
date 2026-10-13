@@ -84,6 +84,13 @@ defmodule Comn.Repo.Table.ETS do
   end
 
   @impl Comn.Repo
+  def get(name, [id: id]) when is_atom(name) do
+    case get(name, key: id) do
+      {:ok, %Comn.Events.EventStruct{} = e} -> {:ok, e}
+      _ -> Comn.Repo.not_found(id)
+    end
+  end
+
   def get(name, opts) when is_atom(name) do
     key = Keyword.fetch!(opts, :key)
 
@@ -100,6 +107,10 @@ defmodule Comn.Repo.Table.ETS do
   end
 
   @impl Comn.Repo
+  def set(name, [event: _] = opts) when is_atom(name) do
+    with {:ok, e} <- Comn.Repo.fetch_event(opts), do: set(name, key: e.id, value: e)
+  end
+
   def set(name, opts) when is_atom(name) do
     key = Keyword.fetch!(opts, :key)
     value = Keyword.fetch!(opts, :value)
@@ -129,11 +140,12 @@ defmodule Comn.Repo.Table.ETS do
   end
 
   @impl Comn.Repo
-  def observe(name, _opts) when is_atom(name) do
+  def observe(name, opts) when is_atom(name) do
     case table_exists?(name) do
       true ->
-        :ets.foldl(fn {k, v}, acc -> [{k, v} | acc] end, [], name)
-        |> Enum.reverse()
+        if Comn.Repo.events_view?(opts),
+          do: for({_k, %Comn.Events.EventStruct{} = e} <- :ets.tab2list(name), do: e),
+          else: :ets.foldl(fn {k, v}, acc -> [{k, v} | acc] end, [], name) |> Enum.reverse()
 
       false ->
         {:error, ErrReg.error!("repo.table/not_found", field: name)}

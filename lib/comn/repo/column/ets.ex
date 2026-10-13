@@ -65,8 +65,9 @@ defmodule Comn.Repo.Column.ETS do
   @doc "Drops a column store and its ETS tables."
   @spec drop(t() | atom()) :: :ok | {:error, term()}
   def drop(%__MODULE__{rows_table: rows, meta_table: meta}) do
-    :ets.delete(rows)
-    :ets.delete(meta)
+    # idempotent: the tables die with their owner, so they may already be gone
+    if table_exists?(rows), do: :ets.delete(rows)
+    if table_exists?(meta), do: :ets.delete(meta)
     :ok
   end
 
@@ -210,13 +211,39 @@ defmodule Comn.Repo.Column.ETS do
     }}
   end
 
+  # An event is one row: the headers are the columns, :data is a column.
+  @event_schema %{
+    id: :string, timestamp: :string, source: :term, type: :atom, topic: :string,
+    data: :term, schema: :string, correlation_id: :string, request_id: :string,
+    version: :integer, tags: :list, metadata: :map
+  }
+
   @impl Comn.Repo
+  def get(%__MODULE__{rows_table: rows}, [id: id]) do
+    case :ets.select(rows, [{{:_, %{id: id}}, [], [:"$_"]}]) do
+      [{_rid, row} | _] -> {:ok, struct(Comn.Events.EventStruct, row)}
+      [] -> Comn.Repo.not_found(id)
+    end
+  end
+
   def get(%__MODULE__{}, _opts) do
     {:error, ErrReg.error!("repo.column/query_failed",
       message: "Column stores don't support key-based get; use project/3")}
   end
 
   @impl Comn.Repo
+  def set(%__MODULE__{meta_table: meta} = store, [event: _] = opts) do
+    with {:ok, e} <- Comn.Repo.fetch_event(opts) do
+      # define the event schema on first use; an existing different schema is a mismatch
+      case :ets.lookup(meta, :schema) do
+        [{:schema, nil}] -> define_schema(store, @event_schema)
+        _ -> :ok
+      end
+
+      append_row(store, Map.from_struct(e))
+    end
+  end
+
   def set(%__MODULE__{} = store, opts) do
     row = Keyword.fetch!(opts, :value)
     append_row(store, row)
@@ -229,9 +256,12 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo
-  def observe(%__MODULE__{rows_table: rows}, _opts) do
-    :ets.foldl(fn {_id, row}, acc -> [row | acc] end, [], rows)
-    |> Enum.reverse()
+  def observe(%__MODULE__{rows_table: rows}, opts) do
+    rows = :ets.tab2list(rows) |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1))
+
+    if Comn.Repo.events_view?(opts),
+      do: for(%{id: _, topic: _, data: _} = row <- rows, do: struct(Comn.Events.EventStruct, row)),
+      else: rows
   end
 
   # -- Comn callbacks --

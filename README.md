@@ -247,6 +247,37 @@ key = %Key{
 
 ## Repo
 
+### Every shape is an event sink
+
+Every Repo shape accepts the same three canonical forms, so a caller can hand
+a fact to a table, a file, a graph, a queue, or a stream without knowing which
+it is ([ADR-0001](docs/adr/0001-every-repo-shape-is-an-event-sink.md)):
+
+```elixir
+alias Comn.Events.EventStruct
+alias Comn.Repo.{Table, Queue, Stream}
+
+fact = EventStruct.new(:domain, "order.placed", %{id: 1})
+
+{:ok, _} = Table.ETS.create(:orders)
+:ok = Table.ETS.set(:orders, event: fact)               # stored under fact.id
+{:ok, ^fact} = Table.ETS.get(:orders, id: fact.id)
+[^fact] = Table.ETS.observe(:orders, as: :events)
+
+{:ok, q} = Queue.open("orders", backend: :mem)
+:ok = Queue.set(q, event: fact)                         # enqueued
+{:ok, ^fact} = Queue.get(q, id: fact.id)                # non-destructive
+
+:ok = Stream.Mem.create(:orders_log)
+{:ok, _offset} = Stream.Mem.set(:orders_log, event: fact)   # appended
+[^fact] = Stream.Mem.observe(:orders_log, as: :events) |> Enum.to_list()
+```
+
+A file of events is a log (one encoded line per fact), a column store turns
+the headers into columns, a graph makes the event a vertex keyed by its id.
+The shared spec in `test/support/event_sink_conformance.ex` runs against every
+backend; passing it is what makes a backend a Comn backend.
+
 Pluggable repository backends sharing a common `Comn.Repo` behaviour (`describe`, `get`, `set`, `delete`, `observe`). Each specialization adds its own callbacks.
 
 ### Tables (ETS)
