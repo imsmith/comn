@@ -31,7 +31,7 @@ defmodule Comn.Repo.Stream do
   Backends may implement the optional `commit/3` and `position/2`. A
   group is any term; the backend stores one offset per group per stream.
   There is no membership or rebalancing, only the bookmark. A consumer
-  loop is: `position/2`, `read/3` from the offset after it (or `:tail`
+  loop is: `position/2`, `read/3` from the offset after it (or `:head`
   when nil), process, `commit/3`, repeat.
 
   Also implements `@behaviour Comn` for uniform introspection.
@@ -61,11 +61,13 @@ defmodule Comn.Repo.Stream do
   @type offset :: term()
 
   @typedoc """
-  A read cursor: an explicit offset, `:head` (latest), or `:tail` (earliest).
+  A read cursor: an explicit offset, `:head`, or `:tail`.
 
-  When reading from `:tail` with count N, returns the **last** N events
-  (i.e. ending at head). When reading from an explicit offset, returns
-  events at and after that offset.
+  The two atoms follow Unix `head`/`tail`: `read(s, :head, n)` returns
+  the **first** n events, `read(s, :tail, n)` the **last** n. Note this is
+  the opposite end from `head/1` (latest offset) and `tail/1` (earliest),
+  which follow log terminology. An explicit offset reads forward from
+  that offset inclusive.
   """
   @type cursor :: offset() | :head | :tail
 
@@ -170,7 +172,7 @@ defmodule Comn.Repo.Stream do
 
   @impl Comn
   def choices do
-    %{implementations: ["Mem"]}
+    %{implementations: ["Mem", "SQLite"]}
   end
 
   @impl Comn

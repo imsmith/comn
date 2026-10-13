@@ -31,6 +31,7 @@ defmodule Comn.Repo.Errors do
   register_error "repo.stream/invalid_event",   :validation,  message: "Value is not a Comn.Events.EventStruct"
   register_error "repo.stream/invalid_offset",  :validation,  message: "Offset is not valid for this stream"
   register_error "repo.stream/append_only",     :validation,  message: "Streams are append-only; delete is not supported"
+  register_error "repo.stream/invalid_opts",    :validation,  message: "Stream backend options are missing or malformed"
 
   # Column
   register_error "repo.column/not_found",       :persistence, message: "Column store does not exist"

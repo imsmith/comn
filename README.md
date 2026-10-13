@@ -27,7 +27,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
-| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; consumer-group positions (Mem backend) |
+| Repo.Stream | Complete | Append-only, replayable event log; live subscribe; consumer groups; backends: Mem (ETS), SQLite |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |
 
@@ -331,7 +331,7 @@ alias Comn.Events.EventStruct
 {:ok, 1} = Mem.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
 {:ok, 2} = Mem.append(:audit, EventStruct.new(:auth, "user.logout", %{id: 1}))
 
-{:ok, [{1, _}, {2, _}]} = Mem.read(:audit, :tail, 10)   # from the earliest offset
+{:ok, [{1, _}, {2, _}]} = Mem.read(:audit, :head, 10)   # first 10 (Unix head)
 {:ok, [{2, _}]}         = Mem.read(:audit, 2, 10)       # from a caller-tracked offset
 {:ok, 2}                = Mem.head(:audit)
 ```
@@ -353,11 +353,27 @@ end
 Consumer groups are a bookmark per group name, nothing more:
 
 ```elixir
-{:ok, nil} = Mem.position(:audit, :billing)        # never committed: start from :tail
-{:ok, batch} = Mem.read(:audit, :tail, 100)
+{:ok, nil} = Mem.position(:audit, :billing)        # never committed: start from :head
+{:ok, batch} = Mem.read(:audit, :head, 100)
 {last, _} = List.last(batch)
 :ok = Mem.commit(:audit, :billing, last)
 {:ok, ^last} = Mem.position(:audit, :billing)      # next run reads from last + 1
+```
+
+The SQLite backend has the same API and survives restarts. Its process is not
+linked to the opener; `close` keeps the file, `drop` deletes it:
+
+```elixir
+alias Comn.Repo.Stream.SQLite
+
+:ok = SQLite.open(:audit, path: "/var/lib/app/audit.db")
+{:ok, 1} = SQLite.append(:audit, EventStruct.new(:auth, "user.login", %{id: 1}))
+:ok = SQLite.close(:audit)
+:ok = SQLite.open(:audit, path: "/var/lib/app/audit.db")
+{:ok, 1} = SQLite.head(:audit)
+
+# or under a supervisor
+children = [{SQLite, name: :audit, path: "/var/lib/app/audit.db"}]
 ```
 
 ## Spatial
@@ -455,6 +471,7 @@ lib/comn/
   repo/queue/sqlite.ex       SQLite queue backend
   repo/stream.ex             Stream behaviour (append/append_many/read/head/tail; optional subscribe/unsubscribe, commit/position)
   repo/stream/mem.ex         ETS stream backend
+  repo/stream/sqlite.ex      SQLite durable stream backend (one GenServer per stream)
   repo/merkel.ex             Merkel behaviour (planned)
   repo/table/ets.ex          ETS key-value implementation
   repo/file/local.ex         Local filesystem implementation
