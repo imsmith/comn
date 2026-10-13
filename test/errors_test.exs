@@ -64,11 +64,11 @@ defmodule Comn.ErrorsTest do
     end
 
     test "returns error for invalid map" do
-      assert {:error, :missing_keys} = Error.to_error(%{foo: "bar"})
+      assert {:error, %ErrorStruct{code: "errors/missing_keys"}} = Error.to_error(%{foo: "bar"})
     end
 
     test "returns error for invalid tuple" do
-      assert {:error, :invalid_tuple} = Error.to_error({:only_one})
+      assert {:error, %ErrorStruct{code: "errors/invalid_tuple"}} = Error.to_error({:only_one})
     end
   end
 
@@ -89,7 +89,7 @@ defmodule Comn.ErrorsTest do
     end
 
     test "wrap/1 returns error for invalid input" do
-      assert {:error, :missing_keys} = Errors.wrap(%{foo: "bar"})
+      assert {:error, %ErrorStruct{code: "errors/missing_keys"}} = Errors.wrap(%{foo: "bar"})
     end
 
     test "new/2 creates a categorized error" do

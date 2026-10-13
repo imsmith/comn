@@ -8,6 +8,6 @@ defimpl Comn.Error, for: Map do
   end
 
   def to_error(_invalid) do
-    {:error, :missing_keys}
+    {:error, Comn.Errors.Registry.error!("errors/missing_keys")}
   end
 end

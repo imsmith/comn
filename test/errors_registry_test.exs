@@ -37,12 +37,15 @@ defmodule Comn.Errors.RegistryTest do
     end
 
     test "rejects modules without __errors__/0" do
-      assert {:error, :not_a_registry_module} = Registry.register_module(String)
+      assert {:error, %Comn.Errors.ErrorStruct{code: "errors/not_a_registry_module"}} =
+               Registry.register_module(String)
     end
 
     test "rejects duplicate codes from different modules" do
-      assert {:error, {:duplicate_code, "auth/invalid_token", Comn.Test.SampleErrors}} =
+      assert {:error, %Comn.Errors.ErrorStruct{code: "errors/duplicate_code", field: "auth/invalid_token"} = dup} =
                Registry.register_module(Comn.Test.ConflictingErrors)
+
+      assert dup.message =~ "Comn.Test.SampleErrors"
     end
 
     test "allows re-registering the same module (idempotent)" do
@@ -204,7 +207,8 @@ defmodule Comn.Errors.RegistryTest do
     end
 
     test "returns error for unknown code" do
-      assert {:error, :unknown_code} = Registry.error("nope/missing")
+      assert {:error, %Comn.Errors.ErrorStruct{code: "errors/unknown_code", field: "nope/missing"}} =
+               Registry.error("nope/missing")
     end
   end
 

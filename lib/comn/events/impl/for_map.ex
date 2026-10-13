@@ -11,6 +11,6 @@ defimpl Comn.Event, for: Map do
   end
 
   def to_event(_invalid) do
-    {:error, :missing_keys}
+    {:error, Comn.Errors.Registry.error!("events/missing_keys")}
   end
 end

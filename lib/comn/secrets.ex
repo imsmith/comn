@@ -24,13 +24,13 @@ defmodule Comn.Secrets do
      - Ed25519: 32-byte private key, 32-byte public key
      - RSA-4096: 4096-bit modulus
      - ECDSA-P256: Valid P-256 curve points
-     Return `{:error, :invalid_key}` for malformed keys.
+     Return a `secrets/invalid_key` error for malformed keys.
 
   2. **Use unique nonces** - Never reuse nonces with the same key.
      For AEAD ciphers, nonce reuse is catastrophic.
 
   3. **Verify authentication tags** - Always check AEAD tags before returning
-     decrypted data. Tag mismatch = `{:error, :authentication_failed}`.
+     decrypted data. Tag mismatch = `secrets/authentication_failed`.
 
   4. **Handle errors safely** - Never include plaintext or keys in error messages.
 

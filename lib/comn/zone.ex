@@ -74,8 +74,8 @@ defmodule Comn.Zone do
   Parses a dot-delimited zone string `"realm[.region[.locale]]"`.
 
   The realm must be one of `#{inspect(@realms)}`; region and locale stay
-  as strings. Returns `{:error, :empty}` on empty input or
-  `{:error, {:unknown_realm, str}}` on unknown realms.
+  as strings. Returns a `zone/empty` error on empty input or
+  `zone/unknown_realm` (with the realm in `field`) on unknown realms.
 
   ## Examples
 
@@ -87,14 +87,13 @@ defmodule Comn.Zone do
       iex> zone.realm
       :local
 
-      iex> Comn.Zone.parse("")
-      {:error, :empty}
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "zone/empty"}} = Comn.Zone.parse("")
 
-      iex> Comn.Zone.parse("nowhere.foo")
-      {:error, {:unknown_realm, "nowhere"}}
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "zone/unknown_realm", field: "nowhere"}} =
+      ...>   Comn.Zone.parse("nowhere.foo")
   """
-  @spec parse(String.t()) :: {:ok, t()} | {:error, term()}
-  def parse(""), do: {:error, :empty}
+  @spec parse(String.t()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
+  def parse(""), do: {:error, Comn.Errors.Registry.error!("zone/empty")}
 
   def parse(str) when is_binary(str) do
     case String.split(str, ".", parts: 3) do
@@ -107,7 +106,7 @@ defmodule Comn.Zone do
   defp build(realm_str, region, locale) do
     case realm_atom(realm_str) do
       {:ok, realm} -> {:ok, %__MODULE__{realm: realm, region: region, locale: locale}}
-      :error -> {:error, {:unknown_realm, realm_str}}
+      :error -> {:error, Comn.Errors.Registry.error!("zone/unknown_realm", field: realm_str)}
     end
   end
 

@@ -4,6 +4,6 @@ defimpl Comn.Event, for: Tuple do
   end
 
   def to_event(_invalid) do
-    {:error, :invalid_tuple}
+    {:error, Comn.Errors.Registry.error!("events/invalid_tuple")}
   end
 end

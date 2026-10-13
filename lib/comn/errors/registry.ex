@@ -160,13 +160,15 @@ defmodule Comn.Errors.Registry do
   The struct is populated from the registry definition and enriched with
   ambient context (via `Comn.Errors.enrich/1`). Override any field via `opts`.
 
-  Returns `{:ok, error_struct}` or `{:error, :unknown_code}`.
+  Returns `{:ok, error_struct}` or `{:error, error_struct}` with code
+  `errors/unknown_code` and the requested code in `field`.
   """
-  @spec error(String.t(), keyword()) :: {:ok, Comn.Errors.ErrorStruct.t()} | {:error, :unknown_code}
+  @spec error(String.t(), keyword()) ::
+          {:ok, Comn.Errors.ErrorStruct.t()} | {:error, Comn.Errors.ErrorStruct.t()}
   def error(code, opts \\ []) when is_binary(code) do
     case lookup(code) do
       nil ->
-        {:error, :unknown_code}
+        {:error, internal_error("errors/unknown_code", "unknown error code: #{code}", code)}
 
       defn ->
         error = %Comn.Errors.ErrorStruct{
@@ -193,7 +195,7 @@ defmodule Comn.Errors.Registry do
   def error!(code, opts \\ []) when is_binary(code) do
     case error(code, opts) do
       {:ok, err} -> err
-      {:error, :unknown_code} -> raise ArgumentError, "unknown error code: #{inspect(code)}"
+      {:error, _} -> raise ArgumentError, "unknown error code: #{inspect(code)}"
     end
   end
 
@@ -222,11 +224,13 @@ defmodule Comn.Errors.Registry do
   @doc """
   Registers a single module's errors into the runtime index.
 
-  The module must have been compiled with `use Comn.Errors.Registry`.
-  Returns `{:error, {:duplicate_code, code, existing_module}}` if a code
-  is already registered by a different module.
+  The module must have been compiled with `use Comn.Errors.Registry`
+  (otherwise `errors/not_a_registry_module`). Returns an
+  `errors/duplicate_code` error, with the code in `field` and the owning
+  module in the message, if a code is already registered by a different
+  module.
   """
-  @spec register_module(module()) :: :ok | {:error, term()}
+  @spec register_module(module()) :: :ok | {:error, Comn.Errors.ErrorStruct.t()}
   def register_module(module) when is_atom(module) do
     if function_exported?(module, :__errors__, 0) do
       errors = module.__errors__()
@@ -243,11 +247,36 @@ defmodule Comn.Errors.Registry do
           :ok
 
         {:duplicate, code, owner} ->
-          {:error, {:duplicate_code, code, owner}}
+          {:error,
+           internal_error(
+             "errors/duplicate_code",
+             "error code #{code} is already registered by #{inspect(owner)}",
+             code
+           )}
       end
     else
-      {:error, :not_a_registry_module}
+      {:error,
+       internal_error(
+         "errors/not_a_registry_module",
+         "#{inspect(module)} was not compiled with `use Comn.Errors.Registry`",
+         inspect(module)
+       )}
     end
+  end
+
+  # The registry's own errors are built directly rather than via lookup/1:
+  # they can fire before Comn.Errors.Core has been indexed. The codes are
+  # still registered there so they appear in codes/0 and lookup/1.
+  defp internal_error(code, message, field) do
+    defn = lookup(code) || %{category: :validation, suggestion: nil}
+
+    Comn.Errors.enrich(%Comn.Errors.ErrorStruct{
+      code: code,
+      reason: to_string(defn.category),
+      message: message,
+      field: field,
+      suggestion: defn.suggestion
+    })
   end
 
   defp find_duplicate(errors, index, module) do

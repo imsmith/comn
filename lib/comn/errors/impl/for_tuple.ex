@@ -4,6 +4,6 @@ defimpl Comn.Error, for: Tuple do
   end
 
   def to_error(_invalid) do
-    {:error, :invalid_tuple}
+    {:error, Comn.Errors.Registry.error!("errors/invalid_tuple")}
   end
 end
