@@ -27,7 +27,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
 | Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
-| Repo.Stream | Complete | Append-only, replayable event log with offset cursors (Mem backend) |
+| Repo.Stream | Complete | Append-only, replayable event log with offset cursors and live subscribe (Mem backend) |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
 | Infra | Placeholder | Not yet implemented |
 
@@ -338,6 +338,18 @@ alias Comn.Events.EventStruct
 
 Consumers track their own offsets. `delete/2` returns `repo.stream/append_only`.
 
+Live delivery is a plain message. Subscribe first, then `read` from your last
+offset to catch up, dropping any live message whose offset you already saw:
+
+```elixir
+{:ok, ref} = Mem.subscribe(:audit, [])
+{:ok, 3} = Mem.append(:audit, EventStruct.new(:auth, "user.login", %{id: 2}))
+receive do
+  {:stream, :audit, 3, %EventStruct{topic: "user.login"}} -> :ok
+end
+:ok = Mem.unsubscribe(:audit, ref)
+```
+
 ## Spatial
 
 A `Comn.Zone` is a structured locator — `realm.region.locale` — used as ambient context and as a spatial address for repos that have a notion of place.
@@ -431,7 +443,7 @@ lib/comn/
   repo/queue/backend.ex      Queue backend behaviour
   repo/queue/mem.ex          ETS queue backend
   repo/queue/sqlite.ex       SQLite queue backend
-  repo/stream.ex             Stream behaviour (append/append_many/read/head/tail)
+  repo/stream.ex             Stream behaviour (append/append_many/read/head/tail; optional subscribe/unsubscribe)
   repo/stream/mem.ex         ETS stream backend
   repo/merkel.ex             Merkel behaviour (planned)
   repo/table/ets.ex          ETS key-value implementation

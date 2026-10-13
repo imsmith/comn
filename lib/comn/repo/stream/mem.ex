@@ -17,6 +17,25 @@ defmodule Comn.Repo.Stream.Mem do
     long-lived process (e.g. an application supervisor child).
   - Counter row uses key `:_next_offset` (an atom) which never collides
     with valid integer offsets.
+  - Live delivery is in the appender's process. With several processes
+    appending concurrently a subscriber can see offsets out of order;
+    the offset is always in the message, so gaps are detectable and
+    `read/3` fills them.
+
+  ## Subscribing
+
+      iex> name = String.to_atom("mem_sub_#{:erlang.unique_integer([:positive])}")
+      iex> :ok = Comn.Repo.Stream.Mem.create(name)
+      iex> {:ok, ref} = Comn.Repo.Stream.Mem.subscribe(name, [])
+      iex> {:ok, offset} = Comn.Repo.Stream.Mem.append(name, Comn.Events.EventStruct.new(:test, "doc.live", %{}))
+      iex> receive do
+      ...>   {:stream, ^name, ^offset, %Comn.Events.EventStruct{topic: topic}} -> topic
+      ...> end
+      "doc.live"
+      iex> Comn.Repo.Stream.Mem.unsubscribe(name, ref)
+      :ok
+      iex> Comn.Repo.Stream.Mem.drop(name)
+      :ok
 
   Implements `@behaviour Comn.Repo.Stream` and `@behaviour Comn`.
 
@@ -39,6 +58,9 @@ defmodule Comn.Repo.Stream.Mem do
   alias Comn.Events.EventStruct
 
   @counter_key :_next_offset
+
+  # Subscribers live in the shared Comn.EventBus registry under {:stream, name}.
+  @registry Comn.EventBus
 
   # Lifecycle
 
@@ -77,6 +99,7 @@ defmodule Comn.Repo.Stream.Mem do
     with :ok <- ensure_exists(name) do
       offset = :ets.update_counter(name, @counter_key, 1)
       :ets.insert(name, {offset, event})
+      notify(name, offset, event)
       {:ok, offset}
     end
   end
@@ -96,6 +119,7 @@ defmodule Comn.Repo.Stream.Mem do
         Enum.map(events, fn event ->
           offset = :ets.update_counter(name, @counter_key, 1)
           :ets.insert(name, {offset, event})
+          notify(name, offset, event)
           offset
         end)
 
@@ -132,6 +156,28 @@ defmodule Comn.Repo.Stream.Mem do
         offset -> {:ok, offset}
       end
     end
+  end
+
+  @impl Comn.Repo.Stream
+  def subscribe(name, _opts) when is_atom(name) do
+    with :ok <- ensure_exists(name) do
+      ref = make_ref()
+      {:ok, _owner} = Registry.register(@registry, {:stream, name}, ref)
+      {:ok, ref}
+    end
+  end
+
+  @impl Comn.Repo.Stream
+  def unsubscribe(name, ref) when is_atom(name) and is_reference(ref) do
+    Registry.unregister_match(@registry, {:stream, name}, ref)
+  end
+
+  # ponytail: dispatch runs in the appender, so concurrent appenders can
+  # deliver out of order. Serialise through a GenServer if that matters.
+  defp notify(name, offset, event) do
+    Registry.dispatch(@registry, {:stream, name}, fn entries ->
+      for {pid, _ref} <- entries, do: send(pid, {:stream, name, offset, event})
+    end)
   end
 
   # Comn.Repo
@@ -220,6 +266,8 @@ defmodule Comn.Repo.Stream.Mem do
   def act(%{action: :read, name: n, from: f, count: c}), do: read(n, f, c)
   def act(%{action: :head, name: n}), do: head(n)
   def act(%{action: :tail, name: n}), do: tail(n)
+  def act(%{action: :subscribe, name: n}), do: subscribe(n, [])
+  def act(%{action: :unsubscribe, name: n, ref: r}), do: {:ok, unsubscribe(n, r)}
   def act(input), do: Comn.unknown_action(input)
 
   # Internals

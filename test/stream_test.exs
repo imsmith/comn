@@ -2,15 +2,17 @@ defmodule Comn.StreamTest do
   @moduledoc """
   Acceptance test specifications for Comn.Repo.Stream.
 
-  Phase 1: Behaviour + Mem backend (caller-tracked offsets, append-only)
+  Phase 1:  Behaviour + Mem backend (caller-tracked offsets, append-only)
+  Phase 2a: Live subscribe — `{:stream, name, offset, event}` delivered to
+            subscriber pids on append; no replay, catch-up is read/3
 
   Future phases (out of scope here):
-  - Phase 2: Live subscribe / consumer-group offset tracking
-  - Phase 3: File-backed durable backend
-  - Phase 4: Kafka / NATS JetStream adapters
+  - Phase 2b: Consumer-group offset tracking
+  - Phase 3:  File-backed durable backend
+  - Phase 4:  Kafka / NATS JetStream adapters
 
   To run:
-    mix test test/stream_test.exs --include stream_phase1
+    mix test test/stream_test.exs --include stream_phase1 --include stream_phase2a
   """
 
   use ExUnit.Case, async: true
@@ -240,6 +242,125 @@ defmodule Comn.StreamTest do
       events = Mem.observe(name, []) |> Enum.to_list()
       payloads = Enum.map(events, fn {_o, e} -> e.data.n end)
       assert payloads == [1, 2, 3]
+    end
+  end
+
+  # ==========================================================================
+  # Phase 2a: live subscribe
+  # ==========================================================================
+
+  describe "Comn.Repo.Stream behaviour (phase 2a)" do
+    @tag :stream_phase2a
+    test "subscribe/2 and unsubscribe/2 are optional callbacks" do
+      callbacks = StreamBehaviour.behaviour_info(:callbacks)
+      optional = StreamBehaviour.behaviour_info(:optional_callbacks)
+      assert {:subscribe, 2} in callbacks
+      assert {:unsubscribe, 2} in callbacks
+      assert {:subscribe, 2} in optional
+      assert {:unsubscribe, 2} in optional
+    end
+
+    @tag :stream_phase2a
+    test "recon/0 lists subscribe and unsubscribe" do
+      %{callbacks: cbs} = StreamBehaviour.recon()
+      assert :subscribe in cbs
+      assert :unsubscribe in cbs
+    end
+  end
+
+  describe "Mem.subscribe" do
+    setup do
+      name = fresh_name()
+      :ok = Mem.create(name)
+      on_exit(fn -> Mem.drop(name) end)
+      %{name: name}
+    end
+
+    @tag :stream_phase2a
+    test "subscriber receives each append with its offset", %{name: name} do
+      {:ok, _ref} = Mem.subscribe(name, [])
+      {:ok, o1} = Mem.append(name, event(%{n: 1}))
+      {:ok, o2} = Mem.append(name, event(%{n: 2}))
+      assert_receive {:stream, ^name, ^o1, %EventStruct{data: %{n: 1}}}
+      assert_receive {:stream, ^name, ^o2, %EventStruct{data: %{n: 2}}}
+    end
+
+    @tag :stream_phase2a
+    test "append_many delivers one message per event, in order", %{name: name} do
+      {:ok, _ref} = Mem.subscribe(name, [])
+      {:ok, [o1, o2, o3]} = Mem.append_many(name, [event(%{n: 1}), event(%{n: 2}), event(%{n: 3})])
+      assert_receive {:stream, ^name, ^o1, %EventStruct{data: %{n: 1}}}
+      assert_receive {:stream, ^name, ^o2, %EventStruct{data: %{n: 2}}}
+      assert_receive {:stream, ^name, ^o3, %EventStruct{data: %{n: 3}}}
+    end
+
+    @tag :stream_phase2a
+    test "events appended before subscribing are not delivered", %{name: name} do
+      {:ok, _} = Mem.append(name, event(%{n: :old}))
+      {:ok, _ref} = Mem.subscribe(name, [])
+      {:ok, o} = Mem.append(name, event(%{n: :new}))
+      assert_receive {:stream, ^name, ^o, %EventStruct{data: %{n: :new}}}
+      refute_received {:stream, ^name, _, %EventStruct{data: %{n: :old}}}
+    end
+
+    @tag :stream_phase2a
+    test "every subscriber receives every append", %{name: name} do
+      parent = self()
+
+      spawn_link(fn ->
+        {:ok, _} = Mem.subscribe(name, [])
+        send(parent, :ready)
+
+        receive do
+          {:stream, ^name, o, _} -> send(parent, {:other_got, o})
+        end
+      end)
+
+      assert_receive :ready
+      {:ok, _ref} = Mem.subscribe(name, [])
+      {:ok, o} = Mem.append(name, event())
+      assert_receive {:stream, ^name, ^o, _}
+      assert_receive {:other_got, ^o}
+    end
+
+    @tag :stream_phase2a
+    test "unsubscribe/2 stops delivery", %{name: name} do
+      {:ok, ref} = Mem.subscribe(name, [])
+      :ok = Mem.unsubscribe(name, ref)
+      {:ok, _} = Mem.append(name, event())
+      refute_receive {:stream, ^name, _, _}, 50
+    end
+
+    @tag :stream_phase2a
+    test "a dead subscriber does not break append", %{name: name} do
+      pid = spawn(fn -> {:ok, _} = Mem.subscribe(name, []); :timer.sleep(:infinity) end)
+      :timer.sleep(10)
+      Process.exit(pid, :kill)
+      :timer.sleep(10)
+      assert {:ok, _} = Mem.append(name, event())
+    end
+
+    @tag :stream_phase2a
+    test "subscribe/2 on a missing stream returns repo.stream/not_found" do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} =
+               Mem.subscribe(fresh_name(), [])
+    end
+
+    @tag :stream_phase2a
+    test "catch-up recipe: subscribe, then read from last seen offset", %{name: name} do
+      {:ok, [_, o2]} = Mem.append_many(name, [event(%{n: 1}), event(%{n: 2})])
+      last_seen = o2
+
+      {:ok, _ref} = Mem.subscribe(name, [])
+      {:ok, o3} = Mem.append(name, event(%{n: 3}))
+
+      # replay anything after last_seen that landed before the subscription
+      {:ok, replay} = Mem.read(name, last_seen + 1, 100)
+      seen = for {o, _} <- replay, do: o
+      assert seen == [o3]
+
+      # live delivery of the same event is a duplicate the caller drops by offset
+      assert_receive {:stream, ^name, ^o3, _}
     end
   end
 

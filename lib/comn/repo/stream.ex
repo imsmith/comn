@@ -17,6 +17,14 @@ defmodule Comn.Repo.Stream do
   read from on each call. Durable consumer groups (where the backend
   remembers per-consumer offsets) are out of scope here.
 
+  ## Live subscribe
+
+  Backends may implement the optional `subscribe/2` and `unsubscribe/2`.
+  A subscriber receives `{:stream, name, offset, event}` for every event
+  appended after it subscribed. There is no replay option: to catch up,
+  subscribe first, then `read/3` from the last offset you processed and
+  drop any live message whose offset you have already seen.
+
   Also implements `@behaviour Comn` for uniform introspection.
 
   ## Mapping to Comn.Repo
@@ -94,6 +102,22 @@ defmodule Comn.Repo.Stream do
   """
   @callback tail(stream()) :: {:ok, offset() | nil} | {:error, term()}
 
+  @doc """
+  Subscribes the calling process to live appends.
+
+  Returns an opaque reference for `unsubscribe/2`. The subscription ends
+  automatically when the subscriber exits. Delivery is a plain message
+  `{:stream, name, offset, event}`.
+
+  Errors: `repo.stream/not_found`.
+  """
+  @callback subscribe(stream(), keyword()) :: {:ok, reference()} | {:error, term()}
+
+  @doc "Cancels a subscription made by `subscribe/2`."
+  @callback unsubscribe(stream(), reference()) :: :ok
+
+  @optional_callbacks subscribe: 2, unsubscribe: 2
+
   # Comn callbacks
 
   @impl Comn
@@ -102,7 +126,7 @@ defmodule Comn.Repo.Stream do
   @impl Comn
   def recon do
     %{
-      callbacks: [:append, :append_many, :read, :head, :tail],
+      callbacks: [:append, :append_many, :read, :head, :tail, :subscribe, :unsubscribe],
       extends: Comn.Repo,
       type: :behaviour
     }
