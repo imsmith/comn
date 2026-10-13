@@ -6,7 +6,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 ## Status
 
-**v0.5.2** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, and zone-based spatial addressing.
+**v0.6.1** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, zone-based spatial addressing, and durable event streams (Mem, SQLite, NATS JetStream).
 
 | Subsystem | Status | What it does |
 |---|---|---|
