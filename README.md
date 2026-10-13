@@ -28,7 +28,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Bus | Complete | Publish a fact to every current subscriber, retain nothing; Registry backend |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
 | Repo.Stream | Complete | Append-only, replayable event log; live subscribe; one facade over Mem (ETS), SQLite, NATS JetStream |
-| Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
+| Repo.Merkel | Complete | Content-addressed, immutable, verifiable hash chain; backends: Mem (sha256), Git (bare repo) |
 | Infra | Placeholder | Not yet implemented |
 
 ## Requirements
@@ -421,6 +421,31 @@ The `:jetstream` backend maps each stream to a NATS JetStream stream on subject
 `comn.stream.<name>`; the offset is JetStream's own stream sequence. It needs a
 running `Gnat` connection passed as `conn:`.
 
+### Merkel (content-addressed, immutable, verifiable)
+
+Four verbs: `put` returns a content address, `get` returns what is behind one,
+`head` is the root, `verify` walks root to genesis recomputing every hash.
+Every put extends a hash chain, so the root commits to everything before it.
+
+```elixir
+alias Comn.Repo.Merkel
+
+{:ok, m} = Merkel.open(:audit_chain, backend: :mem)
+# {:ok, m} = Merkel.open(:audit_chain, backend: :git, path: "/var/lib/app/audit.git")
+
+{:ok, a1} = Merkel.put(m, EventStruct.new(:auth, "user.login", %{id: 1}))
+{:ok, a2} = Merkel.put(m, %{type: :auth, topic: "user.logout", data: %{id: 1}})
+{:ok, %EventStruct{topic: "user.logout"}} = Merkel.get(m, a2)
+{:ok, %Merkel.Node{parent: ^a1}} = Merkel.node(m, a2)
+{:ok, ^a2} = Merkel.head(m)                       # publish or sign this
+:ok = Merkel.verify(m)                            # or {:error, repo.merkel/tampered} naming the address
+```
+
+The `:git` backend makes each put a commit on a bare repository; the address
+is the commit id and git itself refuses to read a corrupted object. The bytes
+that get hashed come from the `Comn.Merkel` protocol, so a type can define a
+portable canonical form; the default is Erlang's deterministic term format.
+
 ## Spatial
 
 A `Comn.Zone` is a structured locator — `realm.region.locale` — used as ambient context and as a spatial address for repos that have a notion of place.
@@ -485,6 +510,7 @@ lib/comn/
   errors/registry.ex         Compile-time error code registry
   errors/impl/               Error protocol implementations
 
+  merkel.ex                  Comn.Merkel protocol: canonical bytes of a term
   events.ex                  Pub/sub behaviour
   events/event_bus.ex        Registry-based pub/sub
   events/event_log.ex        Agent-based append-only event log
@@ -523,7 +549,13 @@ lib/comn/
   repo/stream/mem.ex         ETS backend
   repo/stream/sqlite.ex      SQLite durable backend (one GenServer per stream)
   repo/stream/jetstream.ex   NATS JetStream backend (offset = stream sequence)
-  repo/merkel.ex             Merkel behaviour (planned)
+  repo/merkel.ex             Merkel facade (open/close/drop/put/get/node/head/verify)
+  repo/merkel/handle.ex      Opaque merkel handle
+  repo/merkel/node.ex        One link of the chain (address, parent, content hashes)
+  repo/merkel/backend.ex     Private backend contract
+  repo/merkel/mem.ex         ETS backend, sha256 addresses
+  repo/merkel/git.ex         Bare git repository backend, commit ids as addresses
+  repo/merkel/github.ex      (empty; a remote chain over the API, when a consumer needs it)
   repo/table/ets.ex          ETS key-value implementation
   repo/file/local.ex         Local filesystem implementation
   repo/file/nfs.ex           NFS mount-point wrapper

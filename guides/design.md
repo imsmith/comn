@@ -584,12 +584,19 @@ it in a table (keyed by id), a column store (headers as columns), a graph
 bus. `Comn.EventSinkConformance` is that sentence as a test; passing it is
 what makes a backend a Comn backend.
 
-**Merkel** (planned) is content-addressed and immutable. The pattern is Git or
-IPFS: data is stored by a hash of its content, not by a mutable key. You cannot
-update content under an address; you produce a new address for new content. This
-shape exists for audit trails, content verification, and distributed sync where
-you need to prove that what you received is what was sent. The address _is_ the
-integrity check.
+**Merkel** is on a different axis from the three above: it addresses a fact
+by its content rather than by position or key. The pattern is Git or IPFS.
+You cannot update content under an address; you produce a new address for
+new content. Comn reduces it to four verbs: `put` returns a content address,
+`get` returns what is behind one, `head` is the root, and `verify` walks from
+the root to genesis recomputing every hash. Every put extends a chain, so the
+root commits to everything before it; it is the thing you publish or sign.
+This is the shape for audit trails, content verification, and distributed
+sync where you need to prove that what you received is what was sent. The
+Mem backend hashes with sha256; the Git backend makes each put a commit on a
+bare repository and lets git check every object on read. The bytes that get
+hashed come from the `Comn.Merkel` protocol, the only protocol a Repo shape
+has, because the address depends on them.
 
 ### Naming Convention
 

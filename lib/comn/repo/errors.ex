@@ -44,6 +44,16 @@ defmodule Comn.Repo.Errors do
   register_error "repo.bus/invalid_event",  :validation, message: "Value is not a Comn.Events.EventStruct"
   register_error "repo.bus/not_retained",   :validation, message: "A bus retains nothing; there is nothing to get or delete"
 
+  # Merkel
+  register_error "repo.merkel/invalid_opts",    :validation,  message: "Merkel backend options are missing or malformed"
+  register_error "repo.merkel/already_exists",  :validation,  message: "A merkel with this name is already open"
+  register_error "repo.merkel/not_found",       :persistence, message: "Merkel does not exist or is closed"
+  register_error "repo.merkel/unknown_address", :persistence, message: "No node at that address"
+  register_error "repo.merkel/invalid_event",   :validation,  message: "Value could not be converted to a Comn.Events.EventStruct"
+  register_error "repo.merkel/immutable",       :validation,  message: "Merkel content is immutable; delete is not supported"
+  register_error "repo.merkel/tampered",        :persistence, message: "Stored content no longer matches its address"
+  register_error "repo.merkel/backend_error",   :network,     message: "The merkel backend returned an error"
+
   # Column
   register_error "repo.column/not_found",       :persistence, message: "Column store does not exist"
   register_error "repo.column/invalid_schema",  :validation,  message: "Schema definition is invalid"
