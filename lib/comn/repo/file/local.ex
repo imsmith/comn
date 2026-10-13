@@ -108,10 +108,8 @@ defmodule Comn.Repo.File.Local do
   def write(fs, data, opts \\ [])
 
   def write(%FileStruct{state: :loaded, handle: handle} = fs, data, _opts) do
-    case IO.write(handle, data) do
-      :ok -> {:ok, %{fs | buffer: data}}
-      {:error, reason} -> {:error, reason}
-    end
+    :ok = IO.write(handle, data)
+    {:ok, %{fs | buffer: data}}
   end
 
   def write(%FileStruct{state: state}, _data, _opts),

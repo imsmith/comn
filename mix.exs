@@ -11,7 +11,8 @@ defmodule Comn.MixProject do
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
       name: "Comn",
-      docs: [main: "readme", extras: ["README.md", "guides/design.md"]]
+      docs: [main: "readme", extras: ["README.md", "guides/design.md"]],
+      dialyzer: [plt_add_apps: [:mix]]
     ]
   end
 
@@ -32,7 +33,8 @@ defmodule Comn.MixProject do
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
       {:igniter, "~> 0.8", optional: true},
-      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 

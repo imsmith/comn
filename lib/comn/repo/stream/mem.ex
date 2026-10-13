@@ -100,8 +100,13 @@ defmodule Comn.Repo.Stream.Mem do
   @spec drop(atom()) :: :ok
   def drop(name) when is_atom(name) do
     case :ets.whereis(name) do
-      :undefined -> :ok
-      _ -> :ets.delete(name) && :ets.delete(groups_table(name)) && :ok
+      :undefined ->
+        :ok
+
+      _ ->
+        :ets.delete(name)
+        :ets.delete(groups_table(name))
+        :ok
     end
   end
 

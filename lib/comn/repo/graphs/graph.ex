@@ -268,7 +268,8 @@ defmodule Comn.Repo.Graphs.Graph do
           {:ok, Zone.t(), [term()]} | {:error, term()}
   def traverse(%GraphStruct{graph: g}, %Zone{} = from, to, _opts) do
     with {:ok, from_vertex} <- zone_to_vertex(g, from),
-         path when is_list(path) <- Graph.dijkstra(g, from_vertex, to) do
+         # get_shortest_path is dijkstra with a spec that admits nil; libgraph's dijkstra/3 spec omits it
+         path when is_list(path) <- Graph.get_shortest_path(g, from_vertex, to) do
       dest = %Zone{from | locale: vertex_to_locale(to)}
       maybe_update_context_zone(dest)
       {:ok, dest, path}
