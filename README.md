@@ -25,7 +25,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Repo.Cmd | Complete | Command behaviour (Shell placeholder) |
 | Repo.Batch | Complete | Buffered write-behind with auto-flush (Mem backend) |
 | Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
-| Repo.Bus | Planned | Raw pub/sub transport (no struct opinions) |
+| Repo.Bus | Complete | Publish a fact to every current subscriber, retain nothing; Registry backend |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
 | Repo.Stream | Complete | Append-only, replayable event log; live subscribe; one facade over Mem (ETS), SQLite, NATS JetStream |
 | Repo.Merkel | Planned | Content-addressed, immutable (Git/IPFS pattern) |
@@ -352,6 +352,24 @@ alias Comn.Repo.Queue
 {:ok, q} = Queue.open("jobs", backend: :sqlite, path: "/var/lib/app/jobs.queue")
 ```
 
+### Bus (publish to everyone listening, retain nothing)
+
+```elixir
+alias Comn.Repo.Bus
+
+{:ok, b} = Bus.open(:notifications)                      # backend: :registry
+{:ok, ref} = Bus.subscribe(b, topic: "order.placed")      # topic: is optional
+:ok = Bus.publish(b, EventStruct.new(:domain, "order.placed", %{id: 1}))
+receive do
+  {:bus, :notifications, %EventStruct{data: %{id: 1}}} -> :ok
+end
+:ok = Bus.unsubscribe(b, ref)
+
+Bus.observe(b, as: :events) |> Enum.take(1)               # a live stream
+```
+
+`get` and `delete` return `repo.bus/not_retained`: a bus keeps nothing.
+
 ### Stream (append-only, replayable log)
 
 One facade, three backends. The backend is a word in one option and the
@@ -487,7 +505,10 @@ lib/comn/
   repo/cmd.ex                Command behaviour (validate/apply/reset/enable/...)
   repo/batch.ex              Batch behaviour (push/flush/size/drain/status)
   repo/column.ex             Column behaviour (create/put/select/delete/schema/count/drop)
-  repo/bus.ex                Bus behaviour (planned)
+  repo/bus.ex                Bus facade (open/close/drop/publish/subscribe/unsubscribe)
+  repo/bus/handle.ex         Opaque bus handle
+  repo/bus/backend.ex        Private backend contract
+  repo/bus/registry.ex       Local Registry backend
   repo/queue.ex              Queue facade (open/push/pop/peek/find/remove/close)
   repo/queue/backend.ex      Queue backend behaviour
   repo/queue/mem.ex          ETS queue backend

@@ -38,6 +38,12 @@ defmodule Comn.Repo.Errors do
   register_error "repo.stream/invalid_opts",    :validation,  message: "Stream backend options are missing or malformed"
   register_error "repo.stream/backend_error",   :network,     message: "The stream backend returned an error"
 
+  # Bus
+  register_error "repo.bus/invalid_opts",   :validation, message: "Bus backend options are missing or malformed"
+  register_error "repo.bus/already_exists", :validation, message: "A bus with this name is already open"
+  register_error "repo.bus/invalid_event",  :validation, message: "Value is not a Comn.Events.EventStruct"
+  register_error "repo.bus/not_retained",   :validation, message: "A bus retains nothing; there is nothing to get or delete"
+
   # Column
   register_error "repo.column/not_found",       :persistence, message: "Column store does not exist"
   register_error "repo.column/invalid_schema",  :validation,  message: "Schema definition is invalid"

@@ -558,32 +558,31 @@ declared column types. This gives you query semantics (select by column
 predicate) and the ability to introspect the shape of stored data, not just its
 presence. The ETS implementation keeps this in-process.
 
-**Bus** (planned) is raw pub/sub transport. No struct opinions, no enrichment,
-no logging. A message goes in on a topic, subscribers receive it. Bus is distinct
-from the Events system (Section 3) precisely because Events is opinionated:
-EventStruct, enrichment pipeline, telemetry hooks. Bus is the transport layer
-underneath all of that — what you use when you need pub/sub without the event
-machinery, or when you are building the event machinery itself.
+**Bus, Queue, and Stream are one family.** Everything that moves through
+them is an event: a `Comn.Events.EventStruct`, a timestamped fact with
+structured headers. The three shapes are not product categories (NATS,
+RabbitMQ, Kafka); they differ only in what the medium does with the fact
+once it has it. That single axis is the whole taxonomy
+([ADR-0001](../docs/adr/0001-every-repo-shape-is-an-event-sink.md)):
 
-**Queue** is ordered, durable, and ackable. The pattern is RabbitMQ or
-Oban: messages are enqueued, workers dequeue and acknowledge, unacknowledged
-messages are retried or dead-lettered. Queue differs from Batch in direction and
-durability: Batch is write-behind for outbound I/O; Queue is a work-distribution
-mechanism where delivery guarantees matter. Queue differs from Bus in that Bus
-is fire-and-forget by design; Queue tracks delivery state per message. The
-facade is `Comn.Repo.Queue`; backends (`Mem`, `SQLite`) implement a private
-backend contract and are selected by the `:backend` option to `open/2`. Crash safety lives in
-`pop/2`: a raise or caller exit returns the item to the queue.
+| Shape | What the medium does with a fact | Retains |
+|---|---|---|
+| Bus | delivers it to every current subscriber | nothing |
+| Queue | hands it to exactly one consumer, who acknowledges | until acknowledged |
+| Stream | appends it; anyone reads from any offset, any time | by policy |
 
-**Stream** is append-only and replayable. The pattern is Kafka: events
-are appended to a log, consumers read from an offset, old data is retained until
-a retention policy expires it. Stream differs from Queue in that consumption is
-non-destructive — multiple consumers can read the same data at different offsets
-independently. It differs from Bus in that the log is durable: a consumer that
-falls behind can catch up; a Bus subscriber that disconnects misses what it
-missed. The Mem backend is an ETS `:ordered_set` with monotonic
-integer offsets; offsets are opaque per backend so a Kafka or NATS adapter can
-use its own.
+Each is a facade with an opaque handle and private backends, so the backend
+is a word in one option and calling code never changes: `Comn.Repo.Bus`
+over a local Registry; `Comn.Repo.Queue` over Mem and SQLite;
+`Comn.Repo.Stream` over Mem, SQLite, and NATS JetStream. Verbs that exist
+only to accommodate a backend stay in the backend. Consumer bookkeeping
+(which offset a group has reached) is the consumer's, not the medium's.
+
+Because the fact is the same everywhere, the same `set(h, event: e)` lands
+it in a table (keyed by id), a column store (headers as columns), a graph
+(a vertex), a file (one line of a log), a batch, a queue, a stream, or a
+bus. `Comn.EventSinkConformance` is that sentence as a test; passing it is
+what makes a backend a Comn backend.
 
 **Merkel** (planned) is content-addressed and immutable. The pattern is Git or
 IPFS: data is stored by a hash of its content, not by a mutable key. You cannot

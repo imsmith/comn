@@ -23,12 +23,19 @@ defmodule Comn.EventSinkConformance do
   Shapes whose `set/2` returns a new handle (immutable structs, e.g. Graph)
   are threaded through `after_set/2`. Any `@moduletag` the backend needs must
   precede the `use` line.
+
+  A medium that retains nothing (a bus) uses `retains: false`: the get-by-id
+  tests are skipped and `observe(h, as: :events)` is expected to be live,
+  yielding events set after enumeration starts.
   """
 
   defmacro __using__(opts) do
     backend = Keyword.fetch!(opts, :backend)
+    retains = Keyword.get(opts, :retains, true)
 
     quote location: :keep do
+      @sink_retains unquote(retains)
+
       alias Comn.Errors.ErrorStruct
       alias Comn.Events.EventStruct
 
@@ -69,33 +76,65 @@ defmodule Comn.EventSinkConformance do
           assert {:error, %ErrorStruct{}} = @sink.set(h, event: %{not: "an event"})
         end
 
-        @tag :event_sink
-        test "get/2 by id returns the same event", %{h: h} do
-          e = fact(%{n: 1})
-          h = put!(h, e)
-          assert {:ok, ^e} = @sink.get(h, id: e.id)
-        end
+        if @sink_retains do
+          @tag :event_sink
+          test "get/2 by id returns the same event", %{h: h} do
+            e = fact(%{n: 1})
+            h = put!(h, e)
+            assert {:ok, ^e} = @sink.get(h, id: e.id)
+          end
 
-        @tag :event_sink
-        test "get/2 by unknown id is an error", %{h: h} do
-          h = put!(h, fact())
-          assert {:error, %ErrorStruct{}} = @sink.get(h, id: "no-such-id")
-        end
+          @tag :event_sink
+          test "get/2 by unknown id is an error", %{h: h} do
+            h = put!(h, fact())
+            assert {:error, %ErrorStruct{}} = @sink.get(h, id: "no-such-id")
+          end
 
-        @tag :event_sink
-        test "observe/2 as events yields every stored event", %{h: h} do
-          events = for n <- 1..3, do: fact(%{n: n})
-          h = Enum.reduce(events, h, fn e, h -> put!(h, e) end)
-          seen = @sink.observe(h, as: :events) |> Enum.to_list()
-          assert length(seen) == 3
-          assert Enum.all?(events, &(&1 in seen))
-        end
+          @tag :event_sink
+          test "observe/2 as events yields every stored event", %{h: h} do
+            events = for n <- 1..3, do: fact(%{n: n})
+            h = Enum.reduce(events, h, fn e, h -> put!(h, e) end)
+            seen = @sink.observe(h, as: :events) |> Enum.to_list()
+            assert length(seen) == 3
+            assert Enum.all?(events, &(&1 in seen))
+          end
 
-        @tag :event_sink
-        test "system events are carried, not policed", %{h: h} do
-          e = EventStruct.new(:system, "sink.system", %{})
-          h = put!(h, e)
-          assert {:ok, ^e} = @sink.get(h, id: e.id)
+          @tag :event_sink
+          test "system events are carried, not policed", %{h: h} do
+            e = EventStruct.new(:system, "sink.system", %{})
+            h = put!(h, e)
+            assert {:ok, ^e} = @sink.get(h, id: e.id)
+          end
+        else
+          @tag :event_sink
+          test "get/2 by id is an error: nothing is retained", %{h: h} do
+            e = fact()
+            h = put!(h, e)
+            assert {:error, %ErrorStruct{}} = @sink.get(h, id: e.id)
+          end
+
+          @tag :event_sink
+          test "observe/2 as events is live: yields events set after it starts", %{h: h} do
+            events = for n <- 1..3, do: fact(%{n: n})
+            parent = self()
+
+            consumer =
+              Task.async(fn ->
+                send(parent, :listening)
+                @sink.observe(h, as: :events) |> Enum.take(3)
+              end)
+
+            assert_receive :listening
+            # give the lazy stream a moment to subscribe before publishing
+            Process.sleep(20)
+            Enum.each(events, &put!(h, &1))
+            assert Task.await(consumer) == events
+          end
+
+          @tag :event_sink
+          test "system events are carried, not policed", %{h: h} do
+            put!(h, EventStruct.new(:system, "sink.system", %{}))
+          end
         end
       end
     end
