@@ -31,7 +31,7 @@ defmodule Comn.Secrets.SecurityTestCase do
           }
 
           result = unquote(implementation).lock("secret data", key)
-          
+
           assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
@@ -44,7 +44,7 @@ defmodule Comn.Secrets.SecurityTestCase do
           }
 
           result = unquote(implementation).lock("secret data", key)
-          
+
           assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
@@ -57,7 +57,7 @@ defmodule Comn.Secrets.SecurityTestCase do
           }
 
           result = unquote(implementation).lock("secret data", key)
-          
+
           assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
@@ -70,13 +70,13 @@ defmodule Comn.Secrets.SecurityTestCase do
           }
 
           result = unquote(implementation).lock("secret data", key)
-          
+
           assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = result
         end
 
         test "accepts valid Ed25519 key" do
           {pub, priv} = :crypto.generate_key(:eddsa, :ed25519)
-          
+
           key = %Key{
             id: :crypto.hash(:blake2b, pub) |> binary_part(0, 16),
             algorithm: :ed25519,
@@ -85,7 +85,7 @@ defmodule Comn.Secrets.SecurityTestCase do
           }
 
           result = unquote(implementation).lock("secret data", key)
-          
+
           assert {:ok, %LockedBlob{}} = result
         end
       end
@@ -93,7 +93,7 @@ defmodule Comn.Secrets.SecurityTestCase do
       describe "nonce uniqueness (see features/nonce_uniqueness.feature)" do
         setup do
           {pub, priv} = :crypto.generate_key(:eddsa, :ed25519)
-          
+
           key = %Key{
             id: :crypto.hash(:blake2b, pub) |> binary_part(0, 16),
             algorithm: :ed25519,
@@ -106,22 +106,22 @@ defmodule Comn.Secrets.SecurityTestCase do
 
         test "same plaintext produces different ciphertexts", %{key: key} do
           plaintext = "identical secret data"
-          
+
           {:ok, locked1} = unquote(implementation).lock(plaintext, key)
           {:ok, locked2} = unquote(implementation).lock(plaintext, key)
-          
+
           refute locked1.nonce == locked2.nonce,
-            "CRITICAL: Nonce reuse detected!"
-          
+                 "CRITICAL: Nonce reuse detected!"
+
           refute locked1.encrypted == locked2.nonce,
-            "CRITICAL: Deterministic encryption detected!"
+                 "CRITICAL: Deterministic encryption detected!"
         end
 
         test "nonces have sufficient length", %{key: key} do
           {:ok, locked} = unquote(implementation).lock("secret data", key)
-          
+
           assert byte_size(locked.nonce) >= 12,
-            "Nonce too short"
+                 "Nonce too short"
         end
       end
     end

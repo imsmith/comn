@@ -39,7 +39,7 @@ defmodule Comn.Repo.QueueTest do
     test "recon/0 advertises the operations and that backends are private" do
       r = Queue.recon()
       assert :push in r.callbacks
-      assert :pop  in r.callbacks
+      assert :pop in r.callbacks
       assert r.type == :facade
     end
   end

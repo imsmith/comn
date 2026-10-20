@@ -53,6 +53,7 @@ defmodule Comn.Secrets.EdgeCasesTest do
       {:ok, locked} = Local.lock("secret", key)
 
       {pub2, priv2} = :crypto.generate_key(:eddsa, :ed25519)
+
       other_key = %Key{
         id: :crypto.hash(:blake2b, pub2) |> binary_part(0, 16),
         algorithm: :ed25519,
@@ -72,7 +73,8 @@ defmodule Comn.Secrets.EdgeCasesTest do
       corrupted = <<Bitwise.bxor(first_byte, 0xFF), rest::binary>>
       tampered = %{locked | encrypted: corrupted}
 
-      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} = Local.unlock(tampered, key)
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               Local.unlock(tampered, key)
     end
 
     test "flipped bit in tag fails authentication", %{key: key} do
@@ -82,7 +84,8 @@ defmodule Comn.Secrets.EdgeCasesTest do
       corrupted = <<Bitwise.bxor(first_byte, 0xFF), rest::binary>>
       tampered = %{locked | tag: corrupted}
 
-      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} = Local.unlock(tampered, key)
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               Local.unlock(tampered, key)
     end
 
     test "wrong nonce fails authentication", %{key: key} do
@@ -90,7 +93,8 @@ defmodule Comn.Secrets.EdgeCasesTest do
 
       tampered = %{locked | nonce: :crypto.strong_rand_bytes(12)}
 
-      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} = Local.unlock(tampered, key)
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               Local.unlock(tampered, key)
     end
   end
 
@@ -122,6 +126,7 @@ defmodule Comn.Secrets.EdgeCasesTest do
       {:ok, container} = Local.wrap([blob], key)
 
       {pub2, priv2} = :crypto.generate_key(:eddsa, :ed25519)
+
       other_key = %Key{
         id: :crypto.hash(:blake2b, pub2) |> binary_part(0, 16),
         algorithm: :ed25519,
@@ -129,7 +134,8 @@ defmodule Comn.Secrets.EdgeCasesTest do
         private: priv2
       }
 
-      assert {:error, %ErrorStruct{code: "secrets/wrong_key"}} = Local.unwrap(container, other_key)
+      assert {:error, %ErrorStruct{code: "secrets/wrong_key"}} =
+               Local.unwrap(container, other_key)
     end
 
     test "corrupted container fails authentication", %{key: key} do
@@ -140,7 +146,8 @@ defmodule Comn.Secrets.EdgeCasesTest do
       corrupted = <<Bitwise.bxor(first_byte, 0xFF), rest::binary>>
       tampered = %{container | encrypted: corrupted}
 
-      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} = Local.unlock(tampered, key)
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               Local.unlock(tampered, key)
     end
   end
 

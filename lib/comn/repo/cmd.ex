@@ -116,12 +116,28 @@ defmodule Comn.Repo.Cmd do
   @callback probe(target(), keyword()) :: :ok | {:error, term()}
 
   @impl Comn
-  def look, do: "Cmd — behaviour for command execution with lifecycle verbs (validate, apply, reset, enable, disable, sync, run)"
+  def look,
+    do:
+      "Cmd — behaviour for command execution with lifecycle verbs (validate, apply, reset, enable, disable, sync, run)"
 
   @impl Comn
   def recon do
     %{
-      callbacks: [:validate, :apply, :reset, :enable, :disable, :sync, :status, :test, :invoke, :info, :watch, :run, :probe],
+      callbacks: [
+        :validate,
+        :apply,
+        :reset,
+        :enable,
+        :disable,
+        :sync,
+        :status,
+        :test,
+        :invoke,
+        :info,
+        :watch,
+        :run,
+        :probe
+      ],
       type: :behaviour
     }
   end
@@ -129,7 +145,21 @@ defmodule Comn.Repo.Cmd do
   @impl Comn
   def choices do
     %{
-      verbs: ["validate", "apply", "reset", "enable", "disable", "sync", "status", "test", "invoke", "info", "watch", "run", "probe"]
+      verbs: [
+        "validate",
+        "apply",
+        "reset",
+        "enable",
+        "disable",
+        "sync",
+        "status",
+        "test",
+        "invoke",
+        "info",
+        "watch",
+        "run",
+        "probe"
+      ]
     }
   end
 

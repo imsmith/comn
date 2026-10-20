@@ -79,7 +79,7 @@ defmodule Comn.Repo.Batch.Mem do
   end
 
   @impl Comn.Repo
-  def get(store, [id: id]) do
+  def get(store, id: id) do
     case Enum.find(observe(store, as: :events), &(&1.id == id)) do
       nil -> Comn.Repo.not_found(id)
       e -> {:ok, e}
@@ -87,8 +87,10 @@ defmodule Comn.Repo.Batch.Mem do
   end
 
   def get(_store, _opts) do
-    {:error, ErrReg.error!("repo.batch/flush_failed",
-      message: "Batch stores are write-only; use the flush callback to consume data")}
+    {:error,
+     ErrReg.error!("repo.batch/flush_failed",
+       message: "Batch stores are write-only; use the flush callback to consume data"
+     )}
   end
 
   @impl Comn.Repo
@@ -105,14 +107,19 @@ defmodule Comn.Repo.Batch.Mem do
 
   @impl Comn.Repo
   def delete(_store, _opts) do
-    {:error, ErrReg.error!("repo.batch/flush_failed",
-      message: "Batch stores are write-only; delete is not supported")}
+    {:error,
+     ErrReg.error!("repo.batch/flush_failed",
+       message: "Batch stores are write-only; delete is not supported"
+     )}
   end
 
   @impl Comn.Repo
   def observe(store \\ __MODULE__, opts) do
     buffer = GenServer.call(store, :observe)
-    if Comn.Repo.events_view?(opts), do: Enum.filter(buffer, &is_struct(&1, Comn.Events.EventStruct)), else: buffer
+
+    if Comn.Repo.events_view?(opts),
+      do: Enum.filter(buffer, &is_struct(&1, Comn.Events.EventStruct)),
+      else: buffer
   end
 
   # -- Comn callbacks --
@@ -182,8 +189,11 @@ defmodule Comn.Repo.Batch.Mem do
 
     if new_count >= state.max_size do
       case do_flush(state) do
-        {:ok, flushed, state} -> {:reply, :ok, state |> Map.update!(:total_flushed, &(&1 + flushed))}
-        {:error, _} = err -> {:reply, err, state}
+        {:ok, flushed, state} ->
+          {:reply, :ok, state |> Map.update!(:total_flushed, &(&1 + flushed))}
+
+        {:error, _} = err ->
+          {:reply, err, state}
       end
     else
       {:reply, :ok, state}
@@ -208,22 +218,26 @@ defmodule Comn.Repo.Batch.Mem do
 
   @impl GenServer
   def handle_call(:config, _from, state) do
-    {:reply, {:ok, %{
-      max_size: state.max_size,
-      interval_ms: state.interval_ms,
-      total_flushed: state.total_flushed
-    }}, state}
+    {:reply,
+     {:ok,
+      %{
+        max_size: state.max_size,
+        interval_ms: state.interval_ms,
+        total_flushed: state.total_flushed
+      }}, state}
   end
 
   @impl GenServer
   def handle_call(:describe, _from, state) do
-    {:reply, {:ok, %{
-      pending: state.count,
-      max_size: state.max_size,
-      interval_ms: state.interval_ms,
-      total_flushed: state.total_flushed,
-      backend: __MODULE__
-    }}, state}
+    {:reply,
+     {:ok,
+      %{
+        pending: state.count,
+        max_size: state.max_size,
+        interval_ms: state.interval_ms,
+        total_flushed: state.total_flushed,
+        backend: __MODULE__
+      }}, state}
   end
 
   @impl GenServer

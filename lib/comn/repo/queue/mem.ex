@@ -31,21 +31,21 @@ defmodule Comn.Repo.Queue.Mem do
   end
 
   @impl true
-  def push(pid, item),                do: GenServer.call(pid, {:push, item})
+  def push(pid, item), do: GenServer.call(pid, {:push, item})
   @impl true
-  def reserve(pid),                   do: GenServer.call(pid, :reserve)
+  def reserve(pid), do: GenServer.call(pid, :reserve)
   @impl true
-  def ack(pid, token),                do: GenServer.call(pid, {:ack, token})
+  def ack(pid, token), do: GenServer.call(pid, {:ack, token})
   @impl true
-  def release(pid, token),            do: GenServer.call(pid, {:release, token})
+  def release(pid, token), do: GenServer.call(pid, {:release, token})
   @impl true
-  def peek(pid, n),                   do: GenServer.call(pid, {:peek, n})
+  def peek(pid, n), do: GenServer.call(pid, {:peek, n})
   @impl true
-  def size(pid),                      do: GenServer.call(pid, :size)
+  def size(pid), do: GenServer.call(pid, :size)
   @impl true
-  def find(pid, fun),                 do: GenServer.call(pid, {:find, fun})
+  def find(pid, fun), do: GenServer.call(pid, {:find, fun})
   @impl true
-  def remove(pid, fun),               do: GenServer.call(pid, {:remove, fun})
+  def remove(pid, fun), do: GenServer.call(pid, {:remove, fun})
 
   # ---- GenServer callbacks ----
 
@@ -103,7 +103,7 @@ defmodule Comn.Repo.Queue.Mem do
       available_items(t, d)
       |> Enum.find(fn {_id, item} -> fun.(item) end)
       |> case do
-        nil         -> :not_found
+        nil -> :not_found
         {_id, item} -> {:ok, item}
       end
 
@@ -136,13 +136,13 @@ defmodule Comn.Repo.Queue.Mem do
     available_items(t, :lifo) |> Enum.take(1) |> List.first() |> head_or_none()
   end
 
-  defp head_or_none(nil),              do: :none
+  defp head_or_none(nil), do: :none
   defp head_or_none({_id, _item} = h), do: h
 
   defp available_items(t, :fifo) do
     Stream.unfold(:ets.first(t), fn
       :"$end_of_table" -> nil
-      key              -> {key, :ets.next(t, key)}
+      key -> {key, :ets.next(t, key)}
     end)
     |> Stream.map(fn k -> :ets.lookup(t, k) |> List.first() end)
     |> Stream.reject(fn {_id, reserved, _item} -> reserved end)
@@ -152,7 +152,7 @@ defmodule Comn.Repo.Queue.Mem do
   defp available_items(t, :lifo) do
     Stream.unfold(:ets.last(t), fn
       :"$end_of_table" -> nil
-      key              -> {key, :ets.prev(t, key)}
+      key -> {key, :ets.prev(t, key)}
     end)
     |> Stream.map(fn k -> :ets.lookup(t, k) |> List.first() end)
     |> Stream.reject(fn {_id, reserved, _item} -> reserved end)

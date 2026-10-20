@@ -19,12 +19,13 @@ defmodule Comn.Repo.Batch.MemTest do
 
     name = :"batch_#{id}"
 
-    {:ok, pid} = Batch.start_link(
-      name: name,
-      max_size: 5,
-      interval_ms: 0,
-      on_flush: on_flush
-    )
+    {:ok, pid} =
+      Batch.start_link(
+        name: name,
+        max_size: 5,
+        interval_ms: 0,
+        on_flush: on_flush
+      )
 
     on_exit(fn ->
       # Linked to the test process, so it may exit between alive? and stop.
@@ -129,12 +130,13 @@ defmodule Comn.Repo.Batch.MemTest do
 
       name = :"interval_batch_#{:erlang.unique_integer([:positive])}"
 
-      {:ok, pid} = Batch.start_link(
-        name: name,
-        max_size: 1000,
-        interval_ms: 50,
-        on_flush: on_flush
-      )
+      {:ok, pid} =
+        Batch.start_link(
+          name: name,
+          max_size: 1000,
+          interval_ms: 50,
+          on_flush: on_flush
+        )
 
       Batch.add_many(name, [:x, :y, :z])
 
@@ -183,12 +185,13 @@ defmodule Comn.Repo.Batch.MemTest do
     test "flush returns error if callback fails" do
       name = :"fail_batch_#{:erlang.unique_integer([:positive])}"
 
-      {:ok, pid} = Batch.start_link(
-        name: name,
-        max_size: 1000,
-        interval_ms: 0,
-        on_flush: fn _items -> {:error, :backend_down} end
-      )
+      {:ok, pid} =
+        Batch.start_link(
+          name: name,
+          max_size: 1000,
+          interval_ms: 0,
+          on_flush: fn _items -> {:error, :backend_down} end
+        )
 
       Batch.add(name, :item)
       assert {:error, :backend_down} = Batch.flush(name)

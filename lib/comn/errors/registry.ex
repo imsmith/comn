@@ -87,10 +87,12 @@ defmodule Comn.Errors.Registry do
   Raises `CompileError` if the code format is invalid.
   """
   defmacro register_error(code, category, opts) do
-    unless is_binary(code) and Regex.match?(~r/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\/[a-z][a-z0-9_]*$/, code) do
+    unless is_binary(code) and
+             Regex.match?(~r/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\/[a-z][a-z0-9_]*$/, code) do
       raise CompileError,
-        description: "invalid error code #{inspect(code)} — must match namespace/error_name " <>
-          "(e.g. \"auth/invalid_token\", \"repo.table/not_found\")"
+        description:
+          "invalid error code #{inspect(code)} — must match namespace/error_name " <>
+            "(e.g. \"auth/invalid_token\", \"repo.table/not_found\")"
     end
 
     quote do

@@ -84,7 +84,7 @@ defmodule Comn.Repo.Table.ETS do
   end
 
   @impl Comn.Repo
-  def get(name, [id: id]) when is_atom(name) do
+  def get(name, id: id) when is_atom(name) do
     case get(name, key: id) do
       {:ok, %Comn.Events.EventStruct{} = e} -> {:ok, e}
       _ -> Comn.Repo.not_found(id)

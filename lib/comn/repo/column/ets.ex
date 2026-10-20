@@ -49,8 +49,10 @@ defmodule Comn.Repo.Column.ETS do
     meta_table = :"#{name}_meta"
 
     if table_exists?(rows_table) do
-      {:error, ErrReg.error!("repo.column/not_found",
-        message: "Column store #{name} already exists")}
+      {:error,
+       ErrReg.error!("repo.column/not_found",
+         message: "Column store #{name} already exists"
+       )}
     else
       :ets.new(rows_table, [:named_table, :public, :ordered_set])
       :ets.new(meta_table, [:named_table, :public, :set])
@@ -98,9 +100,14 @@ defmodule Comn.Repo.Column.ETS do
   @impl Comn.Repo.Column
   def schema(%__MODULE__{meta_table: meta}) do
     case :ets.lookup(meta, :schema) do
-      [{:schema, nil}] -> {:error, ErrReg.error!("repo.column/not_found", message: "No schema defined")}
-      [{:schema, s}] -> {:ok, s}
-      [] -> {:error, ErrReg.error!("repo.column/not_found")}
+      [{:schema, nil}] ->
+        {:error, ErrReg.error!("repo.column/not_found", message: "No schema defined")}
+
+      [{:schema, s}] ->
+        {:ok, s}
+
+      [] ->
+        {:error, ErrReg.error!("repo.column/not_found")}
     end
   end
 
@@ -154,8 +161,10 @@ defmodule Comn.Repo.Column.ETS do
         unknown = Enum.reject(fields, &Map.has_key?(schema, &1))
 
         if unknown != [] do
-          {:error, ErrReg.error!("repo.column/unknown_column",
-            message: "Unknown columns: #{inspect(unknown)}")}
+          {:error,
+           ErrReg.error!("repo.column/unknown_column",
+             message: "Unknown columns: #{inspect(unknown)}"
+           )}
         else
           result =
             :ets.foldl(
@@ -203,23 +212,33 @@ defmodule Comn.Repo.Column.ETS do
     [{:schema, schema}] = :ets.lookup(meta, :schema)
     [{:row_count, count}] = :ets.lookup(meta, :row_count)
 
-    {:ok, %{
-      name: name,
-      schema: schema,
-      row_count: count,
-      backend: __MODULE__
-    }}
+    {:ok,
+     %{
+       name: name,
+       schema: schema,
+       row_count: count,
+       backend: __MODULE__
+     }}
   end
 
   # An event is one row: the headers are the columns, :data is a column.
   @event_schema %{
-    id: :string, timestamp: :string, source: :term, type: :atom, topic: :string,
-    data: :term, schema: :string, correlation_id: :string, request_id: :string,
-    version: :integer, tags: :list, metadata: :map
+    id: :string,
+    timestamp: :string,
+    source: :term,
+    type: :atom,
+    topic: :string,
+    data: :term,
+    schema: :string,
+    correlation_id: :string,
+    request_id: :string,
+    version: :integer,
+    tags: :list,
+    metadata: :map
   }
 
   @impl Comn.Repo
-  def get(%__MODULE__{rows_table: rows}, [id: id]) do
+  def get(%__MODULE__{rows_table: rows}, id: id) do
     case :ets.select(rows, [{{:_, %{id: id}}, [], [:"$_"]}]) do
       [{_rid, row} | _] -> {:ok, struct(Comn.Events.EventStruct, row)}
       [] -> Comn.Repo.not_found(id)
@@ -227,8 +246,10 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   def get(%__MODULE__{}, _opts) do
-    {:error, ErrReg.error!("repo.column/query_failed",
-      message: "Column stores don't support key-based get; use project/3")}
+    {:error,
+     ErrReg.error!("repo.column/query_failed",
+       message: "Column stores don't support key-based get; use project/3"
+     )}
   end
 
   @impl Comn.Repo
@@ -251,8 +272,10 @@ defmodule Comn.Repo.Column.ETS do
 
   @impl Comn.Repo
   def delete(%__MODULE__{}, _opts) do
-    {:error, ErrReg.error!("repo.column/query_failed",
-      message: "Column stores are append-only; delete is not supported")}
+    {:error,
+     ErrReg.error!("repo.column/query_failed",
+       message: "Column stores are append-only; delete is not supported"
+     )}
   end
 
   @impl Comn.Repo
@@ -260,7 +283,8 @@ defmodule Comn.Repo.Column.ETS do
     rows = :ets.tab2list(rows) |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1))
 
     if Comn.Repo.events_view?(opts),
-      do: for(%{id: _, topic: _, data: _} = row <- rows, do: struct(Comn.Events.EventStruct, row)),
+      do:
+        for(%{id: _, topic: _, data: _} = row <- rows, do: struct(Comn.Events.EventStruct, row)),
       else: rows
   end
 
@@ -285,7 +309,10 @@ defmodule Comn.Repo.Column.ETS do
 
   @impl Comn
   def act(%{action: :create, name: name}), do: create(name)
-  def act(%{action: :project, store: store, fields: fields, filters: filters}), do: project(store, fields, filters)
+
+  def act(%{action: :project, store: store, fields: fields, filters: filters}),
+    do: project(store, fields, filters)
+
   def act(%{action: :append, store: store, row: row}), do: append_row(store, row)
   def act(%{action: :flush, store: store}), do: flush(store)
   def act(input), do: Comn.unknown_action(input)

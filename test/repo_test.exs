@@ -20,6 +20,7 @@ defmodule Comn.Repo.Table.ETSTest do
   setup do
     table = :"test_table_#{:erlang.unique_integer([:positive])}"
     {:ok, _} = ETS.create(table)
+
     on_exit(fn ->
       try do
         ETS.drop(table)
@@ -27,6 +28,7 @@ defmodule Comn.Repo.Table.ETSTest do
         ArgumentError -> :ok
       end
     end)
+
     %{table: table}
   end
 

@@ -18,7 +18,7 @@ defmodule Comn.Repo.Queue.MemTest do
       assert {:ok, :a} = Queue.pop(q, & &1)
       assert {:ok, :b} = Queue.pop(q, & &1)
       assert {:ok, :c} = Queue.pop(q, & &1)
-      assert :empty    = Queue.pop(q, & &1)
+      assert :empty = Queue.pop(q, & &1)
     end
 
     test "size reflects pushed and acked items", %{q: q} do
@@ -43,7 +43,7 @@ defmodule Comn.Repo.Queue.MemTest do
       :ok = Queue.push(q, %{n: 2})
       :ok = Queue.push(q, %{n: 3})
       assert {:ok, %{n: 2}} = Queue.find(q, fn x -> x.n == 2 end)
-      assert :not_found     = Queue.find(q, fn x -> x.n == 99 end)
+      assert :not_found = Queue.find(q, fn x -> x.n == 99 end)
     end
 
     test "remove extracts a non-head item", %{q: q} do
@@ -123,7 +123,7 @@ defmodule Comn.Repo.Queue.MemTest do
 
     defp drain(q, acc) do
       case Queue.pop(q, & &1) do
-        :empty   -> Enum.reverse(acc)
+        :empty -> Enum.reverse(acc)
         {:ok, v} -> drain(q, [v | acc])
       end
     end

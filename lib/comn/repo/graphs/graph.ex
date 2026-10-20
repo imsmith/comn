@@ -113,7 +113,10 @@ defmodule Comn.Repo.Graphs.Graph do
         {:ok, Graph.edges(g)}
 
       other ->
-        {:error, ErrReg.error!("repo.graph/unknown_query_type", message: "unknown query type: #{inspect(other)}")}
+        {:error,
+         ErrReg.error!("repo.graph/unknown_query_type",
+           message: "unknown query type: #{inspect(other)}"
+         )}
     end
   end
 
@@ -132,7 +135,7 @@ defmodule Comn.Repo.Graphs.Graph do
   end
 
   @impl Comn.Repo
-  def get(%GraphStruct{graph: g}, [id: id]) do
+  def get(%GraphStruct{graph: g}, id: id) do
     case Graph.vertex_labels(g, id) do
       [%Comn.Events.EventStruct{} = e | _] -> {:ok, e}
       _ -> Comn.Repo.not_found(id)
@@ -183,7 +186,9 @@ defmodule Comn.Repo.Graphs.Graph do
   @impl Comn.Repo
   def observe(%GraphStruct{graph: g}, opts) do
     if Comn.Repo.events_view?(opts) do
-      for v <- Graph.vertices(g), %Comn.Events.EventStruct{} = e <- Graph.vertex_labels(g, v), do: e
+      for v <- Graph.vertices(g),
+          %Comn.Events.EventStruct{} = e <- Graph.vertex_labels(g, v),
+          do: e
     else
       {:ok, %{vertices: Graph.vertices(g), edges: Graph.edges(g)}}
     end

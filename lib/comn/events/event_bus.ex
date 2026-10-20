@@ -55,6 +55,9 @@ defmodule Comn.EventBus do
 
   @impl Comn
   def act(%{action: :subscribe, topic: topic}), do: subscribe(topic)
-  def act(%{action: :broadcast, topic: topic, payload: payload}), do: {:ok, broadcast(topic, payload)}
+
+  def act(%{action: :broadcast, topic: topic, payload: payload}),
+    do: {:ok, broadcast(topic, payload)}
+
   def act(input), do: Comn.unknown_action(input)
 end

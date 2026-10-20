@@ -5,8 +5,19 @@ defmodule Comn.Events.Errors do
 
   use Comn.Errors.Registry
 
-  register_error "events.nats/connection_failed", :network, message: "Could not connect to NATS server"
-  register_error "events/invalid_type",           :validation, message: "Unknown event type string — not a registered atom"
-  register_error "events/invalid_tuple",          :validation, message: "Tuple must be {type, topic, data}"
-  register_error "events/missing_keys",           :validation, message: "Map must have type, topic and data keys"
+  register_error("events.nats/connection_failed", :network,
+    message: "Could not connect to NATS server"
+  )
+
+  register_error("events/invalid_type", :validation,
+    message: "Unknown event type string — not a registered atom"
+  )
+
+  register_error("events/invalid_tuple", :validation,
+    message: "Tuple must be {type, topic, data}"
+  )
+
+  register_error("events/missing_keys", :validation,
+    message: "Map must have type, topic and data keys"
+  )
 end

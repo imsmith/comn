@@ -43,7 +43,8 @@ defmodule Comn.Repo.File.NFS do
     end
   end
 
-  @spec load(Comn.Repo.File.handle(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
+  @spec load(Comn.Repo.File.handle(), keyword()) ::
+          {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def load(%FileStruct{backend: __MODULE__} = fs, opts \\ []) do
     case Local.load(fs, opts) do
@@ -64,7 +65,8 @@ defmodule Comn.Repo.File.NFS do
   @impl Comn.Repo.File
   def read(%FileStruct{backend: __MODULE__} = fs, opts \\ []), do: Local.read(fs, opts)
 
-  @spec write(Comn.Repo.File.handle(), iodata(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
+  @spec write(Comn.Repo.File.handle(), iodata(), keyword()) ::
+          {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def write(%FileStruct{backend: __MODULE__} = fs, data, opts \\ []),
     do: Local.write(fs, data, opts)

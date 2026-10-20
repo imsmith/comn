@@ -39,7 +39,8 @@ defmodule Comn.Events do
   @callback unsubscribe(topic :: String.t(), opts :: keyword()) :: :ok | {:error, term()}
 
   @impl Comn
-  def look, do: "Events — pub/sub event system behaviour (start_link, broadcast, subscribe, unsubscribe)"
+  def look,
+    do: "Events — pub/sub event system behaviour (start_link, broadcast, subscribe, unsubscribe)"
 
   @impl Comn
   def recon do

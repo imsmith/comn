@@ -28,13 +28,27 @@ defmodule Comn.ErrorsTest do
 
   describe "Comn.Error protocol" do
     test "converts a map with atom keys" do
-      {:ok, err} = Error.to_error(%{reason: "auth", field: "token", message: "expired", suggestion: "refresh"})
+      {:ok, err} =
+        Error.to_error(%{
+          reason: "auth",
+          field: "token",
+          message: "expired",
+          suggestion: "refresh"
+        })
+
       assert %ErrorStruct{} = err
       assert err.reason == "auth"
     end
 
     test "converts a map with string keys" do
-      {:ok, err} = Error.to_error(%{"reason" => "auth", "field" => "token", "message" => "expired", "suggestion" => "refresh"})
+      {:ok, err} =
+        Error.to_error(%{
+          "reason" => "auth",
+          "field" => "token",
+          "message" => "expired",
+          "suggestion" => "refresh"
+        })
+
       assert %ErrorStruct{} = err
       assert err.reason == "auth"
     end

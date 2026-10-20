@@ -164,7 +164,10 @@ defmodule Comn.Repo.Queue.SQLite do
   def handle_call({:peek, n}, _from, %State{db: db, discipline: d} = s) do
     order = if d == :fifo, do: "ASC", else: "DESC"
     sql = "SELECT payload FROM items WHERE reserved_at IS NULL ORDER BY id #{order} LIMIT ?;"
-    items = fetch_all(db, sql, [n]) |> Enum.map(fn [payload] -> :erlang.binary_to_term(payload) end)
+
+    items =
+      fetch_all(db, sql, [n]) |> Enum.map(fn [payload] -> :erlang.binary_to_term(payload) end)
+
     {:reply, items, s}
   end
 

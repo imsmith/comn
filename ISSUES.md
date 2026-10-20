@@ -2,6 +2,68 @@
 
 Tracked here until they migrate to a real issue tracker. Newest first.
 
+## Safe-decode constraint is enforced only on read, and not by the SQLite queue
+
+**Filed:** 2026-10-13
+**Reported from:** integrating comn v0.6.3 into paperclip
+
+### Symptom
+
+`guides/design.md:420` states the rule: every `binary_to_term` uses `[:safe]`
+so deserialized data cannot exhaust the atom table. The consequence for
+callers is that stored data must be atom-free beyond atoms the reading VM is
+guaranteed to have. Two things undercut the rule.
+
+**Writes accept what reads will reject.** `Comn.Repo.Stream.append/2`,
+`Comn.Repo.Table.set/4`, and `Comn.Repo.Merkel.put/2` take any term. A caller
+who appends an event with data like `%{user_id: 42}` or a module atom as
+`source` gets `{:ok, offset}`. The failure arrives later, on a different VM
+that has not yet created those atoms:
+
+```text
+** (ArgumentError) errors were found at the given arguments:
+  * 1st argument: invalid or unsafe external representation of a term
+    :erlang.binary_to_term(<<131, ...>>, [:safe])
+    (comn 0.6.2) lib/comn/repo/stream/sqlite.ex:186: Comn.Repo.Stream.SQLite.select_events/3
+```
+
+Reproduced from paperclip: an `EventStruct` with `source: Paperclip.Customer`
+and schema-field atom keys in `data` was appended in one `mix run`, then
+`Stream.read/3` crashed the stream GenServer in the next. In a release
+(embedded mode) every module loads at boot so the same data reads fine, which
+makes the failure environment-dependent and hard to attribute.
+
+The README encourages the pattern it rejects: the Events, Table, Stream, and
+Merkel examples all use atom-keyed maps as `data`.
+
+**The SQLite queue backend skips the flag.** `lib/comn/repo/queue/sqlite.ex`
+decodes at lines 128, 167, and 196 with plain `binary_to_term/1`. It is the one
+durable backend that does not follow the design guide, so a queue accepts and
+replays atom-bearing payloads that a stream or table would refuse.
+
+### Why it happens
+
+`[:safe]` is a read-side guard chosen for its security property. Nothing on
+the write side mirrors it, and the queue backend was written without it.
+
+### What should change
+
+Pick one and apply it everywhere:
+
+1. **Enforce at write.** Reject (or `{:error, repo/unsafe_term}`) any term
+   whose external representation contains an atom outside a known-safe set,
+   checked once at `append`/`set`/`put`. Costs a walk of the term per write;
+   moves the failure to the caller who made the mistake.
+2. **Document and keep.** Add a "data must be atom-free" line to the
+   `Comn.Repo.Stream`, `Table`, `Merkel`, and `Events.EventStruct` docs, fix
+   the README examples to use string keys, and add `[:safe]` to the three
+   queue decode sites so the rule is uniform.
+
+Either way the queue backend needs the flag; the current state is the worst of
+both, because it is neither safe nor consistent.
+
+---
+
 ## Five source files under `lib/comn/repo/` are zero bytes
 
 **Filed:** 2026-08-04

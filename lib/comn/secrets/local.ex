@@ -45,14 +45,15 @@ defmodule Comn.Secrets.Local do
       aad = :erlang.term_to_binary(metadata)
 
       # Encrypt with ChaCha20-Poly1305
-      {ciphertext, tag} = :crypto.crypto_one_time_aead(
-        :chacha20_poly1305,
-        symmetric_key,
-        nonce,
-        blob,
-        aad,
-        true
-      )
+      {ciphertext, tag} =
+        :crypto.crypto_one_time_aead(
+          :chacha20_poly1305,
+          symmetric_key,
+          nonce,
+          blob,
+          aad,
+          true
+        )
 
       locked = %LockedBlob{
         cipher: :chacha20_poly1305,
@@ -82,14 +83,14 @@ defmodule Comn.Secrets.Local do
 
       # Decrypt with tag verification
       case :crypto.crypto_one_time_aead(
-        locked.cipher,
-        symmetric_key,
-        locked.nonce,
-        locked.encrypted,
-        aad,
-        locked.tag,
-        false
-      ) do
+             locked.cipher,
+             symmetric_key,
+             locked.nonce,
+             locked.encrypted,
+             aad,
+             locked.tag,
+             false
+           ) do
         plaintext when is_binary(plaintext) ->
           {:ok, plaintext}
 
@@ -225,6 +226,7 @@ defmodule Comn.Secrets.Local do
     @spec uuid4() :: String.t()
     def uuid4 do
       <<u0::48, _::4, u1::12, _::2, u2::62>> = :crypto.strong_rand_bytes(16)
+
       <<u0::48, 4::4, u1::12, 2::2, u2::62>>
       |> Base.encode16(case: :lower)
       |> format_uuid()

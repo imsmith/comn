@@ -363,7 +363,9 @@ defmodule Comn.SpatialTest do
       {:ok, gs} = Comn.Repo.Graphs.Graph.create()
       {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :a, :b)
       {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :b, :c)
-      assert {:ok, [:a, :b, :c]} = Comn.Repo.Graphs.Graph.traverse(gs, type: :shortest_path, from: :a, to: :c)
+
+      assert {:ok, [:a, :b, :c]} =
+               Comn.Repo.Graphs.Graph.traverse(gs, type: :shortest_path, from: :a, to: :c)
     end
 
     @tag :phase2

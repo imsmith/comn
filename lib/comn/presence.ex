@@ -71,6 +71,7 @@ defmodule Comn.Presence do
   @spec announce(Zone.t(), actor_id(), state()) :: :ok
   def announce(%Zone{} = zone, actor, :gone) do
     key = Zone.to_string(zone)
+
     Agent.update(@agent, fn store ->
       case Map.fetch(store, key) do
         {:ok, actors} ->
@@ -85,6 +86,7 @@ defmodule Comn.Presence do
 
   def announce(%Zone{} = zone, actor, state) when is_atom(state) do
     key = Zone.to_string(zone)
+
     Agent.update(@agent, fn store ->
       Map.update(store, key, %{actor => state}, &Map.put(&1, actor, state))
     end)
@@ -104,10 +106,12 @@ defmodule Comn.Presence do
   @spec who(Zone.t()) :: {:ok, [{actor_id(), state()}]}
   def who(%Zone{} = zone) do
     key = Zone.to_string(zone)
+
     actors =
       @agent
       |> Agent.get(&Map.get(&1, key, %{}))
       |> Map.to_list()
+
     {:ok, actors}
   end
 

@@ -30,7 +30,10 @@ defmodule Comn.EtsLifecycleTest do
       :ok = ETS.drop(name)
 
       assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.get(name, key: "x")
-      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.set(name, key: "x", value: 1)
+
+      assert {:error, %ErrorStruct{code: "repo.table/not_found"}} =
+               ETS.set(name, key: "x", value: 1)
+
       assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.delete(name, key: "x")
       assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.keys(name)
       assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = ETS.count(name)

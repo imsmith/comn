@@ -58,12 +58,14 @@ defmodule Comn.Contexts.ContextStruct do
   end
 
   defp normalize_zone(%Zone{} = z), do: z
+
   defp normalize_zone(str) when is_binary(str) do
     case Zone.parse(str) do
       {:ok, z} -> z
       {:error, _} -> Zone.local()
     end
   end
+
   defp normalize_zone(nil), do: Zone.local()
 
   @doc "Returns the context as a plain map, dropping nil values."

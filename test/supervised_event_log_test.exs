@@ -36,7 +36,9 @@ defmodule Comn.SupervisedEventLogTest do
     end
 
     test "record rejects invalid input via protocol" do
-      assert {:error, %Comn.Errors.ErrorStruct{code: "events/missing_keys"}} = EventLog.record(%{bad: "input"})
+      assert {:error, %Comn.Errors.ErrorStruct{code: "events/missing_keys"}} =
+               EventLog.record(%{bad: "input"})
+
       assert EventLog.all() == []
     end
 

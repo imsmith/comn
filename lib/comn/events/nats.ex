@@ -57,7 +57,8 @@ defmodule Comn.Events.NATS do
   Messages are forwarded to the local EventBus. Uses the default named
   process unless `:name` is provided.
   """
-  @spec subscribe(String.t(), keyword()) :: {:ok, non_neg_integer() | String.t()} | {:error, term()}
+  @spec subscribe(String.t(), keyword()) ::
+          {:ok, non_neg_integer() | String.t()} | {:error, term()}
   def subscribe(topic, opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
     GenServer.call(name, {:subscribe, topic, self()})

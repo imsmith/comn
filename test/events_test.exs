@@ -40,11 +40,13 @@ defmodule Comn.EventsTest do
     end
 
     test "returns error for invalid map" do
-      assert {:error, %Comn.Errors.ErrorStruct{code: "events/missing_keys"}} = Event.to_event(%{foo: "bar"})
+      assert {:error, %Comn.Errors.ErrorStruct{code: "events/missing_keys"}} =
+               Event.to_event(%{foo: "bar"})
     end
 
     test "returns error for invalid tuple" do
-      assert {:error, %Comn.Errors.ErrorStruct{code: "events/invalid_tuple"}} = Event.to_event({:only_one})
+      assert {:error, %Comn.Errors.ErrorStruct{code: "events/invalid_tuple"}} =
+               Event.to_event({:only_one})
     end
   end
 

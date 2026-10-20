@@ -106,7 +106,9 @@ defmodule Comn.Repo.Graphs.GraphTest do
 
     test "unknown query type returns error" do
       {:ok, gs} = Graph.create()
-      assert {:error, %ErrorStruct{code: "repo.graph/unknown_query_type"}} = Graph.traverse(gs, type: :bogus)
+
+      assert {:error, %ErrorStruct{code: "repo.graph/unknown_query_type"}} =
+               Graph.traverse(gs, type: :bogus)
     end
   end
 

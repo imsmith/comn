@@ -2,17 +2,22 @@ defmodule Comn.Test.SampleErrors do
   @moduledoc false
   use Comn.Errors.Registry
 
-  register_error "auth/invalid_token",   :auth,       message: "Token is invalid or expired", status: 401
-  register_error "auth/forbidden",       :auth,       message: "Insufficient permissions", status: 403
-  register_error "repo/not_found",       :persistence, message: "Resource not found", status: 404
-  register_error "input/bad_format",     :validation,  message: "Invalid input format", status: 422, suggestion: "Check the API docs"
+  register_error("auth/invalid_token", :auth, message: "Token is invalid or expired", status: 401)
+  register_error("auth/forbidden", :auth, message: "Insufficient permissions", status: 403)
+  register_error("repo/not_found", :persistence, message: "Resource not found", status: 404)
+
+  register_error("input/bad_format", :validation,
+    message: "Invalid input format",
+    status: 422,
+    suggestion: "Check the API docs"
+  )
 end
 
 defmodule Comn.Test.ConflictingErrors do
   @moduledoc false
   use Comn.Errors.Registry
 
-  register_error "auth/invalid_token", :auth, message: "Duplicate code from another module"
+  register_error("auth/invalid_token", :auth, message: "Duplicate code from another module")
 end
 
 defmodule Comn.Errors.RegistryTest do
@@ -42,7 +47,9 @@ defmodule Comn.Errors.RegistryTest do
     end
 
     test "rejects duplicate codes from different modules" do
-      assert {:error, %Comn.Errors.ErrorStruct{code: "errors/duplicate_code", field: "auth/invalid_token"} = dup} =
+      assert {:error,
+              %Comn.Errors.ErrorStruct{code: "errors/duplicate_code", field: "auth/invalid_token"} =
+                dup} =
                Registry.register_module(Comn.Test.ConflictingErrors)
 
       assert dup.message =~ "Comn.Test.SampleErrors"
@@ -110,13 +117,14 @@ defmodule Comn.Errors.RegistryTest do
     end
 
     test "dot-separated namespaces are valid" do
-      [{mod, _binary}] = Code.compile_string("""
-      defmodule Comn.Test.DottedNS do
-        use Comn.Errors.Registry
-        register_error "repo.table/not_found", :persistence, message: "table miss"
-        register_error "repo.file.ipfs/cid_invalid", :validation, message: "bad CID"
-      end
-      """)
+      [{mod, _binary}] =
+        Code.compile_string("""
+        defmodule Comn.Test.DottedNS do
+          use Comn.Errors.Registry
+          register_error "repo.table/not_found", :persistence, message: "table miss"
+          register_error "repo.file.ipfs/cid_invalid", :validation, message: "bad CID"
+        end
+        """)
 
       errors = mod.__errors__()
       codes = Enum.map(errors, & &1.code) |> Enum.sort()
@@ -183,10 +191,11 @@ defmodule Comn.Errors.RegistryTest do
     end
 
     test "allows field and message overrides" do
-      {:ok, err} = Registry.error("auth/invalid_token",
-        field: "authorization",
-        message: "Bearer token rejected"
-      )
+      {:ok, err} =
+        Registry.error("auth/invalid_token",
+          field: "authorization",
+          message: "Bearer token rejected"
+        )
 
       assert err.field == "authorization"
       assert err.message == "Bearer token rejected"
@@ -207,7 +216,8 @@ defmodule Comn.Errors.RegistryTest do
     end
 
     test "returns error for unknown code" do
-      assert {:error, %Comn.Errors.ErrorStruct{code: "errors/unknown_code", field: "nope/missing"}} =
+      assert {:error,
+              %Comn.Errors.ErrorStruct{code: "errors/unknown_code", field: "nope/missing"}} =
                Registry.error("nope/missing")
     end
   end
@@ -240,7 +250,13 @@ defmodule Comn.Errors.RegistryTest do
       assert is_list(errors)
       assert length(errors) == 4
       codes = Enum.map(errors, & &1.code) |> Enum.sort()
-      assert codes == ["auth/forbidden", "auth/invalid_token", "input/bad_format", "repo/not_found"]
+
+      assert codes == [
+               "auth/forbidden",
+               "auth/invalid_token",
+               "input/bad_format",
+               "repo/not_found"
+             ]
     end
   end
 end

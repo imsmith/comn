@@ -33,14 +33,16 @@ defmodule Comn.Contexts do
   @doc "Sets the current process context."
   @spec set(ContextStruct.t()) :: :ok
   def set(%ContextStruct{} = ctx) do
-    Process.put(@key, ctx) # intentional: ambient context, same pattern as Logger metadata
+    # intentional: ambient context, same pattern as Logger metadata
+    Process.put(@key, ctx)
     :ok
   end
 
   @doc "Gets the current process context, or nil if none set."
   @spec get() :: ContextStruct.t() | nil
   def get do
-    Process.get(@key) # intentional: ambient context, same pattern as Logger metadata
+    # intentional: ambient context, same pattern as Logger metadata
+    Process.get(@key)
   end
 
   @doc "Creates a new context and sets it on the current process."
@@ -78,15 +80,18 @@ defmodule Comn.Contexts do
   @doc """
   Runs a function with the given context set, restoring the previous context after.
   """
-  @spec with_context(ContextStruct.t() | map() | keyword(), (-> result)) :: result when result: any()
+  @spec with_context(ContextStruct.t() | map() | keyword(), (-> result)) :: result
+        when result: any()
   def with_context(%ContextStruct{} = ctx, fun) do
     old = get()
     set(ctx)
+
     try do
       fun.()
     after
       case old do
-        nil -> Process.delete(@key) # intentional: restore clean state
+        # intentional: restore clean state
+        nil -> Process.delete(@key)
         prev -> set(prev)
       end
     end
@@ -106,7 +111,17 @@ defmodule Comn.Contexts do
     %{
       storage: :process_dictionary,
       struct: Comn.Contexts.ContextStruct,
-      fields: [:request_id, :trace_id, :correlation_id, :user_id, :actor, :env, :zone, :parent_event_id, :metadata],
+      fields: [
+        :request_id,
+        :trace_id,
+        :correlation_id,
+        :user_id,
+        :actor,
+        :env,
+        :zone,
+        :parent_event_id,
+        :metadata
+      ],
       type: :facade
     }
   end

@@ -12,7 +12,7 @@ defmodule Comn.Repo.Queue.SmokeTest do
     test "end-to-end #{backend} queue exercise", %{tmp_dir: dir} do
       open_opts =
         case @backend do
-          :mem    -> []
+          :mem -> []
           :sqlite -> [path: Path.join(dir, "smoke.queue")]
         end
 
@@ -36,7 +36,7 @@ defmodule Comn.Repo.Queue.SmokeTest do
       drained =
         Stream.unfold(:start, fn _ ->
           case Queue.pop(q, & &1) do
-            :empty   -> nil
+            :empty -> nil
             {:ok, v} -> {v, :continue}
           end
         end)

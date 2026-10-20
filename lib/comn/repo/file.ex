@@ -88,7 +88,9 @@ defmodule Comn.Repo.File do
               :ok | {:error, term()}
 
   @impl Comn
-  def look, do: "File — lifecycle state machine for file I/O (open, load, stream, cast, read, write, close)"
+  def look,
+    do:
+      "File — lifecycle state machine for file I/O (open, load, stream, cast, read, write, close)"
 
   @impl Comn
   def recon do

@@ -35,7 +35,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 - Elixir 1.20 or later
 - Erlang/OTP 29 or later
-- Optional: `ecto_sql` (plus an adapter) for the `:ecto` table backend; `igniter` for the installers
+- Optional: `ecto_sql` (plus an adapter) for the `:ecto` table backend
 
 The pinned toolchain is in `.tool-versions` (asdf / mise).
 
@@ -49,30 +49,21 @@ end
 
 The OTP application starts automatically — `Comn.Supervisor` brings up EventBus, Events.Registry, EventLog, and Presence, then discovers all registered error codes.
 
-### Automated install
+### Generator
 
-The installers are [Igniter](https://hexdocs.pm/igniter) tasks, so the host
-project needs Igniter in its deps:
-
-```elixir
-{:igniter, "~> 0.8", only: [:dev, :test]}
-```
-
-Then, from inside a Phoenix app:
+From inside a Phoenix app that already has the dep:
 
 ```bash
 mix comn.install
 ```
 
-This adds the dep, generates a `Comn.Contexts` boundary plug wired into your
-router pipelines, and a starter error registry. Suppress pieces with
-`--no-context-plug` / `--no-error-registry`.
+This creates a `Comn.Contexts` boundary plug and a starter error registry,
+then prints the two lines you add by hand: the plug in your router
+pipelines, and the dep if it is not there yet. Existing files are never
+overwritten. Suppress pieces with `--no-context-plug` / `--no-error-registry`.
 
-To wire in both comn and the busybody dev directory in one shot:
-
-```bash
-mix comn.bootstrap
-```
+For the dev directory, add [busybody-client](../busybody-client) separately;
+it is a one-child-spec library with its own README.
 
 ## The Comn Behaviour
 
@@ -607,8 +598,7 @@ lib/comn/
 
   infra.ex                   Infrastructure management (placeholder)
 
-  mix/tasks/comn.install.ex  Igniter installer (deps, Contexts plug, error registry)
-  mix/tasks/comn.bootstrap.ex Igniter installer for comn + busybody together
+  mix/tasks/comn.install.ex  Generator for the Contexts plug and error registry
 ```
 
 ## Running Tests

@@ -43,8 +43,10 @@ defmodule Comn.Repo.Column.ETSTest do
     test "rejects non-atom keys" do
       name = :"bad_schema_#{:erlang.unique_integer([:positive])}"
       {:ok, store} = Col.create(name)
+
       assert {:error, %ErrorStruct{code: "repo.column/invalid_schema"}} =
                Col.define_schema(store, %{"bad" => :string})
+
       Col.drop(name)
     end
   end

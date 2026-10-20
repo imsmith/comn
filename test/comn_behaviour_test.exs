@@ -36,7 +36,15 @@ defmodule Comn.BehaviourTest do
     Comn.Errors
   ]
 
-  @behaviour_modules [Comn.Repo, Comn.Repo.Cmd, Comn.Repo.File, Comn.Repo.Graphs, Comn.Events, Comn.Secrets, Comn.Infra]
+  @behaviour_modules [
+    Comn.Repo,
+    Comn.Repo.Cmd,
+    Comn.Repo.File,
+    Comn.Repo.Graphs,
+    Comn.Events,
+    Comn.Secrets,
+    Comn.Infra
+  ]
   @placeholder_modules [Comn.Infra, Comn.Repo.Actor, Comn.Repo.Cmd.Shell]
 
   describe "Comn behaviour defines four callbacks" do
@@ -81,7 +89,7 @@ defmodule Comn.BehaviourTest do
   end
 
   describe "behaviour modules return comn/behaviour_only from act/1" do
-    for mod <- (@behaviour_modules -- @placeholder_modules) do
+    for mod <- @behaviour_modules -- @placeholder_modules do
       @mod mod
       test "#{inspect(mod)}.act/1 returns comn/behaviour_only" do
         assert {:error, %ErrorStruct{code: "comn/behaviour_only"}} = @mod.act(%{})
@@ -118,7 +126,11 @@ defmodule Comn.BehaviourTest do
     for mod <- @impl_modules do
       @mod mod
       test "#{inspect(mod)}.act/1 returns comn/unknown_action for bogus input" do
-        assert {:error, %ErrorStruct{code: "comn/unknown_action", field: ":bogus_action_that_does_not_exist"}} =
+        assert {:error,
+                %ErrorStruct{
+                  code: "comn/unknown_action",
+                  field: ":bogus_action_that_does_not_exist"
+                }} =
                  @mod.act(%{action: :bogus_action_that_does_not_exist})
       end
     end
@@ -129,8 +141,9 @@ defmodule Comn.BehaviourTest do
       @mod mod
       test "#{inspect(mod)}.recon/0 has :type or :status key" do
         recon = @mod.recon()
+
         assert Map.has_key?(recon, :type) or Map.has_key?(recon, :status),
-          "#{inspect(@mod)}.recon/0 should include :type or :status"
+               "#{inspect(@mod)}.recon/0 should include :type or :status"
       end
     end
   end
@@ -151,7 +164,9 @@ defmodule Comn.BehaviourTest do
     test "act :delete", %{table: table} do
       Comn.Repo.Table.ETS.act(%{action: :set, name: table, key: "d", value: "val"})
       assert :ok = Comn.Repo.Table.ETS.act(%{action: :delete, name: table, key: "d"})
-      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.table/not_found"}} = Comn.Repo.Table.ETS.act(%{action: :get, name: table, key: "d"})
+
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.table/not_found"}} =
+               Comn.Repo.Table.ETS.act(%{action: :get, name: table, key: "d"})
     end
   end
 end

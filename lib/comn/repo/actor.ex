@@ -16,7 +16,9 @@ defmodule Comn.Repo.Actor do
   @behaviour Comn
 
   @impl Comn
-  def look, do: "Repo.Actor — actor-style repo for tasks, API calls, agent communication (not yet implemented)"
+  def look,
+    do:
+      "Repo.Actor — actor-style repo for tasks, API calls, agent communication (not yet implemented)"
 
   @impl Comn
   def recon do

@@ -64,10 +64,11 @@ defmodule Comn.Errors do
         error
 
       ctx ->
-        %{error |
-          request_id: error.request_id || ctx.request_id,
-          trace_id: error.trace_id || ctx.trace_id,
-          correlation_id: error.correlation_id || ctx.correlation_id
+        %{
+          error
+          | request_id: error.request_id || ctx.request_id,
+            trace_id: error.trace_id || ctx.trace_id,
+            correlation_id: error.correlation_id || ctx.correlation_id
         }
     end
   end
@@ -80,11 +81,23 @@ defmodule Comn.Errors do
     reason_down = String.downcase(reason)
 
     cond do
-      match_any?(reason_down, ~w(valid invalid required missing format type)) -> :validation
-      match_any?(reason_down, ~w(database db persist save write read query timeout)) -> :persistence
-      match_any?(reason_down, ~w(network connect socket http dns unreachable refused)) -> :network
-      match_any?(reason_down, ~w(auth login password credential token permission denied forbidden unauthorized)) -> :auth
-      true -> :internal
+      match_any?(reason_down, ~w(valid invalid required missing format type)) ->
+        :validation
+
+      match_any?(reason_down, ~w(database db persist save write read query timeout)) ->
+        :persistence
+
+      match_any?(reason_down, ~w(network connect socket http dns unreachable refused)) ->
+        :network
+
+      match_any?(
+        reason_down,
+        ~w(auth login password credential token permission denied forbidden unauthorized)
+      ) ->
+        :auth
+
+      true ->
+        :internal
     end
   end
 
@@ -116,8 +129,10 @@ defmodule Comn.Errors do
   @impl Comn
   def act(%{action: :wrap, term: term}), do: wrap(term)
   def act(%{action: :categorize, reason: reason}), do: {:ok, categorize(reason)}
+
   def act(%{action: :new, category: cat, message: msg} = input) do
     {:ok, new(cat, msg, Map.get(input, :field), Map.get(input, :suggestion))}
   end
+
   def act(input), do: Comn.unknown_action(input)
 end

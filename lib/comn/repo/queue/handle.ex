@@ -11,9 +11,9 @@ defmodule Comn.Repo.Queue.Handle do
   defstruct [:backend, :state, :name, :discipline]
 
   @type t :: %__MODULE__{
-          backend:    module(),
-          state:      term(),
-          name:       term(),
+          backend: module(),
+          state: term(),
+          name: term(),
           discipline: :fifo | :lifo
         }
 end

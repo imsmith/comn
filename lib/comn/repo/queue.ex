@@ -44,9 +44,9 @@ defmodule Comn.Repo.Queue do
   """
   @spec open(term(), keyword()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
   def open(name, opts \\ []) do
-    with {:ok, backend}    <- resolve_backend(Keyword.get(opts, :backend, :mem)),
+    with {:ok, backend} <- resolve_backend(Keyword.get(opts, :backend, :mem)),
          {:ok, discipline} <- resolve_discipline(Keyword.get(opts, :discipline, :fifo)),
-         {:ok, state}      <- backend.open(name, opts) do
+         {:ok, state} <- backend.open(name, opts) do
       {:ok, %Handle{backend: backend, state: state, name: name, discipline: discipline}}
     else
       {:error, %{code: _} = err} ->
@@ -138,14 +138,17 @@ defmodule Comn.Repo.Queue do
   end
 
   @impl Comn.Repo
-  def get(%Handle{} = q, [id: id]) do
+  def get(%Handle{} = q, id: id) do
     case find(q, &match?(%Comn.Events.EventStruct{id: ^id}, &1)) do
       {:ok, e} -> {:ok, e}
       :not_found -> Comn.Repo.not_found(id)
     end
   end
 
-  def get(%Handle{}, _opts), do: {:error, ErrReg.error!("repo/event_not_found", message: "queues are read by id or by pop/2")}
+  def get(%Handle{}, _opts),
+    do:
+      {:error,
+       ErrReg.error!("repo/event_not_found", message: "queues are read by id or by pop/2")}
 
   @impl Comn.Repo
   def set(%Handle{} = q, opts) do
@@ -153,7 +156,7 @@ defmodule Comn.Repo.Queue do
   end
 
   @impl Comn.Repo
-  def delete(%Handle{} = q, [id: id]) do
+  def delete(%Handle{} = q, id: id) do
     case remove(q, &match?(%Comn.Events.EventStruct{id: ^id}, &1)) do
       {:ok, _} -> :ok
       :not_found -> Comn.Repo.not_found(id)
@@ -162,8 +165,16 @@ defmodule Comn.Repo.Queue do
 
   @impl Comn.Repo
   def observe(%Handle{} = q, opts) do
-    items = case size(q), do: (0 -> []; n -> peek(q, n))
-    if Comn.Repo.events_view?(opts), do: Enum.filter(items, &is_struct(&1, Comn.Events.EventStruct)), else: items
+    items =
+      case size(q),
+        do: (
+          0 -> []
+          n -> peek(q, n)
+        )
+
+    if Comn.Repo.events_view?(opts),
+      do: Enum.filter(items, &is_struct(&1, Comn.Events.EventStruct)),
+      else: items
   end
 
   # ---- @behaviour Comn ----
@@ -176,8 +187,8 @@ defmodule Comn.Repo.Queue do
   def recon do
     %{
       callbacks: [:open, :close, :push, :pop, :peek, :size, :find, :remove],
-      backends:  Map.keys(@backends),
-      type:      :facade
+      backends: Map.keys(@backends),
+      type: :facade
     }
   end
 
@@ -186,20 +197,23 @@ defmodule Comn.Repo.Queue do
 
   @impl Comn
   def act(%{action: :open, name: n, opts: o}), do: open(n, o)
-  def act(%{action: :open, name: n}),          do: open(n, [])
-  def act(input),                              do: Comn.unknown_action(input)
+  def act(%{action: :open, name: n}), do: open(n, [])
+  def act(input), do: Comn.unknown_action(input)
 
   # ---- internals ----
 
-  defp resolve_backend(:mem),    do: {:ok, Comn.Repo.Queue.Mem}
+  defp resolve_backend(:mem), do: {:ok, Comn.Repo.Queue.Mem}
   defp resolve_backend(:sqlite), do: {:ok, Comn.Repo.Queue.SQLite}
 
   defp resolve_backend(mod) when is_atom(mod) do
     if Code.ensure_loaded?(mod) and function_exported?(mod, :reserve, 1) do
       {:ok, mod}
     else
-      {:error, ErrReg.error!("repo.queue/invalid_opts",
-                 field: "backend", suggestion: ":mem | :sqlite | implementing module")}
+      {:error,
+       ErrReg.error!("repo.queue/invalid_opts",
+         field: "backend",
+         suggestion: ":mem | :sqlite | implementing module"
+       )}
     end
   end
 
@@ -209,10 +223,12 @@ defmodule Comn.Repo.Queue do
   defp resolve_discipline(d) when d in @disciplines, do: {:ok, d}
 
   defp resolve_discipline(_),
-    do: {:error, ErrReg.error!("repo.queue/invalid_opts",
-            field: "discipline", suggestion: ":fifo | :lifo")}
+    do:
+      {:error,
+       ErrReg.error!("repo.queue/invalid_opts", field: "discipline", suggestion: ":fifo | :lifo")}
 
   defp wrap_backend_error(%_{code: _} = err), do: err
+
   defp wrap_backend_error(reason),
     do: ErrReg.error!("repo.queue/reserve_failed", field: inspect(reason))
 

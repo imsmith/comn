@@ -121,24 +121,34 @@ defmodule Comn.Repo do
   protocol, so a map or tuple is an event by default. Anything the
   protocol rejects is `repo/invalid_event`.
   """
-  @spec fetch_event(keyword()) :: {:ok, Comn.Events.EventStruct.t()} | {:error, Comn.Errors.ErrorStruct.t()}
+  @spec fetch_event(keyword()) ::
+          {:ok, Comn.Events.EventStruct.t()} | {:error, Comn.Errors.ErrorStruct.t()}
   def fetch_event(opts) when is_list(opts) do
     with {:ok, term} <- Keyword.fetch(opts, :event),
          {:ok, %Comn.Events.EventStruct{} = e} <- Comn.Event.to_event(term) do
       {:ok, e}
     else
-      :error -> {:error, Comn.Errors.Registry.error!("repo/invalid_event", message: "missing :event option")}
-      {:error, _} -> {:error, Comn.Errors.Registry.error!("repo/invalid_event", field: inspect(Keyword.get(opts, :event)))}
+      :error ->
+        {:error,
+         Comn.Errors.Registry.error!("repo/invalid_event", message: "missing :event option")}
+
+      {:error, _} ->
+        {:error,
+         Comn.Errors.Registry.error!("repo/invalid_event",
+           field: inspect(Keyword.get(opts, :event))
+         )}
     end
   end
 
   @doc "The `repo/event_not_found` error for an event id."
   @spec not_found(term()) :: {:error, Comn.Errors.ErrorStruct.t()}
-  def not_found(id), do: {:error, Comn.Errors.Registry.error!("repo/event_not_found", field: inspect(id))}
+  def not_found(id),
+    do: {:error, Comn.Errors.Registry.error!("repo/event_not_found", field: inspect(id))}
 
   @doc "Encodes an event as one log line (base64 of the external term format)."
   @spec encode_line(Comn.Events.EventStruct.t()) :: binary()
-  def encode_line(%Comn.Events.EventStruct{} = e), do: Base.encode64(:erlang.term_to_binary(e)) <> "\n"
+  def encode_line(%Comn.Events.EventStruct{} = e),
+    do: Base.encode64(:erlang.term_to_binary(e)) <> "\n"
 
   @doc "Decodes a line written by `encode_line/1`; nil for anything else."
   @spec decode_line(binary()) :: Comn.Events.EventStruct.t() | nil
@@ -154,7 +164,8 @@ defmodule Comn.Repo do
   end
 
   @impl Comn
-  def look, do: "Repo — common I/O behaviour for data repositories (tables, files, graphs, commands)"
+  def look,
+    do: "Repo — common I/O behaviour for data repositories (tables, files, graphs, commands)"
 
   @impl Comn
   def recon do
@@ -169,7 +180,14 @@ defmodule Comn.Repo do
   def choices do
     %{
       extensions: ["Table", "File", "Graphs", "Cmd"],
-      implementations: ["Table.ETS", "File.Local", "File.NFS", "File.IPFS", "Graphs.Graph", "Cmd.Shell"]
+      implementations: [
+        "Table.ETS",
+        "File.Local",
+        "File.NFS",
+        "File.IPFS",
+        "Graphs.Graph",
+        "Cmd.Shell"
+      ]
     }
   end
 

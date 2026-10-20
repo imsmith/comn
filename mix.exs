@@ -13,7 +13,11 @@ defmodule Comn.MixProject do
       name: "Comn",
       docs: [
         main: "readme",
-        extras: ["README.md", "guides/design.md", "docs/adr/0001-every-repo-shape-is-an-event-sink.md"]
+        extras: [
+          "README.md",
+          "guides/design.md",
+          "docs/adr/0001-every-repo-shape-is-an-event-sink.md"
+        ]
       ],
       dialyzer: [plt_add_apps: [:mix]]
     ]
@@ -37,7 +41,6 @@ defmodule Comn.MixProject do
       {:ecto_sqlite3, "~> 0.21", only: :test},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
-      {:igniter, "~> 0.8", optional: true},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]

@@ -51,7 +51,8 @@ defmodule Comn.Repo.File.IPFS do
     end
   end
 
-  @spec load(Comn.Repo.File.handle(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
+  @spec load(Comn.Repo.File.handle(), keyword()) ::
+          {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def load(fs, opts \\ [])
 
@@ -69,7 +70,9 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def load(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected open")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected open")}
 
   @spec stream(Comn.Repo.File.handle(), keyword()) :: {:ok, Enumerable.t()} | {:error, term()}
   @impl Comn.Repo.File
@@ -97,7 +100,9 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def stream(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   @spec cast(Comn.Repo.File.handle(), keyword()) :: :ok | {:error, term()}
   @impl Comn.Repo.File
@@ -110,14 +115,21 @@ defmodule Comn.Repo.File.IPFS do
            params: [arg: topic],
            body: buffer || ""
          ) do
-      {:ok, %{status: 200}} -> :ok
-      {:ok, %{status: status, body: _body}} -> {:error, ErrReg.error!("repo.file/ipfs_error", message: "IPFS returned #{status}")}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{status: 200}} ->
+        :ok
+
+      {:ok, %{status: status, body: _body}} ->
+        {:error, ErrReg.error!("repo.file/ipfs_error", message: "IPFS returned #{status}")}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   def cast(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   @spec read(Comn.Repo.File.handle(), keyword()) :: {:ok, binary()} | {:error, term()}
   @impl Comn.Repo.File
@@ -128,9 +140,12 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def read(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
-  @spec write(Comn.Repo.File.handle(), iodata(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
+  @spec write(Comn.Repo.File.handle(), iodata(), keyword()) ::
+          {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def write(fs, data, opts \\ [])
 
@@ -151,7 +166,9 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def write(%FileStruct{state: state}, _data, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   @spec close(Comn.Repo.File.handle(), keyword()) :: :ok | {:error, term()}
   @impl Comn.Repo.File
@@ -162,7 +179,11 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def close(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected open or loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state",
+         message: "handle is #{state}, expected open or loaded"
+       )}
 
   # Comn.Repo callbacks
 
@@ -177,7 +198,9 @@ defmodule Comn.Repo.File.IPFS do
   def get(%FileStruct{state: :loaded, buffer: buffer}, _opts), do: {:ok, buffer}
 
   def get(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   @spec set(Comn.Repo.resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
   @impl Comn.Repo
@@ -187,15 +210,22 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def set(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   @spec delete(Comn.Repo.resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
   @impl Comn.Repo
   def delete(%FileStruct{path: cid, metadata: %{api: api}}, _opts) do
     case Req.post("#{api}/api/v0/pin/rm", params: [arg: cid]) do
-      {:ok, %{status: 200}} -> :ok
-      {:ok, %{status: status, body: _body}} -> {:error, ErrReg.error!("repo.file/ipfs_error", message: "IPFS returned #{status}")}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{status: 200}} ->
+        :ok
+
+      {:ok, %{status: status, body: _body}} ->
+        {:error, ErrReg.error!("repo.file/ipfs_error", message: "IPFS returned #{status}")}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -206,7 +236,9 @@ defmodule Comn.Repo.File.IPFS do
   end
 
   def observe(%FileStruct{state: state}, _opts),
-    do: {:error, ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
+    do:
+      {:error,
+       ErrReg.error!("repo.file/invalid_state", message: "handle is #{state}, expected loaded")}
 
   # Comn callbacks
 

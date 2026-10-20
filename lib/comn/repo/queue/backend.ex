@@ -7,7 +7,7 @@ defmodule Comn.Repo.Queue.Backend do
 
   @type state :: term()
   @type token :: term()
-  @type item  :: term()
+  @type item :: term()
 
   @callback open(name :: term(), opts :: keyword()) ::
               {:ok, state()} | {:error, term()}

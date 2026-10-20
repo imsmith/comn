@@ -105,8 +105,9 @@ defmodule Comn.Secrets.VaultTest do
 
       # Token should NOT appear in LockedBlob
       serialized = :erlang.term_to_binary(locked)
+
       refute serialized =~ key.metadata.vault_token,
-        "Vault token leaked into LockedBlob!"
+             "Vault token leaked into LockedBlob!"
     end
 
     test "container wrap/unwrap with Vault", context do
@@ -159,7 +160,7 @@ defmodule Comn.Secrets.VaultTest do
 
       # All nonces should be unique
       assert length(Enum.uniq(nonces)) == 100,
-        "CRITICAL: Nonce reuse detected in concurrent operations!"
+             "CRITICAL: Nonce reuse detected in concurrent operations!"
 
       # Verify all can be unlocked
       results
@@ -196,8 +197,9 @@ defmodule Comn.Secrets.VaultTest do
 
       # Error should not leak plaintext
       error_string = inspect(result)
+
       refute error_string =~ "secret data",
-        "Plaintext leaked in error message!"
+             "Plaintext leaked in error message!"
     end
 
     test "Vault-specific errors map to standard errors" do

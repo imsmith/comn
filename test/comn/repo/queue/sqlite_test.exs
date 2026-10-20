@@ -20,7 +20,7 @@ defmodule Comn.Repo.Queue.SQLiteTest do
       assert {:ok, :a} = Queue.pop(q2, & &1)
       assert {:ok, :b} = Queue.pop(q2, & &1)
       assert {:ok, :c} = Queue.pop(q2, & &1)
-      assert :empty    = Queue.pop(q2, & &1)
+      assert :empty = Queue.pop(q2, & &1)
     end
 
     test "items survive close/open with reservation reaping", %{tmp_dir: dir} do

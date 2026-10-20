@@ -273,7 +273,12 @@ defmodule Comn.Secrets.Vault do
     url_charlist = String.to_charlist(url)
     body_charlist = String.to_charlist(body)
 
-    case :httpc.request(:post, {url_charlist, headers, ~c"application/json", body_charlist}, [], []) do
+    case :httpc.request(
+           :post,
+           {url_charlist, headers, ~c"application/json", body_charlist},
+           [],
+           []
+         ) do
       {:ok, {{_, 200, _}, _headers, response_body}} ->
         {:ok, to_string(response_body)}
 
@@ -318,7 +323,8 @@ defmodule Comn.Secrets.Vault do
   # Comn callbacks
 
   @impl Comn
-  def look, do: "Secrets.Vault — HashiCorp Vault Transit engine backend, key material never leaves Vault"
+  def look,
+    do: "Secrets.Vault — HashiCorp Vault Transit engine backend, key material never leaves Vault"
 
   @impl Comn
   def recon do
