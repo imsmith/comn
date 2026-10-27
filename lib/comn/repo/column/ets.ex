@@ -44,6 +44,8 @@ defmodule Comn.Repo.Column.ETS do
 
   @doc "Creates a new column store. Returns a store handle."
   @spec create(atom()) :: {:ok, t()} | {:error, term()}
+  # sobelow_skip ["DOS.BinToAtom"]
+  # `name` is already an atom; the two derived atoms are bounded by the caller's.
   def create(name) when is_atom(name) do
     rows_table = :"#{name}_rows"
     meta_table = :"#{name}_meta"
@@ -70,6 +72,7 @@ defmodule Comn.Repo.Column.ETS do
     :ok
   end
 
+  # sobelow_skip ["DOS.BinToAtom"]
   def drop(name) when is_atom(name) do
     rows_table = :"#{name}_rows"
 

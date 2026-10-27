@@ -218,7 +218,7 @@ defmodule Comn.Repo.Merkel do
   # ponytail: content is ETF when it came from a term and raw otherwise; a raw
   # binary that happens to be valid ETF would decode. Tag the encoding if that bites.
   defp from_content(content) do
-    :erlang.binary_to_term(content, [:safe])
+    Comn.Repo.decode_term(content)
   rescue
     ArgumentError -> content
   end

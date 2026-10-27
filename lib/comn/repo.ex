@@ -161,11 +161,24 @@ defmodule Comn.Repo do
   def encode_line(%Comn.Events.EventStruct{} = e),
     do: Base.encode64(:erlang.term_to_binary(e)) <> "\n"
 
+  @doc """
+  Decodes a term a Comn backend wrote with `:erlang.term_to_binary/1`.
+
+  Always `:safe`: no new atoms, no external funs. The bytes come from a
+  medium the backend itself writes (a SQLite file, a JetStream subject, an
+  Ecto column, a log line), which is trusted for structure but not for
+  size; a hostile peer on the same medium can still make a large term.
+  Every backend decodes through here so that trust decision lives once.
+  """
+  @spec decode_term(binary()) :: term()
+  # sobelow_skip ["Misc.BinToTerm"]
+  def decode_term(bin) when is_binary(bin), do: :erlang.binary_to_term(bin, [:safe])
+
   @doc "Decodes a line written by `encode_line/1`; nil for anything else."
   @spec decode_line(binary()) :: Comn.Events.EventStruct.t() | nil
   def decode_line(line) when is_binary(line) do
     with {:ok, bin} <- Base.decode64(String.trim_trailing(line)),
-         %Comn.Events.EventStruct{} = e <- :erlang.binary_to_term(bin, [:safe]) do
+         %Comn.Events.EventStruct{} = e <- decode_term(bin) do
       e
     else
       _ -> nil

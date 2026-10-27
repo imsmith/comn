@@ -125,7 +125,7 @@ defmodule Comn.Repo.Queue.SQLite do
 
       {:ok, row} ->
         [id, payload] = row
-        item = :erlang.binary_to_term(payload)
+        item = Comn.Repo.decode_term(payload)
         now = System.system_time(:millisecond)
         pid_str = inspect(self())
 
@@ -166,7 +166,7 @@ defmodule Comn.Repo.Queue.SQLite do
     sql = "SELECT payload FROM items WHERE reserved_at IS NULL ORDER BY id #{order} LIMIT ?;"
 
     items =
-      db |> fetch_all(sql, [n]) |> Enum.map(fn [payload] -> :erlang.binary_to_term(payload) end)
+      db |> fetch_all(sql, [n]) |> Enum.map(fn [payload] -> Comn.Repo.decode_term(payload) end)
 
     {:reply, items, s}
   end
@@ -199,7 +199,7 @@ defmodule Comn.Repo.Queue.SQLite do
   end
 
   defp match_row(db, [id, payload], _acc, fun, mode) do
-    item = :erlang.binary_to_term(payload)
+    item = Comn.Repo.decode_term(payload)
 
     if fun.(item) do
       if mode == :remove, do: delete_row(db, id)

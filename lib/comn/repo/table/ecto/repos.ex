@@ -39,6 +39,9 @@ if Code.ensure_loaded?(Ecto.Repo) do
       end
     end
 
+    # A repo config file is code, like config/*.exs; the operator who names
+    # the path owns what it evaluates.
+    # sobelow_skip ["RCE.CodeModule"]
     defp load(path) when is_binary(path) do
       case Code.eval_file(path) do
         {cfg, _} when is_list(cfg) or is_map(cfg) ->

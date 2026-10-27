@@ -183,7 +183,7 @@ defmodule Comn.Repo.Stream.SQLite do
 
   defp select_events(db, clause, params) do
     for [offset, blob] <- rows(db, "SELECT offset, event FROM events " <> clause <> ";", params) do
-      {offset, :erlang.binary_to_term(blob, [:safe])}
+      {offset, Comn.Repo.decode_term(blob)}
     end
   end
 

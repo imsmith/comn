@@ -190,7 +190,7 @@ defmodule Comn.Repo.Stream.JetStream do
   def handle_info({:msg, %{body: body} = msg}, %{name: name} = s) do
     case Message.metadata(msg) do
       {:ok, %{stream_seq: seq}} ->
-        Comn.Repo.Stream.notify(name, seq, :erlang.binary_to_term(body, [:safe]))
+        Comn.Repo.Stream.notify(name, seq, Comn.Repo.decode_term(body))
 
       _ ->
         :ok
@@ -251,7 +251,7 @@ defmodule Comn.Repo.Stream.JetStream do
 
   defp fetch_one(%{conn: conn, js: js}, seq) when is_integer(seq) and seq > 0 do
     case JS.get_message(conn, js, %{seq: seq}) do
-      {:ok, %{data: data}} -> {:ok, {seq, :erlang.binary_to_term(data, [:safe])}}
+      {:ok, %{data: data}} -> {:ok, {seq, Comn.Repo.decode_term(data)}}
       {:error, _} -> :missing
     end
   end

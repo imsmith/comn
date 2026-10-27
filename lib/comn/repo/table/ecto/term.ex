@@ -20,7 +20,7 @@ if Code.ensure_loaded?(Ecto.Type) do
     def dump(term), do: {:ok, :erlang.term_to_binary(term, [:deterministic])}
 
     @impl true
-    def load(bin) when is_binary(bin), do: {:ok, :erlang.binary_to_term(bin, [:safe])}
+    def load(bin) when is_binary(bin), do: {:ok, Comn.Repo.decode_term(bin)}
     def load(_), do: :error
   end
 end
