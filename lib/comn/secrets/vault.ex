@@ -30,8 +30,8 @@ defmodule Comn.Secrets.Vault do
   @behaviour Comn
   @behaviour Comn.Secrets
 
-  alias Comn.Secrets.{Key, LockedBlob, Container}
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Secrets.{Container, Key, LockedBlob}
 
   require Logger
 

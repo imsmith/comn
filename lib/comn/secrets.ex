@@ -39,7 +39,7 @@ defmodule Comn.Secrets do
       defmodule MyApp.Secrets.Local do
         @behaviour Comn.Secrets
 
-        alias Comn.Secrets.{LockedBlob, Container, Key}
+        alias Comn.Secrets.{Container, Key, LockedBlob}
 
         @impl true
         def lock(blob, %Key{} = key) when is_binary(blob) do
@@ -70,7 +70,7 @@ defmodule Comn.Secrets do
       end
   """
 
-  alias Comn.Secrets.{LockedBlob, Key}
+  alias Comn.Secrets.{Key, LockedBlob}
 
   @doc """
   Lock (encrypt) a binary blob with a key.

@@ -2,9 +2,9 @@ defmodule Comn.Repo.Batch.MemTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
-  alias Comn.Repo.Batch.Mem, as: Batch
   alias Comn.Errors.ErrorStruct
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Repo.Batch.Mem, as: Batch
 
   setup do
     id = :erlang.unique_integer([:positive])

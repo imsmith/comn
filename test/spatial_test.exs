@@ -26,6 +26,11 @@ defmodule Comn.SpatialTest do
   # Phase 1: Comn.Zone — Structured Locators
   # ==========================================================================
 
+  alias Comn.Contexts.ContextStruct
+  alias Comn.Events.EventStruct
+  alias Comn.Repo.Graphs.Graph
+  alias Comn.Repo.Table.ETS
+
   describe "Comn.Zone struct" do
     @tag :phase1
     test "has realm, region, and locale fields" do
@@ -127,19 +132,19 @@ defmodule Comn.SpatialTest do
     @tag :phase1
     test "new/1 accepts a Comn.Zone struct as zone" do
       zone = Comn.Zone.local()
-      ctx = Comn.Contexts.ContextStruct.new(%{zone: zone})
+      ctx = ContextStruct.new(%{zone: zone})
       assert ctx.zone.realm == :local
     end
 
     @tag :phase1
     test "new/0 defaults zone to Comn.Zone.local()" do
-      ctx = Comn.Contexts.ContextStruct.new()
+      ctx = ContextStruct.new()
       assert ctx.zone.realm == :local
     end
 
     @tag :phase1
     test "string zone is auto-parsed for backwards compatibility" do
-      ctx = Comn.Contexts.ContextStruct.new(%{zone: "mesh.home.kitchen"})
+      ctx = ContextStruct.new(%{zone: "mesh.home.kitchen"})
       assert ctx.zone.realm == :mesh
       assert ctx.zone.region == "home"
       assert ctx.zone.locale == "kitchen"
@@ -178,7 +183,7 @@ defmodule Comn.SpatialTest do
   describe "EventStruct topic spatial addressing" do
     @tag :phase1
     test "flat topic string still works unchanged" do
-      event = Comn.Events.EventStruct.new(:test, "media.playback.started", %{})
+      event = EventStruct.new(:test, "media.playback.started", %{})
       assert event.topic == "media.playback.started"
     end
   end
@@ -200,36 +205,36 @@ defmodule Comn.SpatialTest do
   describe "Graphs.Graph spatial verbs" do
     @tag :phase2
     test "enter/2 sets traversal position" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :room_b)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
       zone = Comn.Zone.new(realm: :local, locale: "room_a")
-      assert {:ok, _context} = Comn.Repo.Graphs.Graph.enter(gs, zone)
+      assert {:ok, _context} = Graph.enter(gs, zone)
     end
 
     @tag :phase2
     test "discover/2 returns adjacent nodes" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :room_b)
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :room_c)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
+      {:ok, gs} = Graph.link(gs, :room_a, :room_c)
       zone = Comn.Zone.new(realm: :local, locale: "room_a")
-      assert {:ok, discovered} = Comn.Repo.Graphs.Graph.discover(gs, zone)
+      assert {:ok, discovered} = Graph.discover(gs, zone)
       assert length(discovered) == 2
     end
 
     @tag :phase2
     test "exit/2 clears traversal position" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :room_b)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
       zone = Comn.Zone.new(realm: :local, locale: "room_a")
-      {:ok, _} = Comn.Repo.Graphs.Graph.enter(gs, zone)
-      assert :ok = Comn.Repo.Graphs.Graph.exit(gs, zone)
+      {:ok, _} = Graph.enter(gs, zone)
+      assert :ok = Graph.exit(gs, zone)
     end
 
     @tag :phase2
     test "enter nonexistent zone returns error" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
+      {:ok, gs} = Graph.create()
       zone = Comn.Zone.new(realm: :local, locale: "nowhere")
-      assert {:error, _} = Comn.Repo.Graphs.Graph.enter(gs, zone)
+      assert {:error, _} = Graph.enter(gs, zone)
     end
   end
 
@@ -310,36 +315,36 @@ defmodule Comn.SpatialTest do
   describe "spatial traverse" do
     @tag :phase4
     test "traverse/4 returns destination zone and path" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :hallway)
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :hallway, :room_b)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :room_a, :hallway)
+      {:ok, gs} = Graph.link(gs, :hallway, :room_b)
 
       from = Comn.Zone.new(realm: :local, locale: "room_a")
-      {:ok, dest, path} = Comn.Repo.Graphs.Graph.traverse(gs, from, :room_b, [])
+      {:ok, dest, path} = Graph.traverse(gs, from, :room_b, [])
       assert dest.locale in ["room_b", :room_b]
       assert length(path) >= 2
     end
 
     @tag :phase4
     test "traverse updates process context zone" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :room_b)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
 
       from = Comn.Zone.new(realm: :local, locale: "room_a")
       Comn.Contexts.new(%{zone: from})
 
-      {:ok, dest, _path} = Comn.Repo.Graphs.Graph.traverse(gs, from, :room_b, [])
+      {:ok, dest, _path} = Graph.traverse(gs, from, :room_b, [])
       assert Comn.Contexts.fetch(:zone) == dest
     end
 
     @tag :phase4
     test "traverse to unreachable node returns error" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :room_a, :room_b)
-      {:ok, gs} = Comn.Repo.Graphs.Graph.set(gs, vertex: :island)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
+      {:ok, gs} = Graph.set(gs, vertex: :island)
 
       from = Comn.Zone.new(realm: :local, locale: "room_a")
-      assert {:error, _} = Comn.Repo.Graphs.Graph.traverse(gs, from, :island, [])
+      assert {:error, _} = Graph.traverse(gs, from, :island, [])
     end
   end
 
@@ -360,21 +365,21 @@ defmodule Comn.SpatialTest do
 
     @tag :phase1
     test "existing Graph traverse/2 still works" do
-      {:ok, gs} = Comn.Repo.Graphs.Graph.create()
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :a, :b)
-      {:ok, gs} = Comn.Repo.Graphs.Graph.link(gs, :b, :c)
+      {:ok, gs} = Graph.create()
+      {:ok, gs} = Graph.link(gs, :a, :b)
+      {:ok, gs} = Graph.link(gs, :b, :c)
 
       assert {:ok, [:a, :b, :c]} =
-               Comn.Repo.Graphs.Graph.traverse(gs, type: :shortest_path, from: :a, to: :c)
+               Graph.traverse(gs, type: :shortest_path, from: :a, to: :c)
     end
 
     @tag :phase2
     test "non-spatial repos still work normally" do
       table = :"compat_#{:erlang.unique_integer([:positive])}"
-      {:ok, _} = Comn.Repo.Table.ETS.create(table)
-      :ok = Comn.Repo.Table.ETS.set(table, key: "k", value: "v")
-      assert {:ok, "v"} = Comn.Repo.Table.ETS.get(table, key: "k")
-      Comn.Repo.Table.ETS.drop(table)
+      {:ok, _} = ETS.create(table)
+      :ok = ETS.set(table, key: "k", value: "v")
+      assert {:ok, "v"} = ETS.get(table, key: "k")
+      ETS.drop(table)
     end
   end
 end

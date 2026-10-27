@@ -2,8 +2,8 @@ defmodule Comn.EtsLifecycleTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
-  alias Comn.Repo.Table.ETS
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.Table.ETS
 
   describe "table ownership" do
     test "table survives across calls (no process ownership issue)" do

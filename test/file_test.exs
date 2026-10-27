@@ -1,8 +1,8 @@
 defmodule Comn.Repo.File.LocalTest do
   use ExUnit.Case, async: true
 
-  alias Comn.Repo.File.{Local, FileStruct}
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.File.{FileStruct, Local}
 
   @tmp_dir System.tmp_dir!()
 
@@ -134,7 +134,7 @@ end
 defmodule Comn.Repo.File.NFSTest do
   use ExUnit.Case, async: true
 
-  alias Comn.Repo.File.{NFS, FileStruct}
+  alias Comn.Repo.File.{FileStruct, NFS}
 
   @tmp_dir System.tmp_dir!()
 
@@ -178,8 +178,8 @@ end
 defmodule Comn.Repo.File.IPFSTest do
   use ExUnit.Case, async: true
 
-  alias Comn.Repo.File.{IPFS, FileStruct}
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.File.{FileStruct, IPFS}
 
   @moduletag :ipfs
 

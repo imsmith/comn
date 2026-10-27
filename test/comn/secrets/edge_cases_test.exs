@@ -3,7 +3,7 @@ defmodule Comn.Secrets.EdgeCasesTest do
   use ExUnit.Case, async: true
 
   alias Comn.Errors.ErrorStruct
-  alias Comn.Secrets.{Local, Key, LockedBlob}
+  alias Comn.Secrets.{Key, Local, LockedBlob}
 
   setup do
     {pub, priv} = :crypto.generate_key(:eddsa, :ed25519)

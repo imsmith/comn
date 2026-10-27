@@ -28,8 +28,8 @@ defmodule Comn.Repo.Graphs.Graph do
       "Graphs.Graph — libgraph-backed directed/undirected graph with traversal"
   """
 
-  alias Comn.Repo.Graphs.GraphStruct
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Repo.Graphs.GraphStruct
   alias Comn.Zone
 
   @behaviour Comn

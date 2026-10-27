@@ -15,8 +15,8 @@ defmodule Comn.Repo.File.Local do
       iex> %{backend: :local_fs} = Comn.Repo.File.Local.recon()
   """
 
-  alias Comn.Repo.File.FileStruct
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Repo.File.FileStruct
 
   @behaviour Comn
   @behaviour Comn.Repo

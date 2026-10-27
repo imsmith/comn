@@ -2,9 +2,9 @@ defmodule Comn.ErrorsTest do
   @moduledoc false
   use ExUnit.Case, async: true
 
+  alias Comn.Error
   alias Comn.Errors
   alias Comn.Errors.ErrorStruct
-  alias Comn.Error
 
   describe "ErrorStruct" do
     test "new/4 creates a struct with all fields" do

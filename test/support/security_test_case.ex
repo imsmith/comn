@@ -19,7 +19,7 @@ defmodule Comn.Secrets.SecurityTestCase do
     quote bind_quoted: [implementation: implementation] do
       import Bitwise
       alias Comn.Errors.ErrorStruct
-      alias Comn.Secrets.{Key, LockedBlob, Container}
+      alias Comn.Secrets.{Container, Key, LockedBlob}
 
       describe "key validation (see features/key_validation.feature)" do
         test "rejects Ed25519 key with wrong private key size" do

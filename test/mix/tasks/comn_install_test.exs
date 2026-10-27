@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Comn.InstallTest do
+  alias Mix.Tasks.Comn.Install
+
   @moduledoc false
   use ExUnit.Case, async: false
 
@@ -14,7 +16,7 @@ defmodule Mix.Tasks.Comn.InstallTest do
 
   test "generates plug and registry, skips existing files, prints the manual edits" do
     File.cd!(@tmp, fn ->
-      Mix.Tasks.Comn.Install.run(["--name", "demo"])
+      Install.run(["--name", "demo"])
 
       assert File.read!("lib/demo_web/plugs/context.ex") =~ "defmodule DemoWeb.Plugs.Context"
       assert File.read!("lib/demo/errors.ex") =~ "use Comn.Errors.Registry"
@@ -22,14 +24,14 @@ defmodule Mix.Tasks.Comn.InstallTest do
       assert msg =~ "plug DemoWeb.Plugs.Context"
 
       File.write!("lib/demo/errors.ex", "keep")
-      Mix.Tasks.Comn.Install.run(["--name", "demo"])
+      Install.run(["--name", "demo"])
       assert File.read!("lib/demo/errors.ex") == "keep"
     end)
   end
 
   test "--no-context-plug and --no-error-registry suppress their files" do
     File.cd!(@tmp, fn ->
-      Mix.Tasks.Comn.Install.run(["--name", "demo", "--no-context-plug", "--no-error-registry"])
+      Install.run(["--name", "demo", "--no-context-plug", "--no-error-registry"])
       refute File.exists?("lib/demo_web/plugs/context.ex")
       refute File.exists?("lib/demo/errors.ex")
     end)

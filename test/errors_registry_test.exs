@@ -24,8 +24,9 @@ defmodule Comn.Errors.RegistryTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
-  alias Comn.Errors.Registry
   alias Comn.Errors.ErrorStruct
+  alias Comn.Errors.Registry
+  alias Comn.Test.SampleErrors
 
   setup do
     # Ensure Comn's codes and sample codes are all registered.
@@ -66,7 +67,7 @@ defmodule Comn.Errors.RegistryTest do
     test "valid codes compile" do
       # These are already compiled in Comn.Test.SampleErrors above:
       # "auth/invalid_token", "auth/forbidden", "repo/not_found", "input/bad_format"
-      assert length(Comn.Test.SampleErrors.__errors__()) == 4
+      assert length(SampleErrors.__errors__()) == 4
     end
 
     test "invalid codes raise CompileError" do
@@ -246,7 +247,7 @@ defmodule Comn.Errors.RegistryTest do
 
   describe "__errors__/0 on declaring module" do
     test "generated function returns the error list" do
-      errors = Comn.Test.SampleErrors.__errors__()
+      errors = SampleErrors.__errors__()
       assert is_list(errors)
       assert length(errors) == 4
       codes = Enum.map(errors, & &1.code) |> Enum.sort()

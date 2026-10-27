@@ -6,6 +6,7 @@ defmodule Comn.BehaviourTest do
 
   use ExUnit.Case, async: true
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.Table.ETS
 
   @all_modules [
     # Behaviours
@@ -151,22 +152,22 @@ defmodule Comn.BehaviourTest do
   describe "ETS act/1 dispatches real operations" do
     setup do
       table = :"act_test_#{:erlang.unique_integer([:positive])}"
-      {:ok, _} = Comn.Repo.Table.ETS.create(table)
-      on_exit(fn -> Comn.Repo.Table.ETS.drop(table) end)
+      {:ok, _} = ETS.create(table)
+      on_exit(fn -> ETS.drop(table) end)
       %{table: table}
     end
 
     test "act :set and :get", %{table: table} do
-      assert :ok = Comn.Repo.Table.ETS.act(%{action: :set, name: table, key: "k", value: "v"})
-      assert {:ok, "v"} = Comn.Repo.Table.ETS.act(%{action: :get, name: table, key: "k"})
+      assert :ok = ETS.act(%{action: :set, name: table, key: "k", value: "v"})
+      assert {:ok, "v"} = ETS.act(%{action: :get, name: table, key: "k"})
     end
 
     test "act :delete", %{table: table} do
-      Comn.Repo.Table.ETS.act(%{action: :set, name: table, key: "d", value: "val"})
-      assert :ok = Comn.Repo.Table.ETS.act(%{action: :delete, name: table, key: "d"})
+      ETS.act(%{action: :set, name: table, key: "d", value: "val"})
+      assert :ok = ETS.act(%{action: :delete, name: table, key: "d"})
 
       assert {:error, %Comn.Errors.ErrorStruct{code: "repo.table/not_found"}} =
-               Comn.Repo.Table.ETS.act(%{action: :get, name: table, key: "d"})
+               ETS.act(%{action: :get, name: table, key: "d"})
     end
   end
 end

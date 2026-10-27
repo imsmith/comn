@@ -20,8 +20,8 @@ defmodule Comn.Secrets.Local do
   @behaviour Comn
   @behaviour Comn.Secrets
 
-  alias Comn.Secrets.{Key, LockedBlob, Container}
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Secrets.{Container, Key, LockedBlob}
 
   @impl true
   def lock(blob, %Key{} = key) when is_binary(blob) do

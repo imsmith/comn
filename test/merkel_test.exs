@@ -17,6 +17,7 @@ defmodule Comn.MerkelTest do
   doctest Comn.Repo.Merkel
   doctest Comn.Merkel
 
+  alias Comn.Events.EventStruct
   alias Comn.Repo.Merkel
 
   defp fresh_name, do: :"merkel_#{:erlang.unique_integer([:positive])}"
@@ -57,15 +58,15 @@ defmodule Comn.MerkelTest do
   describe "Comn.Merkel protocol" do
     @tag :merkel_phase1
     test "to_content/1 is deterministic for equal terms" do
-      e = Comn.Events.EventStruct.new(:test, "proto", %{a: 1, b: 2})
+      e = EventStruct.new(:test, "proto", %{a: 1, b: 2})
       assert Comn.Merkel.to_content(e) == Comn.Merkel.to_content(e)
       assert is_binary(Comn.Merkel.to_content(e))
     end
 
     @tag :merkel_phase1
     test "to_content/1 differs for different terms" do
-      a = Comn.Events.EventStruct.new(:test, "proto", %{n: 1})
-      b = Comn.Events.EventStruct.new(:test, "proto", %{n: 2})
+      a = EventStruct.new(:test, "proto", %{n: 1})
+      b = EventStruct.new(:test, "proto", %{n: 2})
       refute Comn.Merkel.to_content(a) == Comn.Merkel.to_content(b)
     end
 

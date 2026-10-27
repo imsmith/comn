@@ -2,8 +2,8 @@ defmodule Comn.Repo.Column.ETSTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
-  alias Comn.Repo.Column.ETS, as: Col
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.Column.ETS, as: Col
 
   @schema %{ts: :datetime, host: :string, cpu: :float, mem: :float}
 

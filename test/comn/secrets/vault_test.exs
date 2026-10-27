@@ -2,6 +2,7 @@ defmodule Comn.Secrets.VaultTest do
   use ExUnit.Case
 
   alias Comn.Secrets.{Key, LockedBlob, Vault}
+  alias Comn.Secrets.Local
 
   # Only include SecurityTestCase when Vault is configured
   # SecurityTestCase tests require actual Vault encryption operations
@@ -19,6 +20,7 @@ defmodule Comn.Secrets.VaultTest do
     setup _context do
       # Skip if Vault is not configured
       vault_addr = System.get_env("VAULT_ADDR") || "http://localhost:8200"
+
       # live Vault token for integration tests; this file exercises the Comn.Secrets backend itself.
       # credo:disable-for-next-line Comn.Credo.SecretFromEnv
       vault_token = System.get_env("VAULT_TOKEN")
@@ -236,6 +238,7 @@ defmodule Comn.Secrets.VaultTest do
   describe "backend interoperability (see features/backend_interoperability.feature)" do
     setup _context do
       vault_addr = System.get_env("VAULT_ADDR") || "http://localhost:8200"
+
       # live Vault token for integration tests; this file exercises the Comn.Secrets backend itself.
       # credo:disable-for-next-line Comn.Credo.SecretFromEnv
       vault_token = System.get_env("VAULT_TOKEN")
@@ -268,7 +271,7 @@ defmodule Comn.Secrets.VaultTest do
       plaintext = "secret data"
 
       # Lock with both backends
-      assert {:ok, local_locked} = Comn.Secrets.Local.lock(plaintext, key)
+      assert {:ok, local_locked} = Local.lock(plaintext, key)
       assert {:ok, vault_locked} = Vault.lock(plaintext, key)
 
       # Both should return same struct type
@@ -281,7 +284,7 @@ defmodule Comn.Secrets.VaultTest do
       assert local_fields == vault_fields
 
       # Both should unlock to same plaintext
-      assert {:ok, ^plaintext} = Comn.Secrets.Local.unlock(local_locked, key)
+      assert {:ok, ^plaintext} = Local.unlock(local_locked, key)
       assert {:ok, ^plaintext} = Vault.unlock(vault_locked, key)
     end
 
@@ -297,7 +300,7 @@ defmodule Comn.Secrets.VaultTest do
       }
 
       # Both backends should return same error
-      assert {:error, :invalid_key} = Comn.Secrets.Local.lock("data", invalid_key)
+      assert {:error, :invalid_key} = Local.lock("data", invalid_key)
       assert {:error, :invalid_key} = Vault.lock("data", invalid_key)
     end
   end

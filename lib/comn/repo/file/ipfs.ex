@@ -16,8 +16,8 @@ defmodule Comn.Repo.File.IPFS do
       iex> %{content_addressed: true} = Comn.Repo.File.IPFS.recon()
   """
 
-  alias Comn.Repo.File.FileStruct
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Repo.File.FileStruct
 
   @behaviour Comn
   @behaviour Comn.Repo

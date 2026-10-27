@@ -7,6 +7,8 @@ defmodule Comn.Repo.QueueHelpers do
   backend they're using.
   """
 
+  alias Comn.Repo.Queue
+
   @doc """
   Opens a queue against the given backend, registers an `on_exit`
   cleanup, and returns the handle. Use `tmp_dir` from ExUnit
@@ -26,7 +28,7 @@ defmodule Comn.Repo.QueueHelpers do
           [backend: :sqlite, discipline: discipline, path: path]
       end
 
-    {:ok, q} = Comn.Repo.Queue.open(name, open_opts)
+    {:ok, q} = Queue.open(name, open_opts)
     q
   end
 end

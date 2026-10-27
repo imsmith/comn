@@ -1,9 +1,9 @@
 defmodule Comn.ContextsTest do
   use ExUnit.Case, async: true
 
+  alias Comn.Context
   alias Comn.Contexts
   alias Comn.Contexts.ContextStruct
-  alias Comn.Context
 
   describe "ContextStruct" do
     test "new/0 creates an empty context" do

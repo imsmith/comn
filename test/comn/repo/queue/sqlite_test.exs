@@ -4,6 +4,7 @@ defmodule Comn.Repo.Queue.SQLiteTest do
   @moduletag :tmp_dir
 
   alias Comn.Repo.Queue
+  alias Comn.Repo.Queue.SQLite
   import Comn.Repo.QueueHelpers
 
   describe "FIFO sqlite queue" do
@@ -33,7 +34,7 @@ defmodule Comn.Repo.Queue.SQLiteTest do
       # backend GenServer while a reservation is held. Easiest path is to
       # call reserve directly via the backend.
       %Comn.Repo.Queue.Handle{state: pid} = q
-      assert {:ok, {_token, :keep_me}} = Comn.Repo.Queue.SQLite.reserve(pid)
+      assert {:ok, {_token, :keep_me}} = SQLite.reserve(pid)
       Process.unlink(pid)
       Process.exit(pid, :kill)
       Process.sleep(50)

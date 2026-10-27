@@ -16,8 +16,8 @@ defmodule Comn.Repo.File.NFS do
       iex> %{delegates_to: Comn.Repo.File.Local} = Comn.Repo.File.NFS.recon()
   """
 
-  alias Comn.Repo.File.{Local, FileStruct}
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Repo.File.{FileStruct, Local}
 
   @behaviour Comn
   @behaviour Comn.Repo

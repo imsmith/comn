@@ -5,6 +5,9 @@ defmodule Comn.Secrets.LocalTest do
   # All 20 security tests are automatically included from SecurityTestCase
 
   # Add implementation-specific tests here
+
+  alias Comn.Secrets.Local
+
   describe "Local implementation specifics" do
     test "uses ChaCha20-Poly1305 cipher" do
       {pub, priv} = :crypto.generate_key(:eddsa, :ed25519)
@@ -16,7 +19,7 @@ defmodule Comn.Secrets.LocalTest do
         private: priv
       }
 
-      {:ok, locked} = Comn.Secrets.Local.lock("test data", key)
+      {:ok, locked} = Local.lock("test data", key)
 
       assert locked.cipher == :chacha20_poly1305
     end
@@ -31,7 +34,7 @@ defmodule Comn.Secrets.LocalTest do
         private: priv
       }
 
-      {:ok, locked} = Comn.Secrets.Local.lock("test data", key)
+      {:ok, locked} = Local.lock("test data", key)
 
       assert byte_size(locked.nonce) == 12
     end
@@ -46,7 +49,7 @@ defmodule Comn.Secrets.LocalTest do
         private: priv
       }
 
-      {:ok, locked} = Comn.Secrets.Local.lock("test data", key)
+      {:ok, locked} = Local.lock("test data", key)
 
       assert Map.has_key?(locked.metadata, :created_at)
       assert Map.has_key?(locked.metadata, :algorithm)

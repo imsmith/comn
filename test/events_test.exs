@@ -1,10 +1,10 @@
 defmodule Comn.EventsTest do
   use ExUnit.Case, async: true
 
-  alias Comn.Events.EventStruct
   alias Comn.Event
   alias Comn.EventBus
   alias Comn.EventLog
+  alias Comn.Events.EventStruct
 
   describe "EventStruct" do
     test "new/3 creates an event with timestamp" do

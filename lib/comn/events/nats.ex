@@ -30,8 +30,8 @@ defmodule Comn.Events.NATS do
 
   @behaviour Comn
 
-  alias Comn.Events.EventStruct
   alias Comn.EventBus
+  alias Comn.Events.EventStruct
 
   # Client API
 

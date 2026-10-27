@@ -1,8 +1,10 @@
 defmodule Comn.Repo.Graphs.BehaviourTest do
   use ExUnit.Case, async: true
 
+  alias Comn.Repo.Graphs
+
   test "Comn.Repo.Graphs behaviour defines link/unlink/traverse" do
-    callbacks = Comn.Repo.Graphs.behaviour_info(:callbacks)
+    callbacks = Graphs.behaviour_info(:callbacks)
     assert {:link, 4} in callbacks
     assert {:unlink, 4} in callbacks
     assert {:traverse, 2} in callbacks
@@ -12,8 +14,8 @@ end
 defmodule Comn.Repo.Graphs.GraphTest do
   use ExUnit.Case, async: true
 
-  alias Comn.Repo.Graphs.{Graph, GraphStruct}
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.Graphs.{Graph, GraphStruct}
 
   describe "create" do
     test "creates a directed graph by default" do

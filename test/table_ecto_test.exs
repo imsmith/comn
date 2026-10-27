@@ -26,7 +26,9 @@ defmodule Comn.TableEctoTest do
 
   alias Comn.Events.EventStruct
   alias Comn.Repo.Table
+  alias Comn.Repo.Table.Ecto, as: EctoTable
   alias Comn.Test.SessionRow
+  alias Ecto.Adapters.SQL
 
   @topic "comn.repo.table"
 
@@ -44,8 +46,8 @@ defmodule Comn.TableEctoTest do
 
   defp table_exists?(t, source) do
     {:ok, %{rows: rows}} =
-      Comn.Repo.Table.Ecto.repo(t.state)
-      |> Ecto.Adapters.SQL.query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [
+      EctoTable.repo(t.state)
+      |> SQL.query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [
         source
       ])
 
@@ -62,7 +64,7 @@ defmodule Comn.TableEctoTest do
     @tag :table_phase2
     test "a keyword config builds and starts a repo for that adapter", %{tmp_dir: dir} do
       {:ok, t} = Table.open(fresh_name(), backend: :ecto, ecto: sqlite(dir))
-      repo = Comn.Repo.Table.Ecto.repo(t.state)
+      repo = EctoTable.repo(t.state)
       assert is_pid(Process.whereis(repo))
       assert repo.__adapter__() == Ecto.Adapters.SQLite3
       Table.drop(t)
@@ -72,7 +74,7 @@ defmodule Comn.TableEctoTest do
     test "the same config yields the same running repo", %{tmp_dir: dir} do
       {:ok, a} = Table.open(fresh_name(), backend: :ecto, ecto: sqlite(dir))
       {:ok, b} = Table.open(fresh_name(), backend: :ecto, ecto: sqlite(dir))
-      assert Comn.Repo.Table.Ecto.repo(a.state) == Comn.Repo.Table.Ecto.repo(b.state)
+      assert EctoTable.repo(a.state) == EctoTable.repo(b.state)
       Table.drop(a)
       Table.drop(b)
     end

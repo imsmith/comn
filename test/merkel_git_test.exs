@@ -16,6 +16,7 @@ defmodule Comn.MerkelGitTest do
   use Comn.EventSinkConformance, backend: Comn.Repo.Merkel
 
   alias Comn.Repo.Merkel
+  alias Comn.Repo.Merkel.Git
 
   defp fresh_name, do: :"merkel_git_#{:erlang.unique_integer([:positive])}"
 
@@ -30,7 +31,7 @@ defmodule Comn.MerkelGitTest do
   # Corrupt the loose object file for the commit's blob so git refuses to read it.
   def tamper(%Merkel.Handle{} = m, address) do
     {:ok, %Merkel.Node{} = node} = Merkel.node(m, address)
-    path = Comn.Repo.Merkel.Git.object_path(m.state, node.content_address)
+    path = Git.object_path(m.state, node.content_address)
     File.chmod!(path, 0o644)
     File.write!(path, "garbage")
     :ok

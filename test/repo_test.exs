@@ -14,8 +14,8 @@ end
 defmodule Comn.Repo.Table.ETSTest do
   use ExUnit.Case
 
-  alias Comn.Repo.Table.ETS
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.Table.ETS
 
   setup do
     table = :"test_table_#{:erlang.unique_integer([:positive])}"
