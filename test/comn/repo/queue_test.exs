@@ -5,8 +5,8 @@ defmodule Comn.Repo.QueueTest do
   doctest Comn.Repo.Queue
 
   alias Comn.Errors.Registry
+  alias Comn.Repo.Handle
   alias Comn.Repo.Queue
-  alias Comn.Repo.Queue.Handle
 
   setup_all do
     Code.ensure_loaded!(Comn.Repo.Queue.Errors)
@@ -26,7 +26,7 @@ defmodule Comn.Repo.QueueTest do
     end
 
     test "defaults to mem + fifo when only name is given" do
-      assert {:ok, %Handle{backend: Comn.Repo.Queue.Mem, discipline: :fifo}} =
+      assert {:ok, %Handle{backend: Comn.Repo.Queue.Mem, meta: %{discipline: :fifo}}} =
                Queue.open(:default_test)
     end
   end

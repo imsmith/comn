@@ -33,12 +33,15 @@ defmodule Comn.Repo.Bus do
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Events.EventStruct
-  alias Comn.Repo.Bus.Handle
+  alias Comn.Repo.{Handle, Lifecycle}
 
   @typedoc "Opaque bus handle. Treat as a black box."
   @type t :: Handle.t()
 
   @backends %{registry: Comn.Repo.Bus.Registry}
+
+  @impl Comn.Repo
+  def backends, do: @backends
 
   # Subscribers live in the shared Comn.EventBus registry under {:bus, name};
   # the registry value is the subscription's {ref, topic_filter}.
@@ -53,20 +56,16 @@ defmodule Comn.Repo.Bus do
   Errors: `repo.bus/invalid_opts`, `repo.bus/already_exists`.
   """
   @spec open(atom(), keyword()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
-  def open(name, opts \\ []) when is_atom(name) and is_list(opts) do
-    with {:ok, backend} <- resolve_backend(Keyword.get(opts, :backend, :registry)),
-         {:ok, state} <- backend.open(name, opts) do
-      {:ok, %Handle{backend: backend, state: state, name: name}}
-    end
-  end
+  def open(name, opts \\ []) when is_atom(name) and is_list(opts),
+    do: Lifecycle.open(__MODULE__, name, Keyword.put_new(opts, :backend, :registry))
 
   @doc "Releases the handle. Idempotent."
   @spec close(t()) :: :ok
-  def close(%Handle{backend: b, state: s}), do: b.close(s)
+  def close(%Handle{} = h), do: Lifecycle.close(h)
 
   @doc "Closes the bus and releases any backend resources. Idempotent."
   @spec drop(t()) :: :ok
-  def drop(%Handle{backend: b, state: s}), do: b.drop(s)
+  def drop(%Handle{} = h), do: Lifecycle.drop(h)
 
   # ---- bus verbs ----
 
@@ -180,18 +179,4 @@ defmodule Comn.Repo.Bus do
   def act(%{action: :open, name: n, opts: o}), do: open(n, o)
   def act(%{action: :open, name: n}), do: open(n, [])
   def act(input), do: Comn.unknown_action(input)
-
-  # ---- internals ----
-
-  defp resolve_backend(key) when is_map_key(@backends, key), do: {:ok, @backends[key]}
-
-  defp resolve_backend(mod) when is_atom(mod) do
-    if Code.ensure_loaded?(mod) and function_exported?(mod, :publish, 2),
-      do: {:ok, mod},
-      else:
-        {:error,
-         ErrReg.error!("repo.bus/invalid_opts", field: "backend", suggestion: ":registry")}
-  end
-
-  defp resolve_backend(_), do: {:error, ErrReg.error!("repo.bus/invalid_opts", field: "backend")}
 end

@@ -33,7 +33,7 @@ defmodule Comn.Repo.Merkel do
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Events.EventStruct
-  alias Comn.Repo.Merkel.Handle
+  alias Comn.Repo.{Handle, Lifecycle}
   alias Comn.Repo.Merkel.Node
 
   @typedoc "Opaque merkel handle. Treat as a black box."
@@ -43,6 +43,9 @@ defmodule Comn.Repo.Merkel do
   @type address :: String.t()
 
   @backends %{mem: Comn.Repo.Merkel.Mem, git: Comn.Repo.Merkel.Git}
+
+  @impl Comn.Repo
+  def backends, do: @backends
 
   # ---- lifecycle ----
 
@@ -54,20 +57,16 @@ defmodule Comn.Repo.Merkel do
   Errors: `repo.merkel/invalid_opts`, `repo.merkel/already_exists`.
   """
   @spec open(atom(), keyword()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
-  def open(name, opts \\ []) when is_atom(name) and is_list(opts) do
-    with {:ok, backend} <- resolve_backend(Keyword.get(opts, :backend, :mem)),
-         {:ok, state} <- backend.open(name, opts) do
-      {:ok, %Handle{backend: backend, state: state, name: name}}
-    end
-  end
+  def open(name, opts \\ []) when is_atom(name) and is_list(opts),
+    do: Lifecycle.open(__MODULE__, name, Keyword.put_new(opts, :backend, :mem))
 
   @doc "Releases the handle. A durable backend keeps its chain. Idempotent."
   @spec close(t()) :: :ok
-  def close(%Handle{backend: b, state: s}), do: b.close(s)
+  def close(%Handle{} = h), do: Lifecycle.close(h)
 
   @doc "Deletes the merkel and its whole chain. Idempotent."
   @spec drop(t()) :: :ok
-  def drop(%Handle{backend: b, state: s}), do: b.drop(s)
+  def drop(%Handle{} = h), do: Lifecycle.drop(h)
 
   # ---- merkel verbs ----
 
@@ -223,17 +222,4 @@ defmodule Comn.Repo.Merkel do
   rescue
     ArgumentError -> content
   end
-
-  defp resolve_backend(key) when is_map_key(@backends, key), do: {:ok, @backends[key]}
-
-  defp resolve_backend(mod) when is_atom(mod) do
-    if Code.ensure_loaded?(mod) and function_exported?(mod, :put, 2),
-      do: {:ok, mod},
-      else:
-        {:error,
-         ErrReg.error!("repo.merkel/invalid_opts", field: "backend", suggestion: ":mem | :git")}
-  end
-
-  defp resolve_backend(_),
-    do: {:error, ErrReg.error!("repo.merkel/invalid_opts", field: "backend")}
 end

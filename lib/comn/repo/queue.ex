@@ -20,12 +20,15 @@ defmodule Comn.Repo.Queue do
   @behaviour Comn.Repo
 
   alias Comn.Errors.Registry, as: ErrReg
-  alias Comn.Repo.Queue.Handle
+  alias Comn.Repo.{Handle, Lifecycle}
 
   @typedoc "Opaque queue handle. Treat as a black box."
   @type t :: Handle.t()
 
   @backends %{mem: Comn.Repo.Queue.Mem, sqlite: Comn.Repo.Queue.SQLite}
+
+  @impl Comn.Repo
+  def backends, do: @backends
   @disciplines [:fifo, :lifo]
 
   # ---- lifecycle ----
@@ -44,10 +47,9 @@ defmodule Comn.Repo.Queue do
   """
   @spec open(term(), keyword()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
   def open(name, opts \\ []) do
-    with {:ok, backend} <- resolve_backend(Keyword.get(opts, :backend, :mem)),
-         {:ok, discipline} <- resolve_discipline(Keyword.get(opts, :discipline, :fifo)),
-         {:ok, state} <- backend.open(name, opts) do
-      {:ok, %Handle{backend: backend, state: state, name: name, discipline: discipline}}
+    with {:ok, discipline} <- resolve_discipline(Keyword.get(opts, :discipline, :fifo)),
+         {:ok, h} <- Lifecycle.open(__MODULE__, name, Keyword.put_new(opts, :backend, :mem)) do
+      {:ok, %Handle{h | meta: %{discipline: discipline}}}
     else
       {:error, %{code: _} = err} ->
         {:error, err}
@@ -59,7 +61,7 @@ defmodule Comn.Repo.Queue do
 
   @doc "Closes the queue and releases backend resources."
   @spec close(t()) :: :ok
-  def close(%Handle{backend: b, state: s}), do: b.close(s)
+  def close(%Handle{} = h), do: Lifecycle.close(h)
 
   # ---- operations ----
 
@@ -133,7 +135,7 @@ defmodule Comn.Repo.Queue do
   # ---- @behaviour Comn.Repo (ADR-0001: a queue is an event sink) ----
 
   @impl Comn.Repo
-  def describe(%Handle{name: name, discipline: d, backend: b} = q) do
+  def describe(%Handle{name: name, meta: %{discipline: d}, backend: b} = q) do
     {:ok, %{name: name, discipline: d, backend: b, size: size(q)}}
   end
 
@@ -201,24 +203,6 @@ defmodule Comn.Repo.Queue do
   def act(input), do: Comn.unknown_action(input)
 
   # ---- internals ----
-
-  defp resolve_backend(:mem), do: {:ok, Comn.Repo.Queue.Mem}
-  defp resolve_backend(:sqlite), do: {:ok, Comn.Repo.Queue.SQLite}
-
-  defp resolve_backend(mod) when is_atom(mod) do
-    if Code.ensure_loaded?(mod) and function_exported?(mod, :reserve, 1) do
-      {:ok, mod}
-    else
-      {:error,
-       ErrReg.error!("repo.queue/invalid_opts",
-         field: "backend",
-         suggestion: ":mem | :sqlite | implementing module"
-       )}
-    end
-  end
-
-  defp resolve_backend(_),
-    do: {:error, ErrReg.error!("repo.queue/invalid_opts", field: "backend")}
 
   defp resolve_discipline(d) when d in @disciplines, do: {:ok, d}
 

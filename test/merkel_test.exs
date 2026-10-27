@@ -30,7 +30,7 @@ defmodule Comn.MerkelTest do
   def open_sink(ctx), do: open_merkel(ctx)
 
   # :mem keeps nodes in a named ETS table keyed by address
-  def tamper(%Merkel.Handle{state: table}, address) do
+  def tamper(%Comn.Repo.Handle{state: table}, address) do
     [{^address, node}] = :ets.lookup(table, address)
     :ets.insert(table, {address, %{node | content: :erlang.term_to_binary(:tampered)}})
     :ok

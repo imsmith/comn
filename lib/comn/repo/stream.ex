@@ -62,7 +62,7 @@ defmodule Comn.Repo.Stream do
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Events.EventStruct
-  alias Comn.Repo.Stream.Handle
+  alias Comn.Repo.{Handle, Lifecycle}
 
   @typedoc "Opaque stream handle. Treat as a black box."
   @type t :: Handle.t()
@@ -78,6 +78,9 @@ defmodule Comn.Repo.Stream do
     sqlite: Comn.Repo.Stream.SQLite,
     jetstream: Comn.Repo.Stream.JetStream
   }
+
+  @impl Comn.Repo
+  def backends, do: @backends
 
   # Subscribers live in the shared Comn.EventBus registry under {:stream, name}.
   @registry Comn.EventBus
@@ -100,25 +103,21 @@ defmodule Comn.Repo.Stream do
   `repo.stream/backend_error`.
   """
   @spec open(atom(), keyword()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
-  def open(name, opts \\ []) when is_atom(name) and is_list(opts) do
-    with {:ok, backend} <- resolve_backend(Keyword.get(opts, :backend, :mem)),
-         {:ok, state} <- backend.open(name, opts) do
-      {:ok, %Handle{backend: backend, state: state, name: name}}
-    end
-  end
+  def open(name, opts \\ []) when is_atom(name) and is_list(opts),
+    do: Lifecycle.open(__MODULE__, name, Keyword.put_new(opts, :backend, :mem))
 
   @doc "Releases the handle. A durable backend keeps its data. Idempotent."
   @spec close(t()) :: :ok
-  def close(%Handle{backend: b, state: s}), do: b.close(s)
+  def close(%Handle{} = h), do: Lifecycle.close(h)
 
   @doc "Deletes the stream and everything in it. Idempotent."
   @spec drop(t()) :: :ok
-  def drop(%Handle{backend: b, state: s}), do: b.drop(s)
+  def drop(%Handle{} = h), do: Lifecycle.drop(h)
 
   @doc "Child spec for a supervised stream: `{Comn.Repo.Stream, name: n, backend: :sqlite, path: p}`."
   @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
-    {:ok, backend} = resolve_backend(Keyword.get(opts, :backend, :mem))
+    {:ok, backend} = Lifecycle.resolve_backend(__MODULE__, Keyword.get(opts, :backend, :mem))
     %{id: {__MODULE__, Keyword.fetch!(opts, :name)}, start: {backend, :start_link, [opts]}}
   end
 
@@ -283,22 +282,4 @@ defmodule Comn.Repo.Stream do
   def act(%{action: :open, name: n, opts: o}), do: open(n, o)
   def act(%{action: :open, name: n}), do: open(n, [])
   def act(input), do: Comn.unknown_action(input)
-
-  # ---- internals ----
-
-  defp resolve_backend(key) when is_map_key(@backends, key), do: {:ok, @backends[key]}
-
-  defp resolve_backend(mod) when is_atom(mod) do
-    if Code.ensure_loaded?(mod) and function_exported?(mod, :append, 2),
-      do: {:ok, mod},
-      else:
-        {:error,
-         ErrReg.error!("repo.stream/invalid_opts",
-           field: "backend",
-           suggestion: ":mem | :sqlite | :jetstream"
-         )}
-  end
-
-  defp resolve_backend(_),
-    do: {:error, ErrReg.error!("repo.stream/invalid_opts", field: "backend")}
 end

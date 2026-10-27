@@ -51,7 +51,7 @@ defmodule Comn.StreamTest do
     @tag :stream_phase1
     test "the handle is opaque and carries the name" do
       {:ok, s} = Stream.open(fresh_name(), backend: :mem)
-      assert %Comn.Repo.Stream.Handle{name: name} = s
+      assert %Comn.Repo.Handle{shape: Comn.Repo.Stream, name: name} = s
       assert is_atom(name)
       Stream.drop(s)
     end

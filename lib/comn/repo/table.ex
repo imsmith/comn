@@ -32,12 +32,15 @@ defmodule Comn.Repo.Table do
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Events.EventStruct
-  alias Comn.Repo.Table.Handle
+  alias Comn.Repo.{Handle, Lifecycle}
 
   @typedoc "Opaque table handle. Treat as a black box."
   @type t :: Handle.t()
 
   @backends %{ets: Comn.Repo.Table.ETSAdapter, ecto: Comn.Repo.Table.Ecto}
+
+  @impl Comn.Repo
+  def backends, do: @backends
 
   # ---- behaviour for direct backends (kept for Comn.Repo.Table.ETS) ----
 
@@ -61,20 +64,16 @@ defmodule Comn.Repo.Table do
   Errors: `repo.table/invalid_opts`, `repo.table/already_exists`.
   """
   @spec open(atom(), keyword()) :: {:ok, t()} | {:error, Comn.Errors.ErrorStruct.t()}
-  def open(name, opts \\ []) when is_atom(name) and is_list(opts) do
-    with {:ok, backend} <- resolve_backend(Keyword.get(opts, :backend, :ets)),
-         {:ok, state} <- backend.open(name, opts) do
-      {:ok, %Handle{backend: backend, state: state, name: name}}
-    end
-  end
+  def open(name, opts \\ []) when is_atom(name) and is_list(opts),
+    do: Lifecycle.open(__MODULE__, name, Keyword.put_new(opts, :backend, :ets))
 
   @doc "Releases the handle. A durable backend keeps its data. Idempotent."
   @spec close(t()) :: :ok
-  def close(%Handle{backend: b, state: s}), do: b.close(s)
+  def close(%Handle{} = h), do: Lifecycle.close(h)
 
   @doc "Deletes the table and its data. Idempotent."
   @spec drop(t()) :: :ok
-  def drop(%Handle{backend: b, state: s}), do: b.drop(s)
+  def drop(%Handle{} = h), do: Lifecycle.drop(h)
 
   # ---- key-value verbs ----
 
@@ -181,30 +180,4 @@ defmodule Comn.Repo.Table do
   def act(%{action: :open, name: n, opts: o}), do: open(n, o)
   def act(%{action: :open, name: n}), do: open(n, [])
   def act(input), do: Comn.unknown_action(input)
-
-  # ---- internals ----
-
-  defp resolve_backend(key) when is_map_key(@backends, key) do
-    mod = @backends[key]
-
-    if Code.ensure_loaded?(mod),
-      do: {:ok, mod},
-      else:
-        {:error,
-         ErrReg.error!("repo.table/invalid_opts",
-           field: "backend",
-           suggestion: "#{key} needs its optional dependency"
-         )}
-  end
-
-  defp resolve_backend(mod) when is_atom(mod) do
-    if Code.ensure_loaded?(mod) and function_exported?(mod, :set, 4),
-      do: {:ok, mod},
-      else:
-        {:error,
-         ErrReg.error!("repo.table/invalid_opts", field: "backend", suggestion: ":ets | :ecto")}
-  end
-
-  defp resolve_backend(_),
-    do: {:error, ErrReg.error!("repo.table/invalid_opts", field: "backend")}
 end

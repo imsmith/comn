@@ -104,7 +104,14 @@ defmodule Comn.Repo do
   """
   @callback discover(resource(), Comn.Zone.t()) :: {:ok, list()} | {:error, term()}
 
-  @optional_callbacks enter: 2, exit: 2, discover: 2
+  # ---- lifecycle (handle-based shapes; see Comn.Repo.Lifecycle) ----
+
+  @doc "Short backend names to backend modules, e.g. `%{ets: Comn.Repo.Table.ETSAdapter}`."
+  @callback backends() :: %{atom() => module()}
+
+  # Column, File, Graphs, and Batch predate the handle lifecycle and expose their
+  # own structs and open/close verbs; `backends/0` stays optional until they converge.
+  @optional_callbacks enter: 2, exit: 2, discover: 2, backends: 0
 
   # Helpers for the canonical event forms, shared by every shape.
 

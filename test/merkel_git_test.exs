@@ -29,7 +29,7 @@ defmodule Comn.MerkelGitTest do
   def open_sink(ctx), do: open_merkel(ctx)
 
   # Corrupt the loose object file for the commit's blob so git refuses to read it.
-  def tamper(%Merkel.Handle{} = m, address) do
+  def tamper(%Comn.Repo.Handle{} = m, address) do
     {:ok, %Merkel.Node{} = node} = Merkel.node(m, address)
     path = Git.object_path(m.state, node.content_address)
     File.chmod!(path, 0o644)

@@ -33,7 +33,7 @@ defmodule Comn.Repo.Queue.SQLiteTest do
       # Simulate a crash between reserve and ack: forcefully terminate the
       # backend GenServer while a reservation is held. Easiest path is to
       # call reserve directly via the backend.
-      %Comn.Repo.Queue.Handle{state: pid} = q
+      %Comn.Repo.Handle{state: pid} = q
       assert {:ok, {_token, :keep_me}} = SQLite.reserve(pid)
       Process.unlink(pid)
       Process.exit(pid, :kill)
