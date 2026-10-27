@@ -128,7 +128,7 @@ defmodule Comn.Errors.RegistryTest do
         """)
 
       errors = mod.__errors__()
-      codes = Enum.map(errors, & &1.code) |> Enum.sort()
+      codes = errors |> Enum.map(& &1.code) |> Enum.sort()
       assert codes == ["repo.file.ipfs/cid_invalid", "repo.table/not_found"]
     end
   end
@@ -250,7 +250,7 @@ defmodule Comn.Errors.RegistryTest do
       errors = SampleErrors.__errors__()
       assert is_list(errors)
       assert length(errors) == 4
-      codes = Enum.map(errors, & &1.code) |> Enum.sort()
+      codes = errors |> Enum.map(& &1.code) |> Enum.sort()
 
       assert codes == [
                "auth/forbidden",

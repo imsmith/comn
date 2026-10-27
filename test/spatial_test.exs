@@ -205,17 +205,17 @@ defmodule Comn.SpatialTest do
   describe "Graphs.Graph spatial verbs" do
     @tag :phase2
     test "enter/2 sets traversal position" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.link(gs0, :room_a, :room_b)
       zone = Comn.Zone.new(realm: :local, locale: "room_a")
       assert {:ok, _context} = Graph.enter(gs, zone)
     end
 
     @tag :phase2
     test "discover/2 returns adjacent nodes" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
-      {:ok, gs} = Graph.link(gs, :room_a, :room_c)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :room_a, :room_b)
+      {:ok, gs} = Graph.link(gs1, :room_a, :room_c)
       zone = Comn.Zone.new(realm: :local, locale: "room_a")
       assert {:ok, discovered} = Graph.discover(gs, zone)
       assert length(discovered) == 2
@@ -223,8 +223,8 @@ defmodule Comn.SpatialTest do
 
     @tag :phase2
     test "exit/2 clears traversal position" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.link(gs0, :room_a, :room_b)
       zone = Comn.Zone.new(realm: :local, locale: "room_a")
       {:ok, _} = Graph.enter(gs, zone)
       assert :ok = Graph.exit(gs, zone)
@@ -315,9 +315,9 @@ defmodule Comn.SpatialTest do
   describe "spatial traverse" do
     @tag :phase4
     test "traverse/4 returns destination zone and path" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :room_a, :hallway)
-      {:ok, gs} = Graph.link(gs, :hallway, :room_b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :room_a, :hallway)
+      {:ok, gs} = Graph.link(gs1, :hallway, :room_b)
 
       from = Comn.Zone.new(realm: :local, locale: "room_a")
       {:ok, dest, path} = Graph.traverse(gs, from, :room_b, [])
@@ -327,8 +327,8 @@ defmodule Comn.SpatialTest do
 
     @tag :phase4
     test "traverse updates process context zone" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.link(gs0, :room_a, :room_b)
 
       from = Comn.Zone.new(realm: :local, locale: "room_a")
       Comn.Contexts.new(%{zone: from})
@@ -339,9 +339,9 @@ defmodule Comn.SpatialTest do
 
     @tag :phase4
     test "traverse to unreachable node returns error" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :room_a, :room_b)
-      {:ok, gs} = Graph.set(gs, vertex: :island)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :room_a, :room_b)
+      {:ok, gs} = Graph.set(gs1, vertex: :island)
 
       from = Comn.Zone.new(realm: :local, locale: "room_a")
       assert {:error, _} = Graph.traverse(gs, from, :island, [])
@@ -365,9 +365,9 @@ defmodule Comn.SpatialTest do
 
     @tag :phase1
     test "existing Graph traverse/2 still works" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
-      {:ok, gs} = Graph.link(gs, :b, :c)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :a, :b)
+      {:ok, gs} = Graph.link(gs1, :b, :c)
 
       assert {:ok, [:a, :b, :c]} =
                Graph.traverse(gs, type: :shortest_path, from: :a, to: :c)

@@ -190,7 +190,7 @@ defmodule Comn.StreamConformance do
         test "observe/2 streams every {offset, event} in order", %{s: s} do
           {:ok, _} = Stream.append(s, event(%{n: 2}))
           {:ok, _} = Stream.append(s, event(%{n: 3}))
-          payloads = Stream.observe(s) |> Enum.map(fn {_o, e} -> e.data.n end)
+          payloads = s |> Stream.observe() |> Enum.map(fn {_o, e} -> e.data.n end)
           assert payloads == [1, 2, 3]
         end
       end

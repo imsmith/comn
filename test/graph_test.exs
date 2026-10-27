@@ -39,8 +39,8 @@ defmodule Comn.Repo.Graphs.GraphTest do
 
   describe "link and unlink" do
     test "link adds an edge between nodes" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.link(gs0, :a, :b)
 
       {:ok, info} = Graph.describe(gs)
       assert info.vertex_count == 2
@@ -48,8 +48,8 @@ defmodule Comn.Repo.Graphs.GraphTest do
     end
 
     test "link with label and weight" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b, label: "knows", weight: 5)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.link(gs0, :a, :b, label: "knows", weight: 5)
 
       {:ok, edges} = Graph.traverse(gs, type: :edges)
       [edge] = edges
@@ -60,10 +60,10 @@ defmodule Comn.Repo.Graphs.GraphTest do
     end
 
     test "unlink removes an edge" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
-      {:ok, gs} = Graph.link(gs, :b, :c)
-      {:ok, gs} = Graph.unlink(gs, :a, :b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :a, :b)
+      {:ok, gs2} = Graph.link(gs1, :b, :c)
+      {:ok, gs} = Graph.unlink(gs2, :a, :b)
 
       {:ok, info} = Graph.describe(gs)
       assert info.edge_count == 1
@@ -74,20 +74,20 @@ defmodule Comn.Repo.Graphs.GraphTest do
 
   describe "traverse" do
     test "shortest path" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
-      {:ok, gs} = Graph.link(gs, :b, :c)
-      {:ok, gs} = Graph.link(gs, :c, :d)
-      {:ok, gs} = Graph.link(gs, :a, :d)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :a, :b)
+      {:ok, gs2} = Graph.link(gs1, :b, :c)
+      {:ok, gs3} = Graph.link(gs2, :c, :d)
+      {:ok, gs} = Graph.link(gs3, :a, :d)
 
       assert {:ok, [:a, :d]} = Graph.traverse(gs, type: :shortest_path, from: :a, to: :d)
     end
 
     test "reachability" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
-      {:ok, gs} = Graph.link(gs, :b, :c)
-      {:ok, gs} = Graph.set(gs, vertex: :isolated)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :a, :b)
+      {:ok, gs2} = Graph.link(gs1, :b, :c)
+      {:ok, gs} = Graph.set(gs2, vertex: :isolated)
 
       {:ok, reachable} = Graph.traverse(gs, type: :reachable, from: :a)
       assert :a in reachable
@@ -97,9 +97,9 @@ defmodule Comn.Repo.Graphs.GraphTest do
     end
 
     test "neighbors" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
-      {:ok, gs} = Graph.link(gs, :a, :c)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :a, :b)
+      {:ok, gs} = Graph.link(gs1, :a, :c)
 
       {:ok, neighbors} = Graph.traverse(gs, type: :neighbors, vertex: :a)
       assert :b in neighbors
@@ -116,8 +116,8 @@ defmodule Comn.Repo.Graphs.GraphTest do
 
   describe "Repo callbacks" do
     test "describe returns graph metadata" do
-      {:ok, gs} = Graph.create(name: "repo-test")
-      {:ok, gs} = Graph.link(gs, :x, :y)
+      {:ok, gs0} = Graph.create(name: "repo-test")
+      {:ok, gs} = Graph.link(gs0, :x, :y)
 
       assert {:ok, info} = Graph.describe(gs)
       assert info.name == "repo-test"
@@ -126,8 +126,8 @@ defmodule Comn.Repo.Graphs.GraphTest do
     end
 
     test "set and get vertex" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.set(gs, vertex: :x)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.set(gs0, vertex: :x)
       assert {:ok, :x} = Graph.get(gs, vertex: :x)
     end
 
@@ -137,16 +137,16 @@ defmodule Comn.Repo.Graphs.GraphTest do
     end
 
     test "delete vertex" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.set(gs, vertex: :a)
-      {:ok, gs} = Graph.delete(gs, vertex: :a)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.set(gs0, vertex: :a)
+      {:ok, gs} = Graph.delete(gs1, vertex: :a)
       assert {:error, %ErrorStruct{code: "repo.table/not_found"}} = Graph.get(gs, vertex: :a)
     end
 
     test "delete vertex removes its edges" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
-      {:ok, gs} = Graph.delete(gs, vertex: :a)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs1} = Graph.link(gs0, :a, :b)
+      {:ok, gs} = Graph.delete(gs1, vertex: :a)
 
       {:ok, info} = Graph.describe(gs)
       assert info.vertex_count == 1
@@ -154,8 +154,8 @@ defmodule Comn.Repo.Graphs.GraphTest do
     end
 
     test "observe returns all vertices and edges" do
-      {:ok, gs} = Graph.create()
-      {:ok, gs} = Graph.link(gs, :a, :b)
+      {:ok, gs0} = Graph.create()
+      {:ok, gs} = Graph.link(gs0, :a, :b)
 
       assert {:ok, %{vertices: vertices, edges: edges}} = Graph.observe(gs, [])
       assert :a in vertices

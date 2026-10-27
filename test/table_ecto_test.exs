@@ -46,10 +46,11 @@ defmodule Comn.TableEctoTest do
 
   defp table_exists?(t, source) do
     {:ok, %{rows: rows}} =
-      EctoTable.repo(t.state)
-      |> SQL.query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [
-        source
-      ])
+      SQL.query(
+        EctoTable.repo(t.state),
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        [source]
+      )
 
     rows != []
   end
@@ -101,9 +102,9 @@ defmodule Comn.TableEctoTest do
     @tag :table_phase2
     test "data survives close and reopen", %{tmp_dir: dir} do
       name = fresh_name()
-      {:ok, t} = Table.open(name, backend: :ecto, ecto: sqlite(dir))
-      :ok = Table.set(t, :k, %{durable: true})
-      :ok = Table.close(t)
+      {:ok, t0} = Table.open(name, backend: :ecto, ecto: sqlite(dir))
+      :ok = Table.set(t0, :k, %{durable: true})
+      :ok = Table.close(t0)
       {:ok, t} = Table.open(name, backend: :ecto, ecto: sqlite(dir))
       assert {:ok, %{durable: true}} = Table.get(t, :k)
       Table.drop(t)

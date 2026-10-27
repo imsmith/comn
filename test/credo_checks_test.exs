@@ -26,12 +26,12 @@ defmodule Comn.CredoChecksTest do
       |> to_source_file()
       |> run_check(BareErrorAtom)
       |> assert_issues(fn issues ->
-        assert Enum.map(issues, & &1.trigger) |> Enum.sort() == [
+        assert issues |> Enum.map(& &1.trigger) |> Enum.sort() == [
                  "{:error, :bad}",
                  "{:error, :missing}"
                ]
 
-        assert Enum.map(issues, & &1.line_no) |> Enum.sort() == [2, 5]
+        assert issues |> Enum.map(& &1.line_no) |> Enum.sort() == [2, 5]
       end)
     end
   end
@@ -49,7 +49,7 @@ defmodule Comn.CredoChecksTest do
       |> to_source_file()
       |> run_check(SecretFromEnv)
       |> assert_issues(fn issues ->
-        assert Enum.map(issues, & &1.line_no) |> Enum.sort() == [2, 3]
+        assert issues |> Enum.map(& &1.line_no) |> Enum.sort() == [2, 3]
       end)
     end
   end
@@ -68,7 +68,7 @@ defmodule Comn.CredoChecksTest do
       |> to_source_file()
       |> run_check(RawShell)
       |> assert_issues(fn issues ->
-        assert Enum.map(issues, & &1.line_no) |> Enum.sort() == [2, 3, 4, 5]
+        assert issues |> Enum.map(& &1.line_no) |> Enum.sort() == [2, 3, 4, 5]
       end)
     end
   end

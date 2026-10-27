@@ -77,7 +77,7 @@ defmodule Comn.TableConformance do
         test "observe/2 lists {key, value} pairs", %{t: t} do
           :ok = Table.set(t, :a, 1)
           :ok = Table.set(t, :b, 2)
-          assert Table.observe(t) |> Enum.sort() == [a: 1, b: 2]
+          assert t |> Table.observe() |> Enum.sort() == [a: 1, b: 2]
         end
 
         @tag :table_phase1

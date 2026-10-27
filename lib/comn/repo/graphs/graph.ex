@@ -63,27 +63,9 @@ defmodule Comn.Repo.Graphs.Graph do
 
   @impl Comn.Repo.Graphs
   def link(%GraphStruct{graph: g} = gs, from, to, opts \\ []) do
-    label = Keyword.get(opts, :label)
-    weight = Keyword.get(opts, :weight)
-
-    g = Graph.add_vertices(g, [from, to])
-
-    g =
-      cond do
-        label != nil and weight != nil ->
-          Graph.add_edge(g, from, to, label: label, weight: weight)
-
-        label != nil ->
-          Graph.add_edge(g, from, to, label: label)
-
-        weight != nil ->
-          Graph.add_edge(g, from, to, weight: weight)
-
-        true ->
-          Graph.add_edge(g, from, to)
-      end
-
-    {:ok, %{gs | graph: g}}
+    edge_opts = Enum.reject(Keyword.take(opts, [:label, :weight]), fn {_k, v} -> is_nil(v) end)
+    linked = g |> Graph.add_vertices([from, to]) |> Graph.add_edge(from, to, edge_opts)
+    {:ok, %{gs | graph: linked}}
   end
 
   @impl Comn.Repo.Graphs

@@ -101,7 +101,7 @@ defmodule Comn.EventSinkConformance do
           test "observe/2 as events yields every stored event", %{h: h} do
             events = for n <- 1..3, do: fact(%{n: n})
             h = Enum.reduce(events, h, fn e, h -> put!(h, e) end)
-            seen = @sink.observe(h, as: :events) |> Enum.to_list()
+            seen = h |> @sink.observe(as: :events) |> Enum.to_list()
             assert length(seen) == 3
             assert Enum.all?(events, &(&1 in seen))
           end
@@ -111,7 +111,7 @@ defmodule Comn.EventSinkConformance do
             h = put!(h, %{type: :domain, topic: "sink.converted", data: %{n: 1}})
 
             assert [%EventStruct{topic: "sink.converted", data: %{n: 1}}] =
-                     @sink.observe(h, as: :events) |> Enum.to_list()
+                     h |> @sink.observe(as: :events) |> Enum.to_list()
           end
 
           @tag :event_sink
@@ -136,7 +136,7 @@ defmodule Comn.EventSinkConformance do
             consumer =
               Task.async(fn ->
                 send(parent, :listening)
-                @sink.observe(h, as: :events) |> Enum.take(3)
+                h |> @sink.observe(as: :events) |> Enum.take(3)
               end)
 
             assert_receive :listening

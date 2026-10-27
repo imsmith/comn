@@ -279,8 +279,8 @@ defmodule Comn.Secrets.VaultTest do
       assert %LockedBlob{} = vault_locked
 
       # Both should have same struct fields
-      local_fields = Map.keys(local_locked) |> Enum.sort()
-      vault_fields = Map.keys(vault_locked) |> Enum.sort()
+      local_fields = local_locked |> Map.keys() |> Enum.sort()
+      vault_fields = vault_locked |> Map.keys() |> Enum.sort()
       assert local_fields == vault_fields
 
       # Both should unlock to same plaintext

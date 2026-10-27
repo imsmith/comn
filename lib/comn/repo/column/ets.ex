@@ -166,7 +166,7 @@ defmodule Comn.Repo.Column.ETS do
              message: "Unknown columns: #{inspect(unknown)}"
            )}
         else
-          result =
+          folded =
             :ets.foldl(
               fn {_id, row}, acc ->
                 if matches_filters?(row, filters) do
@@ -179,9 +179,8 @@ defmodule Comn.Repo.Column.ETS do
               [],
               rows
             )
-            |> Enum.reverse()
 
-          {:ok, result}
+          {:ok, Enum.reverse(folded)}
         end
     end
   end
@@ -280,7 +279,7 @@ defmodule Comn.Repo.Column.ETS do
 
   @impl Comn.Repo
   def observe(%__MODULE__{rows_table: rows}, opts) do
-    rows = :ets.tab2list(rows) |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1))
+    rows = rows |> :ets.tab2list() |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1))
 
     if Comn.Repo.events_view?(opts),
       do:
@@ -320,8 +319,8 @@ defmodule Comn.Repo.Column.ETS do
   # -- Private helpers --
 
   defp valid_row?(row, schema) do
-    schema_keys = Map.keys(schema) |> MapSet.new()
-    row_keys = Map.keys(row) |> MapSet.new()
+    schema_keys = schema |> Map.keys() |> MapSet.new()
+    row_keys = row |> Map.keys() |> MapSet.new()
     MapSet.equal?(row_keys, schema_keys)
   end
 

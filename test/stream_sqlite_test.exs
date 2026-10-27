@@ -89,10 +89,10 @@ defmodule Comn.StreamSQLiteTest do
     test "events and offsets survive close and reopen", %{tmp_dir: dir} do
       name = fresh_name()
       path = Path.join(dir, "durable.db")
-      {:ok, s} = Stream.open(name, backend: :sqlite, path: path)
+      {:ok, s0} = Stream.open(name, backend: :sqlite, path: path)
 
-      {:ok, [o1, _, o3]} = Stream.append_many(s, Enum.map(1..3, &event(%{n: &1})))
-      :ok = Stream.close(s)
+      {:ok, [o1, _, o3]} = Stream.append_many(s0, Enum.map(1..3, &event(%{n: &1})))
+      :ok = Stream.close(s0)
 
       {:ok, s} = Stream.open(name, backend: :sqlite, path: path)
       assert {:ok, ^o3} = Stream.head(s)

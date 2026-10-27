@@ -89,7 +89,7 @@ defmodule Comn.Repo.Queue.Mem do
   end
 
   def handle_call({:peek, n}, _from, %State{table: t, discipline: d} = s) do
-    items = available_items(t, d) |> Enum.take(n) |> Enum.map(fn {_id, item} -> item end)
+    items = t |> available_items(d) |> Enum.take(n) |> Enum.map(fn {_id, item} -> item end)
     {:reply, items, s}
   end
 
@@ -100,7 +100,8 @@ defmodule Comn.Repo.Queue.Mem do
 
   def handle_call({:find, fun}, _from, %State{table: t, discipline: d} = s) do
     reply =
-      available_items(t, d)
+      t
+      |> available_items(d)
       |> Enum.find(fn {_id, item} -> fun.(item) end)
       |> case do
         nil -> :not_found
@@ -112,7 +113,8 @@ defmodule Comn.Repo.Queue.Mem do
 
   def handle_call({:remove, fun}, _from, %State{table: t, discipline: d} = s) do
     reply =
-      available_items(t, d)
+      t
+      |> available_items(d)
       |> Enum.find(fn {_id, item} -> fun.(item) end)
       |> case do
         nil ->
@@ -129,32 +131,36 @@ defmodule Comn.Repo.Queue.Mem do
   # ---- helpers ----
 
   defp head_available(t, :fifo) do
-    available_items(t, :fifo) |> Enum.take(1) |> List.first() |> head_or_none()
+    t |> available_items(:fifo) |> Enum.take(1) |> List.first() |> head_or_none()
   end
 
   defp head_available(t, :lifo) do
-    available_items(t, :lifo) |> Enum.take(1) |> List.first() |> head_or_none()
+    t |> available_items(:lifo) |> Enum.take(1) |> List.first() |> head_or_none()
   end
 
   defp head_or_none(nil), do: :none
   defp head_or_none({_id, _item} = h), do: h
 
   defp available_items(t, :fifo) do
-    Stream.unfold(:ets.first(t), fn
+    t
+    |> :ets.first()
+    |> Stream.unfold(fn
       :"$end_of_table" -> nil
       key -> {key, :ets.next(t, key)}
     end)
-    |> Stream.map(fn k -> :ets.lookup(t, k) |> List.first() end)
+    |> Stream.map(fn k -> List.first(:ets.lookup(t, k)) end)
     |> Stream.reject(fn {_id, reserved, _item} -> reserved end)
     |> Stream.map(fn {id, _r, item} -> {id, item} end)
   end
 
   defp available_items(t, :lifo) do
-    Stream.unfold(:ets.last(t), fn
+    t
+    |> :ets.last()
+    |> Stream.unfold(fn
       :"$end_of_table" -> nil
       key -> {key, :ets.prev(t, key)}
     end)
-    |> Stream.map(fn k -> :ets.lookup(t, k) |> List.first() end)
+    |> Stream.map(fn k -> List.first(:ets.lookup(t, k)) end)
     |> Stream.reject(fn {_id, reserved, _item} -> reserved end)
     |> Stream.map(fn {id, _r, item} -> {id, item} end)
   end

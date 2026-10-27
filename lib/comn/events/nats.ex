@@ -46,8 +46,10 @@ defmodule Comn.Events.NATS do
   def start_link(opts \\ []) do
     {name, opts} = Keyword.pop(opts, :name, __MODULE__)
     {server_opts, gen_opts} = Keyword.split(opts, [:host, :port, :tls, :ssl_opts])
-    server = Map.new(server_opts)
-    server = if map_size(server) == 0, do: %{host: "127.0.0.1", port: 4222}, else: server
+
+    server =
+      if server_opts == [], do: %{host: "127.0.0.1", port: 4222}, else: Map.new(server_opts)
+
     GenServer.start_link(__MODULE__, server, [{:name, name} | gen_opts])
   end
 

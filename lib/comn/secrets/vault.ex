@@ -302,7 +302,7 @@ defmodule Comn.Secrets.Vault do
 
   defp map_vault_error(errors) when is_list(errors) do
     # Map common Vault errors to standard error types
-    error_string = Enum.join(errors, " ") |> String.downcase()
+    error_string = errors |> Enum.join(" ") |> String.downcase()
 
     cond do
       String.contains?(error_string, "permission denied") ->

@@ -108,12 +108,9 @@ defmodule Comn.Repo.Stream.Mem do
   defp forward(_name, nil, _n), do: []
 
   defp forward(name, from, n) do
-    :ets.select(
-      name,
-      [{{:"$1", :"$2"}, [{:is_integer, :"$1"}, {:>=, :"$1", from}], [{{:"$1", :"$2"}}]}],
-      n
-    )
-    |> case do
+    spec = [{{:"$1", :"$2"}, [{:is_integer, :"$1"}, {:>=, :"$1", from}], [{{:"$1", :"$2"}}]}]
+
+    case :ets.select(name, spec, n) do
       {rows, _cont} -> rows
       :"$end_of_table" -> []
     end

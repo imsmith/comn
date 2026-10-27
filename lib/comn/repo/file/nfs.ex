@@ -136,7 +136,7 @@ defmodule Comn.Repo.File.NFS do
   # Helpers
 
   defp resolve_path(mount, path) do
-    full = Path.join(mount, path) |> Path.expand()
+    full = mount |> Path.join(path) |> Path.expand()
     mount_expanded = Path.expand(mount)
 
     if String.starts_with?(full, mount_expanded <> "/") or full == mount_expanded do

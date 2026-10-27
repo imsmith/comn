@@ -83,7 +83,7 @@ defmodule Comn.Repo.Merkel.Mem do
     if hash(c) == ca and hash(link_bytes(p, ca)) == a, do: :ok, else: :tampered
   end
 
-  defp hash(bytes), do: :crypto.hash(@algo, bytes) |> Base.encode16(case: :lower)
+  defp hash(bytes), do: Base.encode16(:crypto.hash(@algo, bytes), case: :lower)
   defp link_bytes(parent, content_address), do: "#{@algo}\n#{parent}\n#{content_address}"
 
   defp ensure_exists(name) do

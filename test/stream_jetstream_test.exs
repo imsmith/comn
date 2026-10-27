@@ -58,12 +58,12 @@ defmodule Comn.StreamJetStreamTest do
     @tag :stream_phase4
     test "close/1 stops the local process, drop/1 also deletes the server stream" do
       name = fresh_name()
-      {:ok, s} = Stream.open(name, backend: :jetstream, conn: @conn)
-      {:ok, _} = Stream.append(s, event())
+      {:ok, s0} = Stream.open(name, backend: :jetstream, conn: @conn)
+      {:ok, _} = Stream.append(s0, event())
       js_name = JetStream.js_stream_name(name)
 
-      assert :ok = Stream.close(s)
-      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} = Stream.head(s)
+      assert :ok = Stream.close(s0)
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.stream/not_found"}} = Stream.head(s0)
       assert {:ok, _} = Gnat.Jetstream.API.Stream.info(@conn, js_name)
 
       {:ok, s} = Stream.open(name, backend: :jetstream, conn: @conn)
@@ -77,9 +77,9 @@ defmodule Comn.StreamJetStreamTest do
     @tag :stream_phase4
     test "events and offsets survive close and reopen" do
       name = fresh_name()
-      {:ok, s} = Stream.open(name, backend: :jetstream, conn: @conn)
-      {:ok, [o1, _, o3]} = Stream.append_many(s, Enum.map(1..3, &event(%{n: &1})))
-      :ok = Stream.close(s)
+      {:ok, s0} = Stream.open(name, backend: :jetstream, conn: @conn)
+      {:ok, [o1, _, o3]} = Stream.append_many(s0, Enum.map(1..3, &event(%{n: &1})))
+      :ok = Stream.close(s0)
 
       {:ok, s} = Stream.open(name, backend: :jetstream, conn: @conn)
       assert {:ok, ^o3} = Stream.head(s)

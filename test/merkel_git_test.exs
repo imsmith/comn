@@ -48,10 +48,10 @@ defmodule Comn.MerkelGitTest do
     test "open/2 initialises a bare repository and reopens it with its chain", %{tmp_dir: dir} do
       name = fresh_name()
       path = Path.join(dir, "reopen.git")
-      {:ok, m} = Merkel.open(name, backend: :git, path: path)
+      {:ok, m0} = Merkel.open(name, backend: :git, path: path)
       assert File.dir?(Path.join(path, "objects"))
-      {:ok, a} = Merkel.put(m, entry(%{n: 1}))
-      :ok = Merkel.close(m)
+      {:ok, a} = Merkel.put(m0, entry(%{n: 1}))
+      :ok = Merkel.close(m0)
 
       {:ok, m} = Merkel.open(name, backend: :git, path: path)
       assert {:ok, ^a} = Merkel.head(m)

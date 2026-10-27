@@ -240,7 +240,8 @@ defmodule Comn.Repo.Stream.JetStream do
   defp fetch_from(_s, _seq, nil, _n), do: []
 
   defp fetch_from(s, seq, last, n) do
-    Stream.iterate(seq, &(&1 + 1))
+    seq
+    |> Stream.iterate(&(&1 + 1))
     |> Stream.take_while(&(&1 <= last))
     |> Stream.map(&fetch_one(s, &1))
     |> Stream.reject(&(&1 == :missing))

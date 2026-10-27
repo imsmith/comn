@@ -133,7 +133,7 @@ defmodule Comn.Repo.Stream.SQLite do
   end
 
   def handle_call({:read, :tail, n}, _from, %{db: db} = s) do
-    {:reply, {:ok, select_events(db, "ORDER BY offset DESC LIMIT ?", [n]) |> Enum.reverse()}, s}
+    {:reply, {:ok, Enum.reverse(select_events(db, "ORDER BY offset DESC LIMIT ?", [n]))}, s}
   end
 
   def handle_call({:read, offset, n}, _from, %{db: db} = s) when is_integer(offset) do

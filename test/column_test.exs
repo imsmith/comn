@@ -109,13 +109,13 @@ defmodule Comn.Repo.Column.ETSTest do
     test "selects specific columns", %{store: store} do
       {:ok, rows} = Col.project(store, [:host, :cpu], %{})
       assert length(rows) == 3
-      assert Map.keys(hd(rows)) |> Enum.sort() == [:cpu, :host]
+      assert rows |> hd() |> Map.keys() |> Enum.sort() == [:cpu, :host]
     end
 
     test "empty fields returns all columns", %{store: store} do
       {:ok, rows} = Col.project(store, [], %{})
       assert length(rows) == 3
-      assert Map.keys(hd(rows)) |> Enum.sort() == [:cpu, :host, :mem, :ts]
+      assert rows |> hd() |> Map.keys() |> Enum.sort() == [:cpu, :host, :mem, :ts]
     end
 
     test "filters by column value", %{store: store} do

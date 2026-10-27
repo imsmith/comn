@@ -103,7 +103,7 @@ defmodule Comn.MerkelConformance do
         test "observe/2 as events walks root to genesis, newest first", %{m: m} do
           events = for n <- 1..3, do: entry(%{n: n})
           Enum.each(events, &({:ok, _} = Merkel.put(m, &1)))
-          assert Merkel.observe(m, as: :events) |> Enum.to_list() == Enum.reverse(events)
+          assert m |> Merkel.observe(as: :events) |> Enum.to_list() == Enum.reverse(events)
         end
 
         @tag :merkel_phase1

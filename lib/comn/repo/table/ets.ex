@@ -39,33 +39,30 @@ defmodule Comn.Repo.Table.ETS do
 
   @impl Comn.Repo.Table
   def drop(name) when is_atom(name) do
-    case table_exists?(name) do
-      true ->
-        :ets.delete(name)
-        :ok
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      :ets.delete(name)
+      :ok
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
   @impl Comn.Repo.Table
   def keys(name) when is_atom(name) do
-    case table_exists?(name) do
-      true ->
-        keys = :ets.foldl(fn {k, _v}, acc -> [k | acc] end, [], name)
-        {:ok, Enum.reverse(keys)}
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      keys = :ets.foldl(fn {k, _v}, acc -> [k | acc] end, [], name)
+      {:ok, Enum.reverse(keys)}
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
   @impl Comn.Repo.Table
   def count(name) when is_atom(name) do
-    case table_exists?(name) do
-      true -> {:ok, :ets.info(name, :size)}
-      false -> {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      {:ok, :ets.info(name, :size)}
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -73,13 +70,11 @@ defmodule Comn.Repo.Table.ETS do
 
   @impl Comn.Repo
   def describe(name) when is_atom(name) do
-    case table_exists?(name) do
-      true ->
-        info = :ets.info(name)
-        {:ok, Map.new(info)}
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      info = :ets.info(name)
+      {:ok, Map.new(info)}
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -94,15 +89,13 @@ defmodule Comn.Repo.Table.ETS do
   def get(name, opts) when is_atom(name) do
     key = Keyword.fetch!(opts, :key)
 
-    case table_exists?(name) do
-      true ->
-        case :ets.lookup(name, key) do
-          [{^key, value}] -> {:ok, value}
-          [] -> {:error, ErrReg.error!("repo.table/not_found", field: key)}
-        end
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      case :ets.lookup(name, key) do
+        [{^key, value}] -> {:ok, value}
+        [] -> {:error, ErrReg.error!("repo.table/not_found", field: key)}
+      end
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -115,13 +108,11 @@ defmodule Comn.Repo.Table.ETS do
     key = Keyword.fetch!(opts, :key)
     value = Keyword.fetch!(opts, :value)
 
-    case table_exists?(name) do
-      true ->
-        :ets.insert(name, {key, value})
-        :ok
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      :ets.insert(name, {key, value})
+      :ok
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
@@ -129,26 +120,22 @@ defmodule Comn.Repo.Table.ETS do
   def delete(name, opts) when is_atom(name) do
     key = Keyword.fetch!(opts, :key)
 
-    case table_exists?(name) do
-      true ->
-        :ets.delete(name, key)
-        :ok
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      :ets.delete(name, key)
+      :ok
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 
   @impl Comn.Repo
   def observe(name, opts) when is_atom(name) do
-    case table_exists?(name) do
-      true ->
-        if Comn.Repo.events_view?(opts),
-          do: for({_k, %Comn.Events.EventStruct{} = e} <- :ets.tab2list(name), do: e),
-          else: :ets.foldl(fn {k, v}, acc -> [{k, v} | acc] end, [], name) |> Enum.reverse()
-
-      false ->
-        {:error, ErrReg.error!("repo.table/not_found", field: name)}
+    if table_exists?(name) do
+      if Comn.Repo.events_view?(opts),
+        do: for({_k, %Comn.Events.EventStruct{} = e} <- :ets.tab2list(name), do: e),
+        else: Enum.reverse(:ets.foldl(fn {k, v}, acc -> [{k, v} | acc] end, [], name))
+    else
+      {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end
   end
 

@@ -46,8 +46,7 @@ defmodule Comn.Errors do
   @spec new(atom(), String.t(), String.t() | nil, String.t() | nil) :: ErrorStruct.t()
   def new(category, message, field \\ nil, suggestion \\ nil)
       when category in @categories do
-    ErrorStruct.new(to_string(category), field, message, suggestion)
-    |> enrich()
+    enrich(ErrorStruct.new(to_string(category), field, message, suggestion))
   end
 
   @doc """

@@ -108,8 +108,8 @@ defmodule Comn.Repo.File.LocalTest do
 
     test "get returns buffer when loaded" do
       path = tmp_file("get test")
-      {:ok, fs} = Local.open(path)
-      {:ok, fs} = Local.load(fs)
+      {:ok, fs0} = Local.open(path)
+      {:ok, fs} = Local.load(fs0)
       assert {:ok, "get test"} = Local.get(fs, [])
       Local.close(fs)
     end
@@ -163,8 +163,8 @@ defmodule Comn.Repo.File.NFSTest do
     file = "lifecycle.txt"
     File.write!(Path.join(mount, file), "nfs data")
 
-    {:ok, fs} = NFS.open(file, mount: mount)
-    {:ok, fs} = NFS.load(fs)
+    {:ok, fs0} = NFS.open(file, mount: mount)
+    {:ok, fs} = NFS.load(fs0)
     assert {:ok, "nfs data"} = NFS.read(fs)
     assert :ok = NFS.close(fs)
   end

@@ -14,11 +14,7 @@ defmodule Comn.EtsLifecycleTest do
       :ok = ETS.set(name, key: "a", value: 1)
 
       # Read from a spawned task
-      result =
-        Task.async(fn ->
-          ETS.get(name, key: "a")
-        end)
-        |> Task.await()
+      result = Task.await(Task.async(fn -> ETS.get(name, key: "a") end))
 
       assert {:ok, 1} = result
       ETS.drop(name)
