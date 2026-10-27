@@ -47,7 +47,9 @@ defmodule Comn.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
-      {:vet_cli, "~> 0.1.0", only: [:dev, :test], runtime: false}
+      # Local checkout until the exponential walk in vet_core is fixed upstream;
+      # see ~/github/vet/ISSUES.md.
+      {:vet_cli, path: Path.expand("~/github/vet/apps/vet_cli"), only: [:dev, :test], runtime: false}
     ]
   end
 
