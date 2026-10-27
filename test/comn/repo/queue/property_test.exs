@@ -86,13 +86,13 @@ defmodule Comn.Repo.Queue.PropertyTest do
   end
 
   defp drain_with_flakiness(q, acc, p) do
-    case Queue.pop(q, fn v ->
-           if :rand.uniform() < p, do: raise("flake"), else: v
-         end) do
+    case Queue.pop(q, &flaky(&1, p)) do
       :empty -> Enum.reverse(acc)
       {:ok, v} -> drain_with_flakiness(q, [v | acc], p)
     end
   rescue
     RuntimeError -> drain_with_flakiness(q, acc, p)
   end
+
+  defp flaky(v, p), do: if(:rand.uniform() < p, do: raise("flake"), else: v)
 end

@@ -78,15 +78,15 @@ defmodule Comn.EventLog do
     {:ok, dt, _} = DateTime.from_iso8601(iso_timestamp)
 
     Agent.get(__MODULE__, fn log ->
-      log
-      |> Enum.filter(fn event ->
-        case DateTime.from_iso8601(event.timestamp) do
-          {:ok, t, _} -> DateTime.compare(t, dt) == :gt
-          _ -> false
-        end
-      end)
-      |> Enum.reverse()
+      log |> Enum.filter(&newer_than?(&1, dt)) |> Enum.reverse()
     end)
+  end
+
+  defp newer_than?(event, dt) do
+    case DateTime.from_iso8601(event.timestamp) do
+      {:ok, t, _} -> DateTime.compare(t, dt) == :gt
+      _ -> false
+    end
   end
 
   @doc "Clears the event log. Use with caution."

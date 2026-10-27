@@ -131,9 +131,8 @@ defmodule Comn.Repo.Table.ETS do
   @impl Comn.Repo
   def observe(name, opts) when is_atom(name) do
     if table_exists?(name) do
-      if Comn.Repo.events_view?(opts),
-        do: for({_k, %Comn.Events.EventStruct{} = e} <- :ets.tab2list(name), do: e),
-        else: Enum.reverse(:ets.foldl(fn {k, v}, acc -> [{k, v} | acc] end, [], name))
+      pairs = Enum.reverse(:ets.foldl(fn {k, v}, acc -> [{k, v} | acc] end, [], name))
+      if Comn.Repo.events_view?(opts), do: Comn.Repo.events_in(pairs), else: pairs
     else
       {:error, ErrReg.error!("repo.table/not_found", field: name)}
     end

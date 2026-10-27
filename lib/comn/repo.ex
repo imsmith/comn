@@ -123,6 +123,10 @@ defmodule Comn.Repo do
   @spec events_view?(keyword()) :: boolean()
   def events_view?(opts) when is_list(opts), do: Keyword.get(opts, :as) == :events
 
+  @doc "The events among keyed `{key, value}` pairs, for the `as: :events` view."
+  @spec events_in([{term(), term()}]) :: [Comn.Events.EventStruct.t()]
+  def events_in(pairs), do: for({_k, %Comn.Events.EventStruct{} = e} <- pairs, do: e)
+
   @doc """
   Fetches the `event:` option and converts it through the `Comn.Event`
   protocol, so a map or tuple is an event by default. Anything the

@@ -195,22 +195,25 @@ defmodule Comn.Repo.Queue.SQLite do
     order = if discipline == :fifo, do: "ASC", else: "DESC"
     sql = "SELECT id, payload FROM items WHERE reserved_at IS NULL ORDER BY id #{order};"
 
-    Enum.reduce_while(fetch_all(db, sql, []), :not_found, fn [id, payload], _ ->
-      item = :erlang.binary_to_term(payload)
+    Enum.reduce_while(fetch_all(db, sql, []), :not_found, &match_row(db, &1, &2, fun, mode))
+  end
 
-      if fun.(item) do
-        if mode == :remove do
-          {:ok, stmt} = Sqlite3.prepare(db, "DELETE FROM items WHERE id = ?;")
-          :ok = Sqlite3.bind(stmt, [id])
-          :done = Sqlite3.step(db, stmt)
-          :ok = Sqlite3.release(db, stmt)
-        end
+  defp match_row(db, [id, payload], _acc, fun, mode) do
+    item = :erlang.binary_to_term(payload)
 
-        {:halt, {:ok, item}}
-      else
-        {:cont, :not_found}
-      end
-    end)
+    if fun.(item) do
+      if mode == :remove, do: delete_row(db, id)
+      {:halt, {:ok, item}}
+    else
+      {:cont, :not_found}
+    end
+  end
+
+  defp delete_row(db, id) do
+    {:ok, stmt} = Sqlite3.prepare(db, "DELETE FROM items WHERE id = ?;")
+    :ok = Sqlite3.bind(stmt, [id])
+    :done = Sqlite3.step(db, stmt)
+    :ok = Sqlite3.release(db, stmt)
   end
 
   defp fetch_one(db, sql, params) do

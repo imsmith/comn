@@ -234,35 +234,41 @@ defmodule Comn.Errors.Registry do
   """
   @spec register_module(module()) :: :ok | {:error, Comn.Errors.ErrorStruct.t()}
   def register_module(module) when is_atom(module) do
-    if function_exported?(module, :__errors__, 0) do
-      errors = module.__errors__()
-      index = get_index()
+    with :ok <- registry_module(module),
+         errors = module.__errors__(),
+         index = get_index(),
+         :ok <- no_duplicates(errors, index, module) do
+      :persistent_term.put(
+        @persistent_term_key,
+        Map.merge(index, Map.new(errors, &{&1.code, &1}))
+      )
+    end
+  end
 
-      case find_duplicate(errors, index, module) do
-        nil ->
-          new_index =
-            Enum.reduce(errors, index, fn defn, acc ->
-              Map.put(acc, defn.code, defn)
-            end)
+  defp registry_module(module) do
+    if function_exported?(module, :__errors__, 0),
+      do: :ok,
+      else:
+        {:error,
+         internal_error(
+           "errors/not_a_registry_module",
+           "#{inspect(module)} was not compiled with `use Comn.Errors.Registry`",
+           inspect(module)
+         )}
+  end
 
-          :persistent_term.put(@persistent_term_key, new_index)
-          :ok
+  defp no_duplicates(errors, index, module) do
+    case find_duplicate(errors, index, module) do
+      nil ->
+        :ok
 
-        {:duplicate, code, owner} ->
-          {:error,
-           internal_error(
-             "errors/duplicate_code",
-             "error code #{code} is already registered by #{inspect(owner)}",
-             code
-           )}
-      end
-    else
-      {:error,
-       internal_error(
-         "errors/not_a_registry_module",
-         "#{inspect(module)} was not compiled with `use Comn.Errors.Registry`",
-         inspect(module)
-       )}
+      {:duplicate, code, owner} ->
+        {:error,
+         internal_error(
+           "errors/duplicate_code",
+           "error code #{code} is already registered by #{inspect(owner)}",
+           code
+         )}
     end
   end
 

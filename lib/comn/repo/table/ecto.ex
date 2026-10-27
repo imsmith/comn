@@ -118,28 +118,9 @@ if Code.ensure_loaded?(Ecto.Repo) do
             schema.__schema__(:fields)
           )
 
-        result =
-          saga(repo, fn ->
-            case repo.insert(changeset,
-                   on_conflict: {:replace_all_except, [pk]},
-                   conflict_target: [pk]
-                 ) do
-              {:ok, row} -> row
-              {:error, cs} -> repo.rollback(cs)
-            end
-          end)
-
-        case result do
-          {:ok, _} ->
-            emit("repo.table.set", name, key, schema, :ok)
-            :ok
-
-          {:error, reason} ->
-            emit("repo.table.set", name, key, schema, :failed)
-
-            {:error,
-             ErrReg.error!("repo.table/set_failed", field: inspect(key), message: explain(reason))}
-        end
+        repo
+        |> saga(fn -> upsert(repo, changeset, pk) end)
+        |> outcome("repo.table.set", "repo.table/set_failed", name, key, schema)
       end
     end
 
@@ -147,24 +128,32 @@ if Code.ensure_loaded?(Ecto.Repo) do
     def delete(%{repo: repo, name: name} = state, key, opts) do
       with {:ok, schema, source, pk} <- target(state, opts),
            :ok <- converge(repo, schema, source) do
-        case saga(repo, fn ->
-               repo.delete_all(from(r in {source, schema}, where: field(r, ^pk) == ^key))
-             end) do
-          {:ok, _} ->
-            emit("repo.table.delete", name, key, schema, :ok)
-            :ok
-
-          {:error, reason} ->
-            emit("repo.table.delete", name, key, schema, :failed)
-
-            {:error,
-             ErrReg.error!("repo.table/delete_failed",
-               field: inspect(key),
-               message: explain(reason)
-             )}
-        end
+        repo
+        |> saga(fn -> delete_row(repo, source, schema, pk, key) end)
+        |> outcome("repo.table.delete", "repo.table/delete_failed", name, key, schema)
       end
     end
+
+    # Every saga ends in an event and either :ok or the verb's failure code.
+    defp outcome({:ok, _}, topic, _code, name, key, schema) do
+      emit(topic, name, key, schema, :ok)
+      :ok
+    end
+
+    defp outcome({:error, reason}, topic, code, name, key, schema) do
+      emit(topic, name, key, schema, :failed)
+      {:error, ErrReg.error!(code, field: inspect(key), message: explain(reason))}
+    end
+
+    defp upsert(repo, changeset, pk) do
+      case repo.insert(changeset, on_conflict: {:replace_all_except, [pk]}, conflict_target: [pk]) do
+        {:ok, row} -> row
+        {:error, cs} -> repo.rollback(cs)
+      end
+    end
+
+    defp delete_row(repo, source, schema, pk, key),
+      do: repo.delete_all(from(r in {source, schema}, where: field(r, ^pk) == ^key))
 
     # A saga boundary: whatever happens inside, the caller gets {:ok, _} or
     # {:error, reason}, and the transaction has rolled back on error. A

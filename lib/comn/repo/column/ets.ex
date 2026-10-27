@@ -147,38 +147,37 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo.Column
-  def project(%__MODULE__{rows_table: rows, meta_table: meta}, fields, filters)
+  def project(%__MODULE__{rows_table: rows} = store, fields, filters)
       when is_list(fields) and is_map(filters) do
+    with {:ok, schema} <- defined_schema(store), :ok <- known_fields(schema, fields) do
+      rows = for {_id, row} <- :ets.tab2list(rows), matches_filters?(row, filters), do: row
+      {:ok, Enum.map(rows, &project_row(&1, fields))}
+    end
+  end
+
+  defp project_row(row, []), do: row
+  defp project_row(row, fields), do: Map.take(row, fields)
+
+  defp defined_schema(%__MODULE__{meta_table: meta}) do
     case :ets.lookup(meta, :schema) do
       [{:schema, nil}] ->
         {:error, ErrReg.error!("repo.column/not_found", message: "No schema defined")}
 
       [{:schema, schema}] ->
-        # Validate requested fields exist in schema
-        unknown = Enum.reject(fields, &Map.has_key?(schema, &1))
+        {:ok, schema}
+    end
+  end
 
-        if unknown != [] do
-          {:error,
-           ErrReg.error!("repo.column/unknown_column",
-             message: "Unknown columns: #{inspect(unknown)}"
-           )}
-        else
-          folded =
-            :ets.foldl(
-              fn {_id, row}, acc ->
-                if matches_filters?(row, filters) do
-                  projected = if fields == [], do: row, else: Map.take(row, fields)
-                  [projected | acc]
-                else
-                  acc
-                end
-              end,
-              [],
-              rows
-            )
+  defp known_fields(schema, fields) do
+    case Enum.reject(fields, &Map.has_key?(schema, &1)) do
+      [] ->
+        :ok
 
-          {:ok, Enum.reverse(folded)}
-        end
+      unknown ->
+        {:error,
+         ErrReg.error!("repo.column/unknown_column",
+           message: "Unknown columns: #{inspect(unknown)}"
+         )}
     end
   end
 
@@ -188,16 +187,7 @@ defmodule Comn.Repo.Column.ETS do
       [{:row_count, count}] = :ets.lookup(meta, :row_count)
       {:ok, count}
     else
-      count =
-        :ets.foldl(
-          fn {_id, row}, acc ->
-            if matches_filters?(row, filters), do: acc + 1, else: acc
-          end,
-          0,
-          rows
-        )
-
-      {:ok, count}
+      {:ok, Enum.count(:ets.tab2list(rows), fn {_id, row} -> matches_filters?(row, filters) end)}
     end
   end
 

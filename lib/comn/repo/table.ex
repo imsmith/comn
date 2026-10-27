@@ -151,9 +151,7 @@ defmodule Comn.Repo.Table do
   @impl Comn.Repo
   def observe(%Handle{backend: b, state: s}, opts \\ []) do
     with pairs when is_list(pairs) <- b.observe(s, opts) do
-      if Comn.Repo.events_view?(opts),
-        do: for({_k, %EventStruct{} = e} <- pairs, do: e),
-        else: pairs
+      if Comn.Repo.events_view?(opts), do: Comn.Repo.events_in(pairs), else: pairs
     end
   end
 

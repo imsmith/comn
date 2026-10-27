@@ -72,16 +72,7 @@ defmodule Comn.Presence do
   def announce(%Zone{} = zone, actor, :gone) do
     key = Zone.to_string(zone)
 
-    Agent.update(@agent, fn store ->
-      case Map.fetch(store, key) do
-        {:ok, actors} ->
-          remaining = Map.delete(actors, actor)
-          if remaining == %{}, do: Map.delete(store, key), else: Map.put(store, key, remaining)
-
-        :error ->
-          store
-      end
-    end)
+    Agent.update(@agent, &remove_actor(&1, key, actor))
   end
 
   def announce(%Zone{} = zone, actor, state) when is_atom(state) do
@@ -90,6 +81,13 @@ defmodule Comn.Presence do
     Agent.update(@agent, fn store ->
       Map.update(store, key, %{actor => state}, &Map.put(&1, actor, state))
     end)
+  end
+
+  defp remove_actor(store, key, actor) do
+    case Map.delete(Map.get(store, key, %{}), actor) do
+      remaining when map_size(remaining) == 0 -> Map.delete(store, key)
+      remaining -> Map.put(store, key, remaining)
+    end
   end
 
   @doc """

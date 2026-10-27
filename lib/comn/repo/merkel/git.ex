@@ -26,18 +26,13 @@ defmodule Comn.Repo.Merkel.Git do
 
   @impl true
   def open(_name, opts) do
+    with {:ok, path} <- path_opt(opts), :ok <- ensure_bare(path), do: {:ok, path}
+  end
+
+  defp path_opt(opts) do
     case Keyword.fetch(opts, :path) do
       {:ok, path} when is_binary(path) ->
-        if File.dir?(Path.join(path, "objects")) do
-          {:ok, path}
-        else
-          File.mkdir_p!(path)
-
-          case git(path, ["init", "--bare", "-q"]) do
-            {:ok, _} -> {:ok, path}
-            {:error, reason} -> {:error, backend_error(reason)}
-          end
-        end
+        {:ok, path}
 
       _ ->
         {:error,
@@ -45,6 +40,19 @@ defmodule Comn.Repo.Merkel.Git do
            field: "path",
            suggestion: "pass path: \"/abs/repo.git\""
          )}
+    end
+  end
+
+  defp ensure_bare(path) do
+    if File.dir?(Path.join(path, "objects")) do
+      :ok
+    else
+      File.mkdir_p!(path)
+
+      case git(path, ["init", "--bare", "-q"]) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, backend_error(reason)}
+      end
     end
   end
 
@@ -122,21 +130,13 @@ defmodule Comn.Repo.Merkel.Git do
 
   @impl true
   def length(path) do
-    with :ok <- ensure_repo(path) do
-      case head(path) do
-        {:ok, nil} ->
-          {:ok, 0}
+    with :ok <- ensure_repo(path), {:ok, head} <- head(path), do: count_commits(path, head)
+  end
 
-        {:ok, _} ->
-          with(
-            {:ok, n} <- git(path, ["rev-list", "--count", @ref]),
-            do: {:ok, String.to_integer(n)}
-          )
+  defp count_commits(_path, nil), do: {:ok, 0}
 
-        error ->
-          error
-      end
-    end
+  defp count_commits(path, _head) do
+    with {:ok, n} <- git(path, ["rev-list", "--count", @ref]), do: {:ok, String.to_integer(n)}
   end
 
   # git verifies an object's hash whenever it reads it; node/2 already read

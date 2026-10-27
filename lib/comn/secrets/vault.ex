@@ -138,25 +138,8 @@ defmodule Comn.Secrets.Vault do
       {~c"Content-Type", ~c"application/json"}
     ]
 
-    # Make HTTP request
-    case http_post(url, headers, body) do
-      {:ok, response_body} ->
-        case Jason.decode(response_body) do
-          {:ok, %{"data" => %{"ciphertext" => ciphertext}}} ->
-            {:ok, ciphertext}
-
-          {:ok, %{"errors" => errors}} ->
-            Logger.error("Vault encryption failed: #{inspect(errors)}")
-            map_vault_error(errors)
-
-          _ ->
-            {:error, ErrReg.error!("secrets/vault_error")}
-        end
-
-      {:error, reason} ->
-        Logger.error("Vault HTTP request failed: #{inspect(reason)}")
-        {:error, ErrReg.error!("secrets/vault_unavailable")}
-    end
+    with {:ok, response_body} <- http_post(url, headers, body),
+         do: payload(Jason.decode(response_body), "ciphertext", "encryption")
   end
 
   defp vault_decrypt(ciphertext, vault_config) do
@@ -171,28 +154,27 @@ defmodule Comn.Secrets.Vault do
       {~c"Content-Type", ~c"application/json"}
     ]
 
-    # Make HTTP request
-    case http_post(url, headers, body) do
-      {:ok, response_body} ->
-        case Jason.decode(response_body) do
-          {:ok, %{"data" => %{"plaintext" => encoded_plaintext}}} ->
-            # Base64 decode the plaintext
-            case Base.decode64(encoded_plaintext) do
-              {:ok, plaintext} -> {:ok, plaintext}
-              :error -> {:error, ErrReg.error!("secrets/invalid_ciphertext")}
-            end
+    with {:ok, response_body} <- http_post(url, headers, body),
+         {:ok, encoded} <- payload(Jason.decode(response_body), "plaintext", "decryption") do
+      decode_plaintext(encoded)
+    end
+  end
 
-          {:ok, %{"errors" => errors}} ->
-            Logger.error("Vault decryption failed: #{inspect(errors)}")
-            map_vault_error(errors)
+  # The field under "data" in a Transit response, or the Vault error.
+  defp payload({:ok, %{"data" => data}}, field, _op) when is_map_key(data, field),
+    do: {:ok, data[field]}
 
-          _ ->
-            {:error, ErrReg.error!("secrets/vault_error")}
-        end
+  defp payload({:ok, %{"errors" => errors}}, _field, op) do
+    Logger.error("Vault #{op} failed: #{inspect(errors)}")
+    map_vault_error(errors)
+  end
 
-      {:error, reason} ->
-        Logger.error("Vault HTTP request failed: #{inspect(reason)}")
-        {:error, ErrReg.error!("secrets/vault_unavailable")}
+  defp payload(_, _field, _op), do: {:error, ErrReg.error!("secrets/vault_error")}
+
+  defp decode_plaintext(encoded) do
+    case Base.decode64(encoded) do
+      {:ok, plaintext} -> {:ok, plaintext}
+      :error -> {:error, ErrReg.error!("secrets/invalid_ciphertext")}
     end
   end
 
@@ -217,7 +199,8 @@ defmodule Comn.Secrets.Vault do
         {:error, ErrReg.error!("secrets/vault_error")}
 
       {:error, reason} ->
-        {:error, reason}
+        Logger.error("Vault HTTP request failed: #{inspect(reason)}")
+        {:error, ErrReg.error!("secrets/vault_unavailable")}
     end
   end
 
