@@ -6,7 +6,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 
 ## Status
 
-**v0.6.2** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, zone-based spatial addressing, and Repo shapes that are all event sinks (ADR-0001): Table, Column, File, Graph, Batch, Queue, Stream, Bus, Merkel.
+**v0.7.0** — OTP application with supervision tree, compile-time error registry, automatic context enrichment, runtime module discovery, zone-based spatial addressing, and nine Repo shapes that are all event sinks (ADR-0001) and all facades over one handle and one lifecycle: Table, Column, File, Graphs, Batch, Queue, Stream, Bus, Merkel. File paths are confined to a declared root. Three Credo checks ship with the library. See [CHANGELOG.md](CHANGELOG.md).
 
 | Subsystem | Status | What it does |
 |---|---|---|
@@ -62,8 +62,8 @@ then prints the two lines you add by hand: the plug in your router
 pipelines, and the dep if it is not there yet. Existing files are never
 overwritten. Suppress pieces with `--no-context-plug` / `--no-error-registry`.
 
-For the dev directory, add [busybody-client](../busybody-client) separately;
-it is a one-child-spec library with its own README.
+For the dev directory, add `busybody-client` separately; it is a
+one-child-spec library with its own README.
 
 ## The Comn Behaviour
 
@@ -75,15 +75,17 @@ Comn.Repo.look()
 
 Comn.Repo.recon()
 #=> %{callbacks: [:describe, :get, :set, :delete, :observe],
-#     extensions: [Comn.Repo.Table, Comn.Repo.File, Comn.Repo.Graphs, Comn.Repo.Cmd],
+#     extensions: [Comn.Repo.Table, Comn.Repo.Column, Comn.Repo.File, Comn.Repo.Graphs,
+#                  Comn.Repo.Batch, Comn.Repo.Queue, Comn.Repo.Bus, Comn.Repo.Stream,
+#                  Comn.Repo.Merkel, Comn.Repo.Cmd],
 #     type: :behaviour}
 
 Comn.Repo.choices()
-#=> %{extensions: ["Table", "File", "Graphs", "Cmd"],
-#     implementations: ["Table.ETS", "File.Local", ...]}
+#=> %{extensions: ["Table", "Column", "File", "Graphs", "Batch", "Queue", "Bus", "Stream", "Merkel", "Cmd"],
+#     implementations: ["Table.ETS", "Table.Ecto", "File.Local", ...]}
 
-Comn.Repo.Table.ETS.act(%{action: :create, name: :my_table})
-#=> {:ok, #Reference<...>}
+Comn.Repo.Table.act(%{action: :open, name: :my_table})
+#=> {:ok, %Comn.Repo.Handle{shape: Comn.Repo.Table, backend: Comn.Repo.Table.ETSAdapter, ...}}
 ```
 
 Behaviour-only modules return a `comn/behaviour_only` error from `act/1`. Placeholders return `comn/not_implemented`. An implementation given an input it does not recognise returns `comn/unknown_action`. All three are `Comn.Errors.ErrorStruct` values built by helpers on `Comn`.
@@ -251,10 +253,10 @@ alias Comn.Repo.{Table, Queue, Stream}
 
 fact = EventStruct.new(:domain, "order.placed", %{id: 1})
 
-{:ok, _} = Table.ETS.create(:orders)
-:ok = Table.ETS.set(:orders, event: fact)               # stored under fact.id
-{:ok, ^fact} = Table.ETS.get(:orders, id: fact.id)
-[^fact] = Table.ETS.observe(:orders, as: :events)
+{:ok, t} = Table.open(:orders, backend: :ets)
+:ok = Table.set(t, event: fact)                         # stored under fact.id
+{:ok, ^fact} = Table.get(t, id: fact.id)
+[^fact] = Table.observe(t, as: :events)
 
 {:ok, q} = Queue.open("orders", backend: :mem)
 :ok = Queue.set(q, event: fact)                         # enqueued
@@ -513,18 +515,18 @@ zone = Comn.Zone.new(realm: :local, locale: "lobby")
 `Comn.Repo` defines three optional callbacks — `enter/2`, `exit/2`, `discover/2` — keyed by a zone. Repos with a notion of place implement them; flat repos (ETS, blob stores) do not.
 
 ```elixir
-alias Comn.Repo.Graphs.Graph
+alias Comn.Repo.Graphs
 
-{:ok, g} = Graph.create()
-{:ok, g} = Graph.link(g, :a, :b)
-{:ok, g} = Graph.link(g, :b, :c)
+{:ok, g} = Graphs.open("rooms")
+{:ok, g} = Graphs.link(g, :a, :b)
+{:ok, g} = Graphs.link(g, :b, :c)
 
 zone = Comn.Zone.new(realm: :local, locale: "a")
-{:ok, :a} = Graph.enter(g, zone)
-{:ok, [:b]} = Graph.discover(g, zone)
+{:ok, :a} = Graphs.enter(g, zone)
+{:ok, [:b]} = Graphs.discover(g, zone)
 
 # traverse/4 navigates and updates the calling process's context zone
-{:ok, dest, [:a, :b, :c]} = Graph.traverse(g, zone, :c, [])
+{:ok, dest, [:a, :b, :c]} = Graphs.traverse(g, zone, :c, [])
 dest.locale  #=> "c"
 ```
 
@@ -551,6 +553,11 @@ lib/comn/
   errors/registry.ex         Compile-time error code registry
   errors/impl/               Error protocol implementations
 
+  credo/check.ex             Shared AST walk for the Credo checks below
+  credo/bare_error_atom.ex   Credo: every error is an ErrorStruct
+  credo/secret_from_env.ex   Credo: secrets do not come from env/config
+  credo/raw_shell.ex         Credo: process execution goes through Repo.Cmd
+
   merkel.ex                  Comn.Merkel protocol: canonical bytes of a term
   events.ex                  Pub/sub behaviour
   events/event_bus.ex        Registry-based pub/sub
@@ -568,6 +575,7 @@ lib/comn/
   secrets/locked_blob.ex     Encrypted blob struct
   secrets/container.ex       Blob container struct
   secrets/errors.ex          Secrets subsystem error codes
+  secrets/utils.ex           Key validation and container wrap/unwrap shared by backends
 
   repo.ex                    Base repo behaviour (describe/get/set/delete/observe; optional enter/exit/discover; backends/0)
   repo/handle.ex             One opaque handle for every shape (shape, backend, state, name, meta)
@@ -582,6 +590,7 @@ lib/comn/
   repo/file.ex               File facade (open/close/drop/load/stream/cast/read/write) + direct-backend behaviour
   repo/file/backend.ex       Private backend contract
   repo/file/adapter.ex       Backend contract over Local, NFS, and IPFS
+  repo/file/root.ex          Path confinement: every file path resolves under a declared root
   repo/graphs.ex             Graphs facade (open/close/drop/link/unlink/traverse; spatial verbs) + direct-backend behaviour
   repo/graphs/backend.ex     Private backend contract
   repo/graphs/graph_adapter.ex  Backend contract over Graphs.Graph
@@ -643,11 +652,27 @@ podman run -d --name comn-nats -p 4222:4222 docker.io/library/nats:latest -js
 Every `iex>` example in a moduledoc or function doc is a doctest and runs
 with the suite (`test/doctest_test.exs` plus per-module test files).
 
+## Quality gates
+
+```bash
+mix credo --strict          # style and the three Comn doctrine checks; clean, tests included
+mix sobelow                 # security static analysis; 13 low traversal findings, see CHANGELOG
+mix deps.audit              # known vulnerabilities in dependencies (mix_audit)
+mix vet.check               # dependency owner, age, and typosquat check before deps.get
+mix vet --skip-hex          # static scan of dependency source (vet_cli)
+```
+
+Analyzer findings are fixed in code, not suppressed. Where a check cannot
+be satisfied by any correct code, the count is stated in the CHANGELOG.
+
 ## Documentation
 
 ```bash
 mix docs                    # Builds HTML docs into doc/ via ex_doc
 ```
+
+Release notes are in [CHANGELOG.md](CHANGELOG.md). The design rationale is
+[guides/design.md](guides/design.md); decisions are under `docs/adr/`.
 
 ## License
 

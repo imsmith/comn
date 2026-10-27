@@ -4,9 +4,26 @@ defmodule Comn.Repo do
 
   Defines the five verbs every repo must support — `describe`, `get`, `set`,
   `delete`, `observe` — regardless of whether the backend is a table, file,
-  graph, or shell command. Extension behaviours (`Comn.Repo.Table`,
-  `Comn.Repo.File`, `Comn.Repo.Graphs`, `Comn.Repo.Cmd`) add domain-specific
-  callbacks on top of these.
+  graph, or shell command. Each shape (`Comn.Repo.Table`, `Column`, `File`,
+  `Graphs`, `Batch`, `Queue`, `Bus`, `Stream`, `Merkel`) is a facade over
+  fungible backends and adds its own verbs on top of these; `Comn.Repo.Cmd`
+  is the execution shape.
+
+  ## Handles and lifecycle
+
+  Every shape's `open/2` returns a `Comn.Repo.Handle` and every shape's
+  `close/1` and `drop/1` go through `Comn.Repo.Lifecycle`. The backend is a
+  word in one option to `open/2`; a facade exposes `backends/0` and the
+  lifecycle resolves it, checking that the module declares the shape's
+  `Backend` behaviour. Calling code never names a backend after that.
+
+  ## Canonical event forms (ADR-0001)
+
+  Every shape accepts `set(h, event: e)`, answers `get(h, id: event_id)`
+  where it retains anything, and enumerates `observe(h, as: :events)`. The
+  helpers below (`event?/1`, `events_view?/1`, `fetch_event/1`,
+  `events_in/1`, `encode_line/1`, `decode_line/1`, `decode_term/1`) are
+  what the shapes share to implement them.
 
   Also implements `@behaviour Comn` for uniform introspection.
 
@@ -19,7 +36,7 @@ defmodule Comn.Repo do
   extension) walks the graph and updates the calling process's context
   zone.
 
-  Flat repos like `Comn.Repo.Table.ETS` do **not** implement these. Use
+  Flat repos like `Comn.Repo.Table` do **not** implement these. Use
   `function_exported?/3` or `behaviour_info(:optional_callbacks)` to
   detect spatial-capability at runtime.
 
@@ -161,6 +178,7 @@ defmodule Comn.Repo do
   def encode_line(%Comn.Events.EventStruct{} = e),
     do: Base.encode64(:erlang.term_to_binary(e)) <> "\n"
 
+  @spec decode_term(binary()) :: term()
   @doc """
   Decodes a term a Comn backend wrote with `:erlang.term_to_binary/1`.
 
@@ -170,8 +188,17 @@ defmodule Comn.Repo do
   subject, an Ecto column, a log line); a hostile peer on the same medium
   can still make a large term, which is a size limit for the medium, not
   for this function. Every backend decodes through here.
+
+      iex> Comn.Repo.decode_term(:erlang.term_to_binary(%{"n" => 1}))
+      %{"n" => 1}
+
+      iex> try do
+      ...>   Comn.Repo.decode_term(:erlang.term_to_binary(fn -> :boom end))
+      ...> rescue
+      ...>   ArgumentError -> :refused
+      ...> end
+      :refused
   """
-  @spec decode_term(binary()) :: term()
   def decode_term(bin) when is_binary(bin),
     do: Plug.Crypto.non_executable_binary_to_term(bin, [:safe])
 
@@ -196,7 +223,18 @@ defmodule Comn.Repo do
   def recon do
     %{
       callbacks: [:describe, :get, :set, :delete, :observe],
-      extensions: [Comn.Repo.Table, Comn.Repo.File, Comn.Repo.Graphs, Comn.Repo.Cmd],
+      extensions: [
+        Comn.Repo.Table,
+        Comn.Repo.Column,
+        Comn.Repo.File,
+        Comn.Repo.Graphs,
+        Comn.Repo.Batch,
+        Comn.Repo.Queue,
+        Comn.Repo.Bus,
+        Comn.Repo.Stream,
+        Comn.Repo.Merkel,
+        Comn.Repo.Cmd
+      ],
       type: :behaviour
     }
   end
@@ -204,13 +242,35 @@ defmodule Comn.Repo do
   @impl Comn
   def choices do
     %{
-      extensions: ["Table", "File", "Graphs", "Cmd"],
+      extensions: [
+        "Table",
+        "Column",
+        "File",
+        "Graphs",
+        "Batch",
+        "Queue",
+        "Bus",
+        "Stream",
+        "Merkel",
+        "Cmd"
+      ],
       implementations: [
         "Table.ETS",
+        "Table.Ecto",
+        "Column.ETS",
         "File.Local",
         "File.NFS",
         "File.IPFS",
         "Graphs.Graph",
+        "Batch.Mem",
+        "Queue.Mem",
+        "Queue.SQLite",
+        "Bus.Registry",
+        "Stream.Mem",
+        "Stream.SQLite",
+        "Stream.JetStream",
+        "Merkel.Mem",
+        "Merkel.Git",
         "Cmd.Shell"
       ]
     }

@@ -4,7 +4,9 @@ defmodule Comn.Repo.Graphs.Graph do
 
   Operates directly on `Comn.Repo.Graphs.GraphStruct` — no process, no
   registry. The caller holds the struct, passes it in, gets an updated
-  one back. Supports directed and undirected graphs with five traversal
+  one back. This is the `:libgraph` backend behind the `Comn.Repo.Graphs`
+  facade (via a private adapter); new code goes through the
+  facade, and this surface stays for callers that hold the struct. Supports directed and undirected graphs with five traversal
   modes: `:shortest_path`, `:reachable`, `:neighbors`, `:vertices`, `:edges`.
 
   Implements `@behaviour Comn` for uniform introspection.

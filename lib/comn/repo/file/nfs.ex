@@ -4,7 +4,10 @@ defmodule Comn.Repo.File.NFS do
 
   Wraps `Comn.Repo.File.Local` with path resolution relative to a
   configured mount point and ESTALE (stale NFS handle) detection.
-  Requires a `:mount` option on `open/2`.
+  Requires a `:mount` option on `open/2`; the mount is the root
+  `Comn.Repo.File.Root` confines paths to, so an escape is
+  `repo.file/outside_root`. This is the `:nfs` backend behind the
+  `Comn.Repo.File` facade.
 
   Implements `@behaviour Comn` for uniform introspection.
 

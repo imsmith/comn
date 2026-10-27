@@ -13,7 +13,25 @@ defmodule Comn.Repo.File.Root do
   # ponytail: symlinks inside the root are followed, so a link that points
   # outside escapes. Resolve real paths component by component if the root
   # can contain links the caller does not control.
-  @doc "The absolute path for `path` under `root`, or `repo.file/outside_root`."
+  @doc """
+  The absolute path for `path` under `root`, or `repo.file/outside_root`.
+
+      iex> Comn.Repo.File.Root.resolve("/srv/data", "logs/../today.log")
+      {:ok, "/srv/data/today.log"}
+
+      iex> Comn.Repo.File.Root.resolve("/srv/data", "/srv/data/x.txt")
+      {:ok, "/srv/data/x.txt"}
+
+      iex> {:error, %Comn.Errors.ErrorStruct{code: code}} =
+      ...>   Comn.Repo.File.Root.resolve("/srv/data", "../etc/passwd")
+      iex> code
+      "repo.file/outside_root"
+
+      iex> {:error, %Comn.Errors.ErrorStruct{code: "repo.file/outside_root"}} =
+      ...>   Comn.Repo.File.Root.resolve("/srv/data", "/srv/data_evil/x.txt")
+      iex> :refused
+      :refused
+  """
   @spec resolve(String.t(), String.t()) ::
           {:ok, String.t()} | {:error, Comn.Errors.ErrorStruct.t()}
   def resolve(root, path) when is_binary(root) and is_binary(path) do

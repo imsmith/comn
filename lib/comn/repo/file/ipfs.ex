@@ -4,7 +4,8 @@ defmodule Comn.Repo.File.IPFS do
 
   Content-addressed file I/O through a local IPFS daemon's HTTP API
   (default `http://localhost:5001`). Writes return a new CID; reads
-  fetch by CID.
+  fetch by CID. This is the `:ipfs` backend behind the `Comn.Repo.File`
+  facade; content ids are not paths, so there is no root to confine.
 
   Implements `@behaviour Comn` for uniform introspection.
 

@@ -3,7 +3,9 @@ defmodule Comn.Repo.Batch.Mem do
   In-memory GenServer implementation of `Comn.Repo.Batch` and `Comn.Repo`.
 
   Buffers items in process state and flushes via a configurable callback.
-  Supports both size-triggered and interval-triggered auto-flush.
+  Supports both size-triggered and interval-triggered auto-flush. This is
+  the `:mem` backend behind the `Comn.Repo.Batch` facade (via a private
+  adapter); new code opens a batch through the facade.
 
   Implements `@behaviour Comn` for uniform introspection.
 

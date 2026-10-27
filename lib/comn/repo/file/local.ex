@@ -3,7 +3,12 @@ defmodule Comn.Repo.File.Local do
   Local filesystem implementation of `Comn.Repo.File` and `Comn.Repo`.
 
   Follows the file lifecycle state machine (`open → load → read/write/stream → close`)
-  against the local disk. Used directly or as the delegate for `Comn.Repo.File.NFS`.
+  against the local disk. Used directly or as the delegate for `Comn.Repo.File.NFS`,
+  and as the `:local` backend behind the `Comn.Repo.File` facade.
+
+  `open/2` requires `root:`; every path is resolved under it by
+  `Comn.Repo.File.Root` and refused with `repo.file/outside_root` if it
+  escapes. The resolved absolute path is what the handle carries.
 
   Implements `@behaviour Comn` for uniform introspection.
 
@@ -24,6 +29,13 @@ defmodule Comn.Repo.File.Local do
 
   # Comn.Repo.File callbacks
 
+  @doc """
+  Opens `path` under the required `root:` in the `:open` state.
+
+  Options: `:root` (required), `:mode` (default `[:read, :binary]`).
+  Errors: `repo.file/invalid_opts` without a root, `repo.file/outside_root`
+  when the path escapes it, or an OS reason such as `:enoent`.
+  """
   @spec open(term(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def open(path, opts \\ []) do

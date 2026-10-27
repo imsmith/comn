@@ -1,6 +1,18 @@
 if Code.ensure_loaded?(Credo.Check) do
   defmodule Comn.Credo.RawShell do
-    @moduledoc false
+    @moduledoc """
+    Flags direct process execution: `System.cmd`, `System.shell`, `:os.cmd`,
+    and `Port.open` with a spawn tuple.
+
+    `Comn.Repo.Cmd` is the execution boundary where blast radius is
+    classified and authorized; a raw shell call bypasses it. Implementations
+    of `Comn.Repo.Cmd` are the legitimate callers.
+
+    Ships with comn; `credo` is an optional dependency. A consumer lists the
+    check in `.credo.exs`:
+
+        {Comn.Credo.RawShell, []}
+    """
     use Credo.Check,
       base_priority: :high,
       category: :warning,

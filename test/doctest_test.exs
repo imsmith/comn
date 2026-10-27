@@ -23,6 +23,7 @@ defmodule Comn.DoctestTest do
   doctest Comn.Repo.Column
   doctest Comn.Repo
   doctest Comn.Repo.File
+  doctest Comn.Repo.File.Root
   doctest Comn.Repo.File.IPFS
   doctest Comn.Repo.File.Local
   doctest Comn.Repo.File.NFS

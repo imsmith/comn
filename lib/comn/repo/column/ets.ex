@@ -6,6 +6,8 @@ defmodule Comn.Repo.Column.ETS do
   caller's atom. Rows live under integer keys in insertion order; the
   schema and counters live under atom keys in the same table. Appends
   write straight to ETS, so `flush/1` is a no-op that reports the count.
+  This is the `:ets` backend behind the `Comn.Repo.Column` facade (via a
+  private adapter); new code opens a store through the facade.
 
   Intended for development, testing, and small datasets. Not a substitute
   for a real column store on large data.

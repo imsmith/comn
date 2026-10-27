@@ -60,12 +60,14 @@ Comn.Repo.look()
 
 Comn.Repo.recon()
 #=> %{callbacks: [:describe, :get, :set, :delete, :observe],
-#     extensions: [Comn.Repo.Table, Comn.Repo.File, Comn.Repo.Graphs, Comn.Repo.Cmd],
+#     extensions: [Comn.Repo.Table, Comn.Repo.Column, Comn.Repo.File, Comn.Repo.Graphs,
+#                  Comn.Repo.Batch, Comn.Repo.Queue, Comn.Repo.Bus, Comn.Repo.Stream,
+#                  Comn.Repo.Merkel, Comn.Repo.Cmd],
 #     type: :behaviour}
 
 Comn.Repo.choices()
-#=> %{extensions: ["Table", "File", "Graphs", "Cmd"],
-#     implementations: ["Table.ETS", "File.Local", ...]}
+#=> %{extensions: ["Table", "Column", "File", "Graphs", "Batch", "Queue", "Bus", "Stream", "Merkel", "Cmd"],
+#     implementations: ["Table.ETS", "Table.Ecto", "File.Local", ...]}
 
 Comn.Repo.Table.ETS.act(%{action: :create, name: :my_table})
 #=> {:ok, #Reference<...>}
@@ -417,13 +419,22 @@ logging internally. Swapping backends is a configuration change, not a code chan
 
 ### Safety Detail
 
-All `binary_to_term` calls use the `[:safe]` option. Without it, deserializing
-attacker-controlled data can exhaust the atom table (atoms are not garbage
-collected) or, in older OTP versions, execute arbitrary code. `[:safe]` restricts
-deserialization to terms that reference only existing atoms and does not allow
-anonymous functions. Any attempt to deserialize a term with unknown atoms raises
-`ArgumentError`, which is caught and converted to a `secrets/invalid_container`
-error.
+No code in comn calls `:erlang.binary_to_term/2`. Deserialization goes
+through `Plug.Crypto.non_executable_binary_to_term/2` with `[:safe]`:
+no new atoms (atoms are not garbage collected, so an attacker-controlled
+term can exhaust the table), and no funs, pids, ports, or references
+anywhere in the term. The Secrets backends call it in
+`Comn.Secrets.Utils.unwrap/3` on bytes the AEAD unlock has just
+authenticated; a term that still fails raises `ArgumentError`, caught and
+converted to `secrets/invalid_container`. Every Repo backend calls it
+through `Comn.Repo.decode_term/1`, so the trust statement is written once.
+
+The constraint this places on callers is the one ISSUES.md records: data
+stored through any shape must be atom-free beyond the atoms the reading
+VM is guaranteed to have. A map with atom keys appended in one VM reads
+back fine in a release, where every module is loaded at boot, and fails
+in a fresh `mix run` that has not yet created those atoms. String keys
+are the portable form.
 
 ### The `lock/2` Implementation
 
@@ -505,6 +516,37 @@ an extension behaviour layered on top.
 @callback observe(resource(), keyword()) :: Enumerable.t() | {:error, term()}
 ```
 
+### One Handle, One Lifecycle
+
+Nine of the ten shapes are facades. A caller opens a resource with
+`open/2`, names the backend in one option, and gets back a
+`Comn.Repo.Handle`: the shape, the backend module, the backend's private
+state, the resource name, and a small `meta` map. Every verb takes that
+handle. `close/1` and `drop/1` go through `Comn.Repo.Lifecycle`, which also
+resolves the backend: a short name from the facade's `backends/0` map, or
+a module that declares the shape's `Backend` behaviour. Nothing in calling
+code names a backend after `open/2`, which is what "fungible" means here.
+
+```elixir
+<!-- from lib/comn/repo/handle.ex -->
+@enforce_keys [:shape, :backend, :state, :name]
+defstruct [:shape, :backend, :state, :name, meta: %{}]
+```
+
+Two shapes are values rather than processes or tables. A graph is a value;
+a file is a value with a state. Their mutating verbs (`link`, `unlink`,
+`load`, `write`, and the Repo `set` and `delete`) return a new handle,
+which `Comn.Repo.Lifecycle.rebind/2` builds from the backend's new state.
+The event-sink conformance spec threads handles the same way, so a value
+shape and a process shape pass the same tests.
+
+The older implementation modules (`Comn.Repo.Table.ETS`, `Column.ETS`,
+`File.Local`, `NFS`, `IPFS`, `Graphs.Graph`, `Batch.Mem`) keep their
+public surface. Each sits behind a private adapter that speaks the
+shape's `Backend` contract, so a caller who holds an ETS table name or a
+`GraphStruct` loses nothing, and a caller who wants the backend to be a
+configuration detail opens through the facade.
+
 ### The Ten Shapes
 
 **Table** is the baseline: a named collection of key-value pairs with a
@@ -521,8 +563,11 @@ it exists because using a file before it's loaded or writing to a closed handle
 are real, common mistakes that blow up at runtime. Encoding this as a lifecycle
 with explicit state transitions catches those errors at the type level rather
 than at the point of failure, which may be a hundred calls later. Local, NFS,
-and IPFS are all implementations of the same File behaviour — same verbs, same
-lifecycle, different path resolution and transport.
+and IPFS are the three backends of the one File facade — same verbs, same
+lifecycle, different path resolution and transport. The two path-based
+backends confine every path to a declared root (`root:` for Local,
+`mount:` for NFS) through `Comn.Repo.File.Root`; a path that resolves
+outside it is refused before any `File` call is made.
 
 **Graphs** is different from Table in kind, not just degree. In a table, data
 sits at keys and relationships are implied by convention (foreign keys, naming
@@ -600,29 +645,38 @@ has, because the address depends on them.
 
 ### Naming Convention
 
-Behaviours live at `Comn.Repo.X`. Implementations live at
-`Comn.Repo.X.Backend`. For example: `Comn.Repo.Table` is the behaviour;
-`Comn.Repo.Table.ETS` is the ETS implementation. `Comn.Repo.File` is the
-behaviour; `Comn.Repo.File.Local`, `Comn.Repo.File.NFS`, and
-`Comn.Repo.File.IPFS` are the implementations. This keeps the module tree
-readable: the behaviour is always one level up from its implementations, and
-you can find all implementations of a shape by listing its namespace.
+The facade lives at `Comn.Repo.X` and is the only module calling code
+names. Its private backend contract is `Comn.Repo.X.Backend`. Backends
+live at `Comn.Repo.X.<Technology>`: `Comn.Repo.Table.ETS` and
+`Comn.Repo.Table.Ecto`; Mem, SQLite, and JetStream under
+`Comn.Repo.Stream`; `Comn.Repo.File.Local`, `NFS`, and `IPFS`. Backend
+modules are private to the facade and hidden from the generated docs.
+Where an older implementation module predates the contract, a private
+adapter beside it (ETSAdapter for Table, Adapter for File) speaks the
+contract on its behalf. The tree stays readable: the facade is one level
+up from everything that serves it, and listing a shape's namespace lists
+its backends.
 
-### NFS vs Local: A Design Choice
+### NFS vs Local: Both Confined
 
-NFS wraps Local rather than reimplementing file I/O. The NFS implementation adds
-exactly two things Local does not have: path resolution relative to a mount
-point, and ESTALE detection. Everything else — reading, writing, streaming,
-lifecycle state management — delegates to Local.
+NFS wraps Local rather than reimplementing file I/O. The NFS backend adds
+exactly one thing Local does not have: ESTALE (stale handle) detection.
+Everything else — reading, writing, streaming, lifecycle state management,
+and path resolution — delegates to Local.
 
-The path resolution difference is deliberate. NFS has a mount boundary to
-enforce. `resolve_path/2` expands the path and validates that the result stays
-within the mount point, rejecting traversal attempts (`../../etc/passwd` and
-its variants). Local does not have a mount boundary. Local is deliberately "you
-get what you ask for" — the path you pass is the path you get. If you are
-exposing Local to untrusted input, path policy is your problem to add. The
-library does not impose a sandbox on a shape that has no natural boundary;
-doing so would be the wrong abstraction in the wrong place.
+Path confinement used to be NFS's alone, on the argument that a mount is a
+natural boundary and a local filesystem is not. That argument did not
+survive a security review. A file backend is handed a path by a caller the
+library does not control, and "you get what you ask for" is the textbook
+traversal hazard. Both backends now resolve every path through
+`Comn.Repo.File.Root` against a root the opener declares: `root:` for
+Local, `mount:` for NFS. A relative path is joined to the root; an
+absolute path must already be under it; `..` is normalised away before
+the check; a sibling directory that merely shares the root as a string
+prefix is refused. The one known ceiling is symlinks inside the root, which
+are followed. Closing that means resolving real paths component by
+component, which the standard library does not offer; it matters only when
+the root can contain links the caller does not control.
 
 <a id="boot"></a>
 ## Supervision and Boot — How It Comes Alive

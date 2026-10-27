@@ -3,7 +3,10 @@ defmodule Comn.Repo.Table.ETS do
   ETS-backed implementation of `Comn.Repo` and `Comn.Repo.Table`.
 
   In-memory key-value store using Erlang Term Storage. Tables default to
-  `[:named_table, :public, :set]`.
+  `[:named_table, :public, :set]`. This is the `:ets` backend behind the
+  `Comn.Repo.Table` facade (via a private adapter); new code
+  opens a table through the facade, and this surface stays for existing
+  callers.
 
   Implements `@behaviour Comn` for uniform introspection.
 

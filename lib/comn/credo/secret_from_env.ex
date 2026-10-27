@@ -1,6 +1,19 @@
 if Code.ensure_loaded?(Credo.Check) do
   defmodule Comn.Credo.SecretFromEnv do
-    @moduledoc false
+    @moduledoc """
+    Flags secret-looking names read straight from the environment or app config.
+
+    `System.get_env("VAULT_TOKEN")` and `Application.get_env(:app, :api_key)`
+    put plaintext secrets where every process, log line, and crash dump can
+    see them. `Comn.Secrets` is the boundary they belong behind. The name
+    pattern is a parameter (`pattern:`), defaulting to secret, token,
+    password, api_key, private_key, and credential, case-insensitive.
+
+    Ships with comn; `credo` is an optional dependency. A consumer lists the
+    check in `.credo.exs`:
+
+        {Comn.Credo.SecretFromEnv, []}
+    """
     use Credo.Check,
       base_priority: :high,
       category: :warning,

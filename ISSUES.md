@@ -6,6 +6,12 @@ Tracked here until they migrate to a real issue tracker. Newest first.
 
 **Filed:** 2026-10-13
 **Reported from:** integrating comn v0.6.3 into paperclip
+**Resolved:** 2026-10-27, v0.7.0, option 2. Every backend decodes through
+`Comn.Repo.decode_term/1` (`Plug.Crypto.non_executable_binary_to_term/2`,
+`[:safe]`), the SQLite queue included. The write side is not policed; the
+atom-free constraint is documented in the design guide's Safety Detail.
+The README examples still use atom-keyed maps where the backend is
+in-memory and the example never crosses a VM.
 
 ### Symptom
 
