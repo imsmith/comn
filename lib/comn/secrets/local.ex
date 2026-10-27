@@ -22,6 +22,7 @@ defmodule Comn.Secrets.Local do
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Secrets.{Container, Key, LockedBlob}
+  alias Comn.Secrets.Local.UUID
 
   @impl true
   def lock(blob, %Key{} = key) when is_binary(blob) do
@@ -114,7 +115,7 @@ defmodule Comn.Secrets.Local do
     with :ok <- validate_key(key) do
       # Create container
       container = %Container{
-        id: Comn.Secrets.Local.UUID.uuid4(),
+        id: UUID.uuid4(),
         blobs: blobs,
         metadata: %{
           created_at: DateTime.utc_now() |> DateTime.to_iso8601(),

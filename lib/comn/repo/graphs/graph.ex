@@ -30,6 +30,7 @@ defmodule Comn.Repo.Graphs.Graph do
 
   alias Comn.Errors.Registry, as: ErrReg
   alias Comn.Repo.Graphs.GraphStruct
+  alias Comn.Secrets.Local.UUID
   alias Comn.Zone
 
   @behaviour Comn
@@ -41,7 +42,7 @@ defmodule Comn.Repo.Graphs.Graph do
   def create(opts \\ []) do
     name = Keyword.get(opts, :name)
     directed? = Keyword.get(opts, :directed?, true)
-    id = Keyword.get_lazy(opts, :id, &Comn.Secrets.Local.UUID.uuid4/0)
+    id = Keyword.get_lazy(opts, :id, &UUID.uuid4/0)
 
     graph =
       if directed?,

@@ -6,6 +6,8 @@ defmodule Comn.Repo.Bus.Registry do
 
   @behaviour Comn.Repo.Bus.Backend
 
+  alias Comn.Repo.Bus
+
   @impl true
   def open(name, _opts) when is_atom(name), do: {:ok, name}
 
@@ -16,7 +18,7 @@ defmodule Comn.Repo.Bus.Registry do
   def drop(_name), do: :ok
 
   @impl true
-  def publish(name, event), do: Comn.Repo.Bus.notify(name, event)
+  def publish(name, event), do: Bus.notify(name, event)
 
   @impl true
   def subscribe(_name), do: :ok

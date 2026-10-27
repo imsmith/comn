@@ -33,6 +33,8 @@ defmodule Comn.Events.EventStruct do
       []
   """
 
+  alias Comn.Secrets.Local.UUID
+
   @enforce_keys [:type, :topic]
   defstruct [
     :id,
@@ -77,7 +79,7 @@ defmodule Comn.Events.EventStruct do
     ctx = Comn.Contexts.get()
 
     %__MODULE__{
-      id: Comn.Secrets.Local.UUID.uuid4(),
+      id: UUID.uuid4(),
       timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
       source: source,
       type: type,
