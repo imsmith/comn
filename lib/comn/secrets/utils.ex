@@ -67,11 +67,8 @@ defmodule Comn.Secrets.Utils do
     end
   end
 
-  # The bytes were just authenticated by the backend's AEAD unlock, so they
-  # are the container this module wrote; :safe still guards the atom table.
-  # sobelow_skip ["Misc.BinToTerm"]
   defp deserialize(serialized) do
-    case :erlang.binary_to_term(serialized, [:safe]) do
+    case Plug.Crypto.non_executable_binary_to_term(serialized, [:safe]) do
       %Container{blobs: blobs} when is_list(blobs) -> {:ok, blobs}
       _ -> {:error, ErrReg.error!("secrets/invalid_container")}
     end

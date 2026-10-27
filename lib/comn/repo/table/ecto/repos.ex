@@ -5,7 +5,7 @@ if Code.ensure_loaded?(Ecto.Repo) do
     #
     #   repo: MyApp.Repo            an existing, already-started repo module
     #   ecto: [adapter: A, ...]     build a repo module for adapter A at runtime
-    #   ecto: "path/to/repo.exs"    a file whose last expression is that keyword
+    #   ecto: "path/to/repo.exs"    a file holding that keyword as a literal
     #
     # Ecto fixes the adapter when the repo module is compiled, so "any
     # adapter" means compiling a module per configuration. They are cached
@@ -39,30 +39,48 @@ if Code.ensure_loaded?(Ecto.Repo) do
       end
     end
 
-    # A repo config file is code, like config/*.exs; the operator who names
-    # the path owns what it evaluates.
-    # sobelow_skip ["RCE.CodeModule"]
+    # The file is data, not code: it is parsed, and only literals (atoms,
+    # strings, numbers, module names, lists, tuples, maps) are accepted.
     defp load(path) when is_binary(path) do
-      case Code.eval_file(path) do
-        {cfg, _} when is_list(cfg) or is_map(cfg) ->
-          load(cfg)
-
-        _ ->
+      with {:ok, src} <- File.read(path),
+           {:ok, ast} <- Code.string_to_quoted(src),
+           {:ok, cfg} <- literal(ast) do
+        load(cfg)
+      else
+        {:error, reason} ->
           {:error,
            ErrReg.error!("repo.table/invalid_opts",
              field: "ecto",
-             message: "#{path} must return a keyword or map"
+             message: "#{path}: #{describe(reason)}"
            )}
       end
-    rescue
-      e ->
-        {:error,
-         ErrReg.error!("repo.table/invalid_opts", field: "ecto", message: Exception.message(e))}
     end
 
     defp load(cfg) when is_map(cfg), do: {:ok, Map.to_list(cfg)}
     defp load(cfg) when is_list(cfg), do: {:ok, cfg}
     defp load(_), do: {:error, ErrReg.error!("repo.table/invalid_opts", field: "ecto")}
+
+    defp literal(x) when is_atom(x) or is_binary(x) or is_number(x), do: {:ok, x}
+    defp literal({:__aliases__, _, parts}), do: {:ok, Module.concat(parts)}
+    defp literal({:__block__, _, [x]}), do: literal(x)
+    defp literal({:%{}, _, pairs}), do: with({:ok, l} <- literal(pairs), do: {:ok, Map.new(l)})
+    defp literal({:{}, _, els}), do: with({:ok, l} <- literal(els), do: {:ok, List.to_tuple(l)})
+    defp literal({a, b}), do: with({:ok, [x, y]} <- literal([a, b]), do: {:ok, {x, y}})
+
+    defp literal(list) when is_list(list) do
+      Enum.reduce_while(list, {:ok, []}, fn el, {:ok, acc} ->
+        case literal(el) do
+          {:ok, v} -> {:cont, {:ok, acc ++ [v]}}
+          err -> {:halt, err}
+        end
+      end)
+    end
+
+    defp literal(other), do: {:error, {:not_literal, other}}
+
+    defp describe({:not_literal, ast}), do: "not a literal: #{Macro.to_string(ast)}"
+    defp describe({_line, msg, token}) when is_binary(msg), do: msg <> to_string(token)
+    defp describe(reason), do: inspect(reason)
 
     defp split_adapter(cfg) do
       case Keyword.fetch(cfg, :adapter) do

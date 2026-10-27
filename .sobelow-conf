@@ -1,11 +1,7 @@
-# Comn is a library, not a Phoenix app. Traversal.FileModule is ignored because
-# Comn.Repo.File's whole job is opening the path its caller names (the :nfs
-# backend adds the mount check). Everything else is on; per-site exceptions
-# carry a `# sobelow_skip` comment with the reason above the function.
 [
   exit: :low,
-  skip: true,
+  skip: false,
   threshold: :low,
-  ignore: ["Traversal.FileModule"],
+  ignore: [],
   ignore_files: []
 ]

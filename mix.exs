@@ -36,6 +36,7 @@ defmodule Comn.MixProject do
       {:jason, "~> 1.4"},
       {:req, "~> 0.5"},
       {:libgraph, "~> 0.16"},
+      {:plug_crypto, "~> 2.0"},
       {:exqlite, "~> 0.27"},
       {:ecto_sql, "~> 3.12", optional: true},
       {:ecto_sqlite3, "~> 0.21", only: :test},

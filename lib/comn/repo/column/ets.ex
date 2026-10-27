@@ -2,9 +2,10 @@ defmodule Comn.Repo.Column.ETS do
   @moduledoc """
   ETS-backed implementation of `Comn.Repo.Column` and `Comn.Repo`.
 
-  In-memory column store using two ETS tables per store: one for rows
-  (ordered_set for insertion order) and one for metadata (schema, counters).
-  Rows are buffered in-process until `flush/1` writes them to ETS.
+  In-memory column store: one named ETS ordered_set per store, under the
+  caller's atom. Rows live under integer keys in insertion order; the
+  schema and counters live under atom keys in the same table. Appends
+  write straight to ETS, so `flush/1` is a no-op that reports the count.
 
   Intended for development, testing, and small datasets. Not a substitute
   for a real column store on large data.
@@ -30,55 +31,39 @@ defmodule Comn.Repo.Column.ETS do
 
   alias Comn.Errors.Registry, as: ErrReg
 
-  @enforce_keys [:name, :rows_table, :meta_table]
-  defstruct [:name, :rows_table, :meta_table, buffer: []]
+  @enforce_keys [:name]
+  defstruct [:name]
 
-  @type t :: %__MODULE__{
-          name: atom(),
-          rows_table: atom(),
-          meta_table: atom(),
-          buffer: [map()]
-        }
+  @type t :: %__MODULE__{name: atom()}
+
+  # Rows are {integer_id, row}; metadata is {atom_key, value} in the same table.
+  @rows [{{:"$1", :"$2"}, [{:is_integer, :"$1"}], [:"$2"]}]
 
   # -- Lifecycle --
 
   @doc "Creates a new column store. Returns a store handle."
   @spec create(atom()) :: {:ok, t()} | {:error, term()}
-  # sobelow_skip ["DOS.BinToAtom"]
-  # `name` is already an atom; the two derived atoms are bounded by the caller's.
   def create(name) when is_atom(name) do
-    rows_table = :"#{name}_rows"
-    meta_table = :"#{name}_meta"
-
-    if table_exists?(rows_table) do
+    if table_exists?(name) do
       {:error, ErrReg.error!("repo.column/already_exists", field: name)}
     else
-      :ets.new(rows_table, [:named_table, :public, :ordered_set])
-      :ets.new(meta_table, [:named_table, :public, :set])
-      :ets.insert(meta_table, {:schema, nil})
-      :ets.insert(meta_table, {:row_count, 0})
-      :ets.insert(meta_table, {:next_id, 0})
-
-      {:ok, %__MODULE__{name: name, rows_table: rows_table, meta_table: meta_table}}
+      :ets.new(name, [:named_table, :public, :ordered_set])
+      :ets.insert(name, [{:schema, nil}, {:row_count, 0}, {:next_id, 0}])
+      {:ok, %__MODULE__{name: name}}
     end
   end
 
-  @doc "Drops a column store and its ETS tables."
+  @doc "Drops a column store and its ETS table."
   @spec drop(t() | atom()) :: :ok | {:error, term()}
-  def drop(%__MODULE__{rows_table: rows, meta_table: meta}) do
-    # idempotent: the tables die with their owner, so they may already be gone
-    if table_exists?(rows), do: :ets.delete(rows)
-    if table_exists?(meta), do: :ets.delete(meta)
+  def drop(%__MODULE__{name: name}) do
+    # idempotent: the table dies with its owner, so it may already be gone
+    if table_exists?(name), do: :ets.delete(name)
     :ok
   end
 
-  # sobelow_skip ["DOS.BinToAtom"]
   def drop(name) when is_atom(name) do
-    rows_table = :"#{name}_rows"
-
-    if table_exists?(rows_table) do
-      :ets.delete(rows_table)
-      :ets.delete(:"#{name}_meta")
+    if table_exists?(name) do
+      :ets.delete(name)
       :ok
     else
       {:error, ErrReg.error!("repo.column/not_found")}
@@ -88,7 +73,7 @@ defmodule Comn.Repo.Column.ETS do
   # -- Comn.Repo.Column callbacks --
 
   @impl Comn.Repo.Column
-  def define_schema(%__MODULE__{meta_table: meta} = _store, schema) when is_map(schema) do
+  def define_schema(%__MODULE__{name: meta}, schema) when is_map(schema) do
     if Enum.all?(schema, fn {k, v} -> is_atom(k) and is_atom(v) end) do
       :ets.insert(meta, {:schema, schema})
       :ok
@@ -98,7 +83,7 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo.Column
-  def schema(%__MODULE__{meta_table: meta}) do
+  def schema(%__MODULE__{name: meta}) do
     case :ets.lookup(meta, :schema) do
       [{:schema, nil}] ->
         {:error, ErrReg.error!("repo.column/not_found", message: "No schema defined")}
@@ -112,7 +97,7 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo.Column
-  def append_row(%__MODULE__{meta_table: meta} = store, row) when is_map(row) do
+  def append_row(%__MODULE__{name: meta} = store, row) when is_map(row) do
     case :ets.lookup(meta, :schema) do
       [{:schema, nil}] ->
         {:error, ErrReg.error!("repo.column/not_found", message: "No schema defined")}
@@ -122,7 +107,7 @@ defmodule Comn.Repo.Column.ETS do
           # Buffer in the struct — caller must hold the updated struct
           # For ETS simplicity, we write directly instead of buffering
           id = :ets.update_counter(meta, :next_id, 1)
-          :ets.insert(store.rows_table, {id, row})
+          :ets.insert(store.name, {id, row})
           :ets.update_counter(meta, :row_count, 1)
           :ok
         else
@@ -142,7 +127,7 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo.Column
-  def flush(%__MODULE__{meta_table: meta}) do
+  def flush(%__MODULE__{name: meta}) do
     # ETS implementation writes directly on append, so flush is a no-op.
     # Return the current row count as "flushed".
     [{:row_count, count}] = :ets.lookup(meta, :row_count)
@@ -150,10 +135,10 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo.Column
-  def project(%__MODULE__{rows_table: rows} = store, fields, filters)
+  def project(%__MODULE__{name: rows} = store, fields, filters)
       when is_list(fields) and is_map(filters) do
     with {:ok, schema} <- defined_schema(store), :ok <- known_fields(schema, fields) do
-      rows = for {_id, row} <- :ets.tab2list(rows), matches_filters?(row, filters), do: row
+      rows = for row <- :ets.select(rows, @rows), matches_filters?(row, filters), do: row
       {:ok, Enum.map(rows, &project_row(&1, fields))}
     end
   end
@@ -161,7 +146,7 @@ defmodule Comn.Repo.Column.ETS do
   defp project_row(row, []), do: row
   defp project_row(row, fields), do: Map.take(row, fields)
 
-  defp defined_schema(%__MODULE__{meta_table: meta}) do
+  defp defined_schema(%__MODULE__{name: meta}) do
     case :ets.lookup(meta, :schema) do
       [{:schema, nil}] ->
         {:error, ErrReg.error!("repo.column/not_found", message: "No schema defined")}
@@ -185,21 +170,21 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo.Column
-  def count(%__MODULE__{meta_table: meta, rows_table: rows}, filters) when is_map(filters) do
+  def count(%__MODULE__{name: t}, filters) when is_map(filters) do
     if filters == %{} do
-      [{:row_count, count}] = :ets.lookup(meta, :row_count)
+      [{:row_count, count}] = :ets.lookup(t, :row_count)
       {:ok, count}
     else
-      {:ok, Enum.count(:ets.tab2list(rows), fn {_id, row} -> matches_filters?(row, filters) end)}
+      {:ok, Enum.count(:ets.select(t, @rows), &matches_filters?(&1, filters))}
     end
   end
 
   # -- Comn.Repo callbacks --
 
   @impl Comn.Repo
-  def describe(%__MODULE__{name: name, meta_table: meta}) do
-    [{:schema, schema}] = :ets.lookup(meta, :schema)
-    [{:row_count, count}] = :ets.lookup(meta, :row_count)
+  def describe(%__MODULE__{name: name}) do
+    [{:schema, schema}] = :ets.lookup(name, :schema)
+    [{:row_count, count}] = :ets.lookup(name, :row_count)
 
     {:ok,
      %{
@@ -227,8 +212,8 @@ defmodule Comn.Repo.Column.ETS do
   }
 
   @impl Comn.Repo
-  def get(%__MODULE__{rows_table: rows}, id: id) do
-    case :ets.select(rows, [{{:_, %{id: id}}, [], [:"$_"]}]) do
+  def get(%__MODULE__{name: rows}, id: id) do
+    case :ets.select(rows, [{{:"$1", %{id: id}}, [{:is_integer, :"$1"}], [:"$_"]}]) do
       [{_rid, row} | _] -> {:ok, struct(Comn.Events.EventStruct, row)}
       [] -> Comn.Repo.not_found(id)
     end
@@ -242,7 +227,7 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo
-  def set(%__MODULE__{meta_table: meta} = store, [event: _] = opts) do
+  def set(%__MODULE__{name: meta} = store, [event: _] = opts) do
     with {:ok, e} <- Comn.Repo.fetch_event(opts) do
       # define the event schema on first use; an existing different schema is a mismatch
       case :ets.lookup(meta, :schema) do
@@ -268,8 +253,8 @@ defmodule Comn.Repo.Column.ETS do
   end
 
   @impl Comn.Repo
-  def observe(%__MODULE__{rows_table: rows}, opts) do
-    rows = rows |> :ets.tab2list() |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1))
+  def observe(%__MODULE__{name: rows}, opts) do
+    rows = :ets.select(rows, @rows)
 
     if Comn.Repo.events_view?(opts),
       do:

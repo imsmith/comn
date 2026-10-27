@@ -91,6 +91,17 @@ defmodule Comn.TableEctoTest do
     end
 
     @tag :table_phase2
+    test "an .exs file is data: anything but literals is refused", %{tmp_dir: dir} do
+      path = Path.join(dir, "evil.exs")
+      File.write!(path, ~s|[adapter: Ecto.Adapters.SQLite3, database: System.get_env("DB")]|)
+
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.table/invalid_opts", message: msg}} =
+               Table.open(fresh_name(), backend: :ecto, ecto: path)
+
+      assert msg =~ "not a literal"
+    end
+
+    @tag :table_phase2
     test "an existing repo module is used as is", %{tmp_dir: dir} do
       start_supervised!({Comn.Test.Repo, database: Path.join(dir, "own.db")})
       {:ok, t} = Table.open(fresh_name(), backend: :ecto, repo: Comn.Test.Repo)
