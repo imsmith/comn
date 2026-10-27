@@ -5,6 +5,8 @@ defmodule Comn.Secrets.VaultTest do
 
   # Only include SecurityTestCase when Vault is configured
   # SecurityTestCase tests require actual Vault encryption operations
+  # presence check only, gates Vault-backed tests.
+  # credo:disable-for-next-line Comn.Credo.SecretFromEnv
   if System.get_env("VAULT_TOKEN") do
     use Comn.Secrets.SecurityTestCase, implementation: Comn.Secrets.Vault
   end
@@ -17,6 +19,8 @@ defmodule Comn.Secrets.VaultTest do
     setup _context do
       # Skip if Vault is not configured
       vault_addr = System.get_env("VAULT_ADDR") || "http://localhost:8200"
+      # live Vault token for integration tests; this file exercises the Comn.Secrets backend itself.
+      # credo:disable-for-next-line Comn.Credo.SecretFromEnv
       vault_token = System.get_env("VAULT_TOKEN")
 
       if is_nil(vault_token) do
@@ -232,6 +236,8 @@ defmodule Comn.Secrets.VaultTest do
   describe "backend interoperability (see features/backend_interoperability.feature)" do
     setup _context do
       vault_addr = System.get_env("VAULT_ADDR") || "http://localhost:8200"
+      # live Vault token for integration tests; this file exercises the Comn.Secrets backend itself.
+      # credo:disable-for-next-line Comn.Credo.SecretFromEnv
       vault_token = System.get_env("VAULT_TOKEN")
 
       if is_nil(vault_token) do

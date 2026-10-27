@@ -64,6 +64,8 @@ defmodule Comn.MerkelGitTest do
       path = Path.join(dir, "sha.git")
       {:ok, m} = Merkel.open(fresh_name(), backend: :git, path: path)
       {:ok, a} = Merkel.put(m, entry())
+      # git is the oracle here; routing it through Comn.Repo.Cmd would verify Comn with Comn.
+      # credo:disable-for-next-line Comn.Credo.RawShell
       {out, 0} = System.cmd("git", ["--git-dir", path, "cat-file", "-t", a])
       assert String.trim(out) == "commit"
       Merkel.drop(m)

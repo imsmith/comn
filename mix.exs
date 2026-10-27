@@ -42,6 +42,7 @@ defmodule Comn.MixProject do
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
+      {:credo, "~> 1.7", optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end

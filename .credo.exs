@@ -56,6 +56,12 @@
       #
       checks: [
         #
+        ## Comn doctrine checks (ship with comn; consumers list these too)
+        #
+        {Comn.Credo.BareErrorAtom, []},
+        {Comn.Credo.SecretFromEnv, []},
+        {Comn.Credo.RawShell, files: %{excluded: ["lib/comn/repo/merkel/git.ex"]}},
+        #
         ## Consistency Checks
         #
         {Credo.Check.Consistency.ExceptionNames, []},

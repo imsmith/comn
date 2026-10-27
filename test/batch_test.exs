@@ -4,6 +4,7 @@ defmodule Comn.Repo.Batch.MemTest do
 
   alias Comn.Repo.Batch.Mem, as: Batch
   alias Comn.Errors.ErrorStruct
+  alias Comn.Errors.Registry, as: ErrReg
 
   setup do
     id = :erlang.unique_integer([:positive])
@@ -190,11 +191,13 @@ defmodule Comn.Repo.Batch.MemTest do
           name: name,
           max_size: 1000,
           interval_ms: 0,
-          on_flush: fn _items -> {:error, :backend_down} end
+          on_flush: fn _items ->
+            {:error, ErrReg.error!("repo.batch/flush_failed", message: "backend down")}
+          end
         )
 
       Batch.add(name, :item)
-      assert {:error, :backend_down} = Batch.flush(name)
+      assert {:error, %ErrorStruct{code: "repo.batch/flush_failed"}} = Batch.flush(name)
 
       # Buffer is preserved on failure
       {:ok, 1} = Batch.pending(name)
