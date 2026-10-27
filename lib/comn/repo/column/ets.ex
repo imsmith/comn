@@ -49,10 +49,7 @@ defmodule Comn.Repo.Column.ETS do
     meta_table = :"#{name}_meta"
 
     if table_exists?(rows_table) do
-      {:error,
-       ErrReg.error!("repo.column/not_found",
-         message: "Column store #{name} already exists"
-       )}
+      {:error, ErrReg.error!("repo.column/already_exists", field: name)}
     else
       :ets.new(rows_table, [:named_table, :public, :ordered_set])
       :ets.new(meta_table, [:named_table, :public, :set])

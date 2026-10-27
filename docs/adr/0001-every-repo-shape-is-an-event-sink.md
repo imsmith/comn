@@ -206,3 +206,6 @@ Hex, three days old, and has no callers.
        spec.
 6. [x] Design guide: replace the planned paragraphs with the decision
        table; README status rows; delete nothing else.
+7. [x] One `Comn.Repo.Handle` and `Comn.Repo.Lifecycle` behind every
+       facade; Column, File, Graphs, and Batch converge on it through
+       private adapters, keeping their implementation modules public.

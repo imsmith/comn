@@ -20,11 +20,11 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Events | Complete | Registry-based pub/sub, event log, NATS adapter, structured events |
 | Secrets | Complete | ChaCha20-Poly1305 local encryption + HashiCorp Vault Transit backend |
 | Repo.Table | Complete | Key-value facade over fungible backends: ETS, Ecto |
-| Repo.File | Complete | Local/NFS/IPFS file I/O |
-| Repo.Graphs | Complete | libgraph-backed directed/undirected graphs; spatial verbs (`enter`/`exit`/`discover`/`traverse`) |
+| Repo.File | Complete | File facade with a lifecycle state machine; backends: Local, NFS, IPFS |
+| Repo.Graphs | Complete | Graph facade (`link`/`unlink`/`traverse`) with spatial verbs; libgraph backend |
 | Repo.Cmd | Complete | Command behaviour (Shell placeholder) |
-| Repo.Batch | Complete | Buffered write-behind with auto-flush (Mem backend) |
-| Repo.Column | Complete | Schema-enforced columnar storage with projections (ETS backend) |
+| Repo.Batch | Complete | Buffered write-behind facade with auto-flush; Mem backend |
+| Repo.Column | Complete | Schema-enforced columnar facade with projections; ETS backend |
 | Repo.Bus | Complete | Publish a fact to every current subscriber, retain nothing; Registry backend |
 | Repo.Queue | Complete | Durable, crash-safe FIFO/LIFO job queues; backends: Mem (ETS), SQLite |
 | Repo.Stream | Complete | Append-only, replayable event log; live subscribe; one facade over Mem (ETS), SQLite, NATS JetStream |
@@ -320,46 +320,63 @@ simply absent from `Table.open/2`.
 
 ### Files (Local, NFS, IPFS)
 
-```elixir
-alias Comn.Repo.File.Local
+A file is a value with a state, so `load` and `write` return a new handle.
 
-{:ok, fs} = Local.open("/tmp/example.txt", mode: [:read, :binary])
-{:ok, fs} = Local.load(fs)
-{:ok, data} = Local.read(fs)
-Local.close(fs)
+```elixir
+alias Comn.Repo.File
+
+{:ok, f} = File.open("/tmp/example.txt", backend: :local, mode: [:read, :binary])
+{:ok, f} = File.load(f)
+{:ok, data} = File.read(f)
+File.close(f)
+
+{:ok, f} = File.open("notes.txt", backend: :nfs, mount: "/mnt/share")
+{:ok, f} = File.open("Qm...", backend: :ipfs, api: "http://localhost:5001")
 ```
 
 ### Graphs (libgraph)
 
-```elixir
-alias Comn.Repo.Graphs.Graph
+A graph is a value, so `link`, `unlink`, `set`, and `delete` return a new handle.
 
-{:ok, g} = Graph.create(name: "deps", directed?: true)
-{:ok, g} = Graph.link(g, :phoenix, :plug)
-{:ok, g} = Graph.link(g, :plug, :cowboy)
-{:ok, path} = Graph.traverse(g, type: :shortest_path, from: :phoenix, to: :cowboy)
+```elixir
+alias Comn.Repo.Graphs
+
+{:ok, g} = Graphs.open("deps", directed?: true)
+{:ok, g} = Graphs.link(g, :phoenix, :plug)
+{:ok, g} = Graphs.link(g, :plug, :cowboy)
+{:ok, path} = Graphs.traverse(g, type: :shortest_path, from: :phoenix, to: :cowboy)
 #=> {:ok, [:phoenix, :plug, :cowboy]}
 ```
 
 ### Batch (buffered writes)
 
-```elixir
-alias Comn.Repo.Batch.Mem
+`close/1` flushes before releasing; `drop/1` discards the buffer.
 
-{:ok, pid} = Mem.start_link(flush_fn: &IO.inspect/1, flush_interval: 5_000, max_buffer: 100)
-:ok = Mem.push(pid, %{event: "page_view", ts: DateTime.utc_now()})
-:ok = Mem.flush(pid)
+```elixir
+alias Comn.Repo.Batch
+
+{:ok, b} = Batch.open(:page_views, max_size: 100, interval_ms: 5_000, on_flush: &IO.inspect/1)
+:ok = Batch.add(b, %{event: "page_view", ts: DateTime.utc_now()})
+{:ok, 1} = Batch.flush(b)
+Batch.close(b)
 ```
 
 ### Column (schema-enforced columnar storage)
 
 ```elixir
-alias Comn.Repo.Column.ETS
+alias Comn.Repo.Column
 
-{:ok, ref} = ETS.create(:metrics, schema: %{ts: :integer, value: :float, host: :string})
-:ok = ETS.put(ref, %{ts: 1713100800, value: 3.14, host: "web-1"})
-{:ok, rows} = ETS.select(ref, where: [host: "web-1"], columns: [:ts, :value])
+{:ok, c} = Column.open(:metrics, schema: %{ts: :integer, value: :float, host: :string})
+:ok = Column.append_row(c, %{ts: 1713100800, value: 3.14, host: "web-1"})
+{:ok, rows} = Column.project(c, [:ts, :value], %{host: "web-1"})
+Column.drop(c)
 ```
+
+Every facade above, and Table, Queue, Bus, Stream, and Merkel, shares one
+`Comn.Repo.Handle` and one `Comn.Repo.Lifecycle` (`open`/`close`/`drop`,
+backend resolution). The older implementation modules (`Comn.Repo.File.Local`,
+`Comn.Repo.Graphs.Graph`, `Comn.Repo.Batch.Mem`, `Comn.Repo.Column.ETS`) keep
+their public surface and sit behind private adapters.
 
 ### Queue (durable, ackable jobs)
 
@@ -509,7 +526,7 @@ zone = Comn.Zone.new(realm: :local, locale: "a")
 dest.locale  #=> "c"
 ```
 
-Errors come back as registered codes: `repo.graph/zone_not_found`, `repo.graph/unreachable`.
+Errors come back as registered codes: `repo.graphs/zone_not_found`, `repo.graphs/unreachable`.
 
 ## Architecture
 
@@ -550,22 +567,30 @@ lib/comn/
   secrets/container.ex       Blob container struct
   secrets/errors.ex          Secrets subsystem error codes
 
-  repo.ex                    Base repo behaviour (describe/get/set/delete/observe; optional enter/exit/discover)
+  repo.ex                    Base repo behaviour (describe/get/set/delete/observe; optional enter/exit/discover; backends/0)
+  repo/handle.ex             One opaque handle for every shape (shape, backend, state, name, meta)
+  repo/lifecycle.ex          open/close/drop and backend resolution shared by every facade
   repo/table.ex              Table facade (open/close/drop/get/set/delete/keys/count) + direct-backend behaviour
-  repo/table/handle.ex       Opaque table handle
   repo/table/backend.ex      Private backend contract
   repo/table/ets_adapter.ex  Backend contract over Table.ETS
   repo/table/ecto.ex         Ecto backend: sagas, schema-directed upserts, converge instead of migrate
   repo/table/ecto/event_row.ex  Default schema: the event as a row
   repo/table/ecto/term.ex    Ecto type storing any term faithfully
   repo/table/ecto/repos.ex   Repository from configuration (keyword, .exs file, or module)
-  repo/file.ex               File behaviour (open/load/stream/cast/read/write/close)
-  repo/graphs.ex             Graph behaviour (link/unlink/traverse)
+  repo/file.ex               File facade (open/close/drop/load/stream/cast/read/write) + direct-backend behaviour
+  repo/file/backend.ex       Private backend contract
+  repo/file/adapter.ex       Backend contract over Local, NFS, and IPFS
+  repo/graphs.ex             Graphs facade (open/close/drop/link/unlink/traverse; spatial verbs) + direct-backend behaviour
+  repo/graphs/backend.ex     Private backend contract
+  repo/graphs/graph_adapter.ex  Backend contract over Graphs.Graph
   repo/cmd.ex                Command behaviour (validate/apply/reset/enable/...)
-  repo/batch.ex              Batch behaviour (push/flush/size/drain/status)
-  repo/column.ex             Column behaviour (create/put/select/delete/schema/count/drop)
+  repo/batch.ex              Batch facade (open/close/drop/add/add_many/flush/pending/config) + direct-backend behaviour
+  repo/batch/backend.ex      Private backend contract
+  repo/batch/mem_adapter.ex  Backend contract over Batch.Mem
+  repo/column.ex             Column facade (open/close/drop/define_schema/append_row/project/count) + direct-backend behaviour
+  repo/column/backend.ex     Private backend contract
+  repo/column/ets_adapter.ex Backend contract over Column.ETS
   repo/bus.ex                Bus facade (open/close/drop/publish/subscribe/unsubscribe)
-  repo/bus/handle.ex         Opaque bus handle
   repo/bus/backend.ex        Private backend contract
   repo/bus/registry.ex       Local Registry backend
   repo/queue.ex              Queue facade (open/push/pop/peek/find/remove/close)
@@ -573,13 +598,11 @@ lib/comn/
   repo/queue/mem.ex          ETS queue backend
   repo/queue/sqlite.ex       SQLite queue backend
   repo/stream.ex             Stream facade (open/close/drop/append/read/head/tail/subscribe)
-  repo/stream/handle.ex      Opaque stream handle
   repo/stream/backend.ex     Private backend contract
   repo/stream/mem.ex         ETS backend
   repo/stream/sqlite.ex      SQLite durable backend (one GenServer per stream)
   repo/stream/jetstream.ex   NATS JetStream backend (offset = stream sequence)
   repo/merkel.ex             Merkel facade (open/close/drop/put/get/node/head/verify)
-  repo/merkel/handle.ex      Opaque merkel handle
   repo/merkel/node.ex        One link of the chain (address, parent, content hashes)
   repo/merkel/backend.ex     Private backend contract
   repo/merkel/mem.ex         ETS backend, sha256 addresses

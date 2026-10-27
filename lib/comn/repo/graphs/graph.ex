@@ -16,7 +16,7 @@ defmodule Comn.Repo.Graphs.Graph do
   `traverse/4`. A `Comn.Zone`'s `:locale` is matched against vertex
   names — strings match string-named vertices; if a same-named atom
   vertex exists, that's matched instead. Errors come back as registered
-  codes: `repo.graph/zone_not_found` and `repo.graph/unreachable`.
+  codes: `repo.graphs/zone_not_found` and `repo.graphs/unreachable`.
 
   ## Examples
 
@@ -97,7 +97,7 @@ defmodule Comn.Repo.Graphs.Graph do
 
       other ->
         {:error,
-         ErrReg.error!("repo.graph/unknown_query_type",
+         ErrReg.error!("repo.graphs/unknown_query_type",
            message: "unknown query type: #{inspect(other)}"
          )}
     end
@@ -133,7 +133,7 @@ defmodule Comn.Repo.Graphs.Graph do
         do: {:ok, vertex},
         else: {:error, ErrReg.error!("repo.table/not_found", field: vertex)}
     else
-      {:error, ErrReg.error!("repo.graph/missing_key")}
+      {:error, ErrReg.error!("repo.graphs/missing_key")}
     end
   end
 
@@ -151,7 +151,7 @@ defmodule Comn.Repo.Graphs.Graph do
     if vertex != nil do
       {:ok, %{gs | graph: Graph.add_vertex(g, vertex)}}
     else
-      {:error, ErrReg.error!("repo.graph/missing_key")}
+      {:error, ErrReg.error!("repo.graphs/missing_key")}
     end
   end
 
@@ -162,7 +162,7 @@ defmodule Comn.Repo.Graphs.Graph do
     if vertex != nil do
       {:ok, %{gs | graph: Graph.delete_vertex(g, vertex)}}
     else
-      {:error, ErrReg.error!("repo.graph/missing_key")}
+      {:error, ErrReg.error!("repo.graphs/missing_key")}
     end
   end
 
@@ -187,7 +187,7 @@ defmodule Comn.Repo.Graphs.Graph do
   via `String.to_existing_atom/1` if no string vertex matches.
 
   Returns `{:ok, vertex}` with the resolved vertex term, or
-  `{:error, ErrorStruct}` with code `repo.graph/zone_not_found` if the
+  `{:error, ErrorStruct}` with code `repo.graphs/zone_not_found` if the
   locale doesn't resolve.
 
   ## Examples
@@ -203,7 +203,7 @@ defmodule Comn.Repo.Graphs.Graph do
   def enter(%GraphStruct{graph: g}, %Zone{} = zone) do
     case zone_to_vertex(g, zone) do
       {:ok, vertex} -> {:ok, vertex}
-      :error -> {:error, ErrReg.error!("repo.graph/zone_not_found", field: zone.locale)}
+      :error -> {:error, ErrReg.error!("repo.graphs/zone_not_found", field: zone.locale)}
     end
   end
 
@@ -223,7 +223,7 @@ defmodule Comn.Repo.Graphs.Graph do
 
   Adjacency uses `Graph.neighbors/2` — for directed graphs, this is the
   out-neighbours; for undirected graphs, both sides. Errors with
-  `repo.graph/zone_not_found` if the zone doesn't resolve to a vertex.
+  `repo.graphs/zone_not_found` if the zone doesn't resolve to a vertex.
 
   ## Examples
 
@@ -240,7 +240,7 @@ defmodule Comn.Repo.Graphs.Graph do
   def discover(%GraphStruct{graph: g}, %Zone{} = zone) do
     case zone_to_vertex(g, zone) do
       {:ok, vertex} -> {:ok, Graph.neighbors(g, vertex)}
-      :error -> {:error, ErrReg.error!("repo.graph/zone_not_found", field: zone.locale)}
+      :error -> {:error, ErrReg.error!("repo.graphs/zone_not_found", field: zone.locale)}
     end
   end
 
@@ -257,8 +257,8 @@ defmodule Comn.Repo.Graphs.Graph do
   the canonical "I moved" operation in spatial code.
 
   Errors:
-  - `repo.graph/zone_not_found` — `from` doesn't resolve to a vertex
-  - `repo.graph/unreachable` — no path from `from` to `to`
+  - `repo.graphs/zone_not_found` — `from` doesn't resolve to a vertex
+  - `repo.graphs/unreachable` — no path from `from` to `to`
 
   ## Examples
 
@@ -281,10 +281,10 @@ defmodule Comn.Repo.Graphs.Graph do
       {:ok, dest, path}
     else
       :error ->
-        {:error, ErrReg.error!("repo.graph/zone_not_found", field: from.locale)}
+        {:error, ErrReg.error!("repo.graphs/zone_not_found", field: from.locale)}
 
       nil ->
-        {:error, ErrReg.error!("repo.graph/unreachable", field: to)}
+        {:error, ErrReg.error!("repo.graphs/unreachable", field: to)}
     end
   end
 

@@ -21,8 +21,6 @@ defmodule Comn.DiscoveryTest do
       assert Comn.Repo in behaviours
       assert Comn.Events in behaviours
       assert Comn.Secrets in behaviours
-      assert Comn.Repo.File in behaviours
-      assert Comn.Repo.Graphs in behaviours
       assert Comn.Repo.Cmd in behaviours
       assert Comn.Infra in behaviours
     end
@@ -43,6 +41,10 @@ defmodule Comn.DiscoveryTest do
       facades = Discovery.by_type(:facade)
       assert Comn.Contexts in facades
       assert Comn.Errors in facades
+
+      for shape <- [Table, File, Graphs, Batch, Column, Queue, Stream, Bus, Merkel] do
+        assert Module.concat(Comn.Repo, shape) in facades
+      end
     end
   end
 

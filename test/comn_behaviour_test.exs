@@ -15,6 +15,8 @@ defmodule Comn.BehaviourTest do
     Comn.Repo.Table,
     Comn.Repo.File,
     Comn.Repo.Graphs,
+    Comn.Repo.Batch,
+    Comn.Repo.Column,
     Comn.Events,
     Comn.Secrets,
     Comn.Infra,
@@ -40,8 +42,6 @@ defmodule Comn.BehaviourTest do
   @behaviour_modules [
     Comn.Repo,
     Comn.Repo.Cmd,
-    Comn.Repo.File,
-    Comn.Repo.Graphs,
     Comn.Events,
     Comn.Secrets,
     Comn.Infra

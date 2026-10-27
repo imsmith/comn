@@ -34,6 +34,17 @@ defmodule Comn.Repo.Lifecycle do
   def drop(%Handle{backend: b, state: s}), do: b.drop(s)
 
   @doc """
+  Re-binds a verb result that carries new backend state into the handle.
+
+  Value-shaped backends (a graph, a file) return `{:ok, new_state}` from
+  mutating verbs; `rebind/2` turns that into `{:ok, new_handle}` and
+  passes every other result through untouched.
+  """
+  @spec rebind(Handle.t(), term()) :: term()
+  def rebind(%Handle{} = h, {:ok, state}), do: {:ok, %Handle{h | state: state}}
+  def rebind(_h, other), do: other
+
+  @doc """
   Turns a short name from `shape.backends/0`, or a module implementing
   `<Shape>.Backend`, into a loaded backend module.
 

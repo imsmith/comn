@@ -1,3 +1,108 @@
+defmodule Comn.Repo.ColumnTest do
+  @moduledoc """
+  Acceptance spec for Comn.Repo.Column (the facade) over its :ets backend.
+  """
+
+  use ExUnit.Case, async: true
+  use Comn.EventSinkConformance, backend: Comn.Repo.Column
+
+  doctest Comn.Repo.Column
+
+  alias Comn.Repo.Column
+
+  @schema %{host: :string, cpu: :float}
+
+  defp fresh_name, do: :"column_#{:erlang.unique_integer([:positive])}"
+
+  def open_sink(_ctx) do
+    {:ok, c} = Column.open(fresh_name(), backend: :ets)
+    {c, fn -> Column.drop(c) end}
+  end
+
+  describe "facade" do
+    @tag :column_phase1
+    test "look/recon/choices/act behave as a Comn facade" do
+      assert is_binary(Column.look())
+      assert %{type: :facade, extends: Comn.Repo, backends: backends} = Column.recon()
+      assert :ets in backends
+      assert is_map(Column.choices())
+
+      assert {:error, %Comn.Errors.ErrorStruct{code: "comn/unknown_action"}} =
+               Column.act(%{action: :bogus})
+    end
+
+    @tag :column_phase1
+    test "open/2 with an unknown backend is invalid_opts" do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.column/invalid_opts"}} =
+               Column.open(fresh_name(), backend: :abacus)
+    end
+
+    @tag :column_phase1
+    test "Comn.Repo.Column.ETS keeps its public surface" do
+      name = fresh_name()
+      {:ok, store} = Column.ETS.create(name)
+      :ok = Column.ETS.define_schema(store, @schema)
+      :ok = Column.ETS.append_row(store, %{host: "a", cpu: 0.1})
+      assert {:ok, 1} = Column.ETS.count(store, %{})
+      :ok = Column.ETS.drop(store)
+    end
+  end
+
+  describe ":ets lifecycle" do
+    @tag :column_phase1
+    test "open/2 twice under the same name returns already_exists" do
+      name = fresh_name()
+      {:ok, c} = Column.open(name)
+
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.column/already_exists"}} =
+               Column.open(name)
+
+      Column.drop(c)
+    end
+
+    @tag :column_phase1
+    test "drop/1 is idempotent" do
+      {:ok, c} = Column.open(fresh_name())
+      :ok = Column.drop(c)
+      assert :ok = Column.drop(c)
+    end
+  end
+
+  describe "column verbs through the facade" do
+    setup do
+      {:ok, c} = Column.open(fresh_name(), schema: @schema)
+      on_exit(fn -> Column.drop(c) end)
+      %{c: c}
+    end
+
+    @tag :column_phase1
+    test "schema given on open is defined", %{c: c} do
+      assert {:ok, @schema} = Column.schema(c)
+    end
+
+    @tag :column_phase1
+    test "append, count, project, flush", %{c: c} do
+      :ok = Column.append_rows(c, [%{host: "a", cpu: 0.1}, %{host: "b", cpu: 0.9}])
+      assert {:ok, 2} = Column.count(c)
+      assert {:ok, 1} = Column.count(c, %{host: "a"})
+      assert {:ok, [%{cpu: 0.9}]} = Column.project(c, [:cpu], %{host: "b"})
+      assert {:ok, 2} = Column.flush(c)
+    end
+
+    @tag :column_phase1
+    test "a row off-schema is schema_mismatch", %{c: c} do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.column/schema_mismatch"}} =
+               Column.append_row(c, %{host: "a"})
+    end
+
+    @tag :column_phase1
+    test "describe/1 reports schema and row count", %{c: c} do
+      :ok = Column.append_row(c, %{host: "a", cpu: 0.1})
+      assert {:ok, %{schema: @schema, row_count: 1}} = Column.describe(c)
+    end
+  end
+end
+
 defmodule Comn.Repo.Column.ETSTest do
   @moduledoc false
   use ExUnit.Case, async: false

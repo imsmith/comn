@@ -1,3 +1,110 @@
+defmodule Comn.Repo.BatchTest do
+  @moduledoc """
+  Acceptance spec for Comn.Repo.Batch (the facade) over its :mem backend.
+  """
+
+  use ExUnit.Case, async: true
+  use Comn.EventSinkConformance, backend: Comn.Repo.Batch
+
+  doctest Comn.Repo.Batch
+
+  alias Comn.Repo.Batch
+
+  defp fresh_name, do: :"batch_#{:erlang.unique_integer([:positive])}"
+
+  def open_sink(_ctx) do
+    {:ok, b} = Batch.open(fresh_name(), backend: :mem, max_size: 1_000, interval_ms: 0)
+    {b, fn -> Batch.drop(b) end}
+  end
+
+  describe "facade" do
+    @tag :batch_phase1
+    test "look/recon/choices/act behave as a Comn facade" do
+      assert is_binary(Batch.look())
+      assert %{type: :facade, extends: Comn.Repo, backends: backends} = Batch.recon()
+      assert :mem in backends
+      assert is_map(Batch.choices())
+
+      assert {:error, %Comn.Errors.ErrorStruct{code: "comn/unknown_action"}} =
+               Batch.act(%{action: :bogus})
+    end
+
+    @tag :batch_phase1
+    test "open/2 with an unknown backend is invalid_opts" do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.batch/invalid_opts"}} =
+               Batch.open(fresh_name(), backend: :abacus)
+    end
+
+    @tag :batch_phase1
+    test "Comn.Repo.Batch.Mem keeps its public surface" do
+      {:ok, pid} = Batch.Mem.start_link(name: fresh_name(), interval_ms: 0)
+      :ok = Batch.Mem.add(pid, 1)
+      assert {:ok, 1} = Batch.Mem.pending(pid)
+      GenServer.stop(pid)
+    end
+  end
+
+  describe ":mem lifecycle" do
+    @tag :batch_phase1
+    test "close/1 flushes pending items first" do
+      parent = self()
+      on_flush = fn items -> send(parent, {:flushed, items}) && :ok end
+      {:ok, b} = Batch.open(fresh_name(), interval_ms: 0, on_flush: on_flush)
+      :ok = Batch.add_many(b, [1, 2])
+      assert :ok = Batch.close(b)
+      assert_receive {:flushed, [1, 2]}
+      assert :ok = Batch.close(b)
+    end
+
+    @tag :batch_phase1
+    test "drop/1 discards pending items" do
+      parent = self()
+
+      {:ok, b} =
+        Batch.open(fresh_name(),
+          interval_ms: 0,
+          on_flush: fn items -> send(parent, {:flushed, items}) && :ok end
+        )
+
+      :ok = Batch.add(b, 1)
+      assert :ok = Batch.drop(b)
+      refute_receive {:flushed, _}
+      assert :ok = Batch.drop(b)
+    end
+  end
+
+  describe "batch verbs through the facade" do
+    @tag :batch_phase1
+    test "add, pending, flush, config, describe" do
+      {:ok, b} = Batch.open(fresh_name(), max_size: 10, interval_ms: 0)
+      :ok = Batch.add(b, :a)
+      :ok = Batch.add_many(b, [:b, :c])
+      assert {:ok, 3} = Batch.pending(b)
+      assert {:ok, %{max_size: 10}} = Batch.config(b)
+      assert {:ok, %{}} = Batch.describe(b)
+      assert {:ok, 3} = Batch.flush(b)
+      assert {:ok, 0} = Batch.pending(b)
+      Batch.drop(b)
+    end
+
+    @tag :batch_phase1
+    test "auto-flushes at max_size" do
+      parent = self()
+
+      {:ok, b} =
+        Batch.open(fresh_name(),
+          max_size: 2,
+          interval_ms: 0,
+          on_flush: fn items -> send(parent, {:flushed, items}) && :ok end
+        )
+
+      :ok = Batch.add_many(b, [1, 2])
+      assert_receive {:flushed, [1, 2]}
+      Batch.drop(b)
+    end
+  end
+end
+
 defmodule Comn.Repo.Batch.MemTest do
   @moduledoc false
   use ExUnit.Case, async: false

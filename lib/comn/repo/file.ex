@@ -1,29 +1,56 @@
 defmodule Comn.Repo.File do
   @moduledoc """
-  Behaviour for file repository operations using a lifecycle state machine.
+  Files, through a lifecycle state machine.
 
-  Extends `Comn.Repo` with file-specific verbs: `open`, `load`, `stream`,
-  `cast`, `read`, `write`, `close`. Implementations (`Local`, `NFS`, `IPFS`)
-  follow the same state transitions.
+  Public, backend-agnostic facade. Callers go through this module; the
+  backend is a word in one option to `open/2`. Backends: `:local`
+  (filesystem), `:nfs` (a mount point with stale-handle detection), and
+  `:ipfs` (content-addressed, via the daemon's HTTP API).
 
-  Also implements `@behaviour Comn` for uniform introspection.
-
-  ## State transitions
+  A file is a value with a state, so the verbs that advance it (`load/2`,
+  `write/3`, and the `Comn.Repo` `set/2`) return a new handle:
 
            ┌→ stream → cast
   open → load ┤
            ├→ read → close
            └→ write → close
 
+  Using a handle in the wrong state is `repo.file/invalid_state`. A file of
+  events is a log: `set(f, event: e)` appends one encoded line and
+  `observe(f, as: :events)` streams them back.
+
+  This module also remains the behaviour older backends implement directly;
+  `Comn.Repo.File.Local`, `NFS`, and `IPFS` keep their public surface.
+
   ## Examples
 
-      iex> Comn.Repo.File.look()
-      "File — lifecycle state machine for file I/O (open, load, stream, cast, read, write, close)"
-
-      iex> %{states: [:open, :loaded, :closed]} = Comn.Repo.File.recon()
+      iex> path = Path.join(System.tmp_dir!(), "file_doc_#{:erlang.unique_integer([:positive])}.txt")
+      iex> File.write!(path, "hello")
+      iex> {:ok, f} = Comn.Repo.File.open(path)
+      iex> {:ok, f} = Comn.Repo.File.load(f)
+      iex> {:ok, "hello"} = Comn.Repo.File.read(f)
+      iex> Comn.Repo.File.drop(f)
+      :ok
   """
 
   @behaviour Comn
+  @behaviour Comn.Repo
+
+  alias Comn.Repo.{Handle, Lifecycle}
+
+  @typedoc "Opaque file handle. Treat as a black box."
+  @type t :: Handle.t()
+
+  @backends %{
+    local: Comn.Repo.File.Adapter,
+    nfs: Comn.Repo.File.Adapter,
+    ipfs: Comn.Repo.File.Adapter
+  }
+
+  @impl Comn.Repo
+  def backends, do: @backends
+
+  # ---- behaviour for direct backends (kept for Local, NFS, IPFS) ----
 
   @type handle :: term()
 
@@ -87,6 +114,76 @@ defmodule Comn.Repo.File do
   @callback close(handle(), opts :: keyword()) ::
               :ok | {:error, term()}
 
+  # ---- lifecycle ----
+
+  @doc """
+  Opens a file by path (`:local`, `:nfs`) or content id (`:ipfs`); the
+  handle starts in the `:open` state.
+
+  Options: `:backend` — `:local` (default), `:nfs`, `:ipfs`, or a module
+  implementing the private backend contract; `:mode` for local files,
+  `:mount` (required) for NFS, `:api` for IPFS.
+
+  Errors: `repo.file/invalid_opts`, `repo.file/stale_handle`,
+  `repo.file/ipfs_error`, or an OS reason such as `:enoent`.
+  """
+  @spec open(term(), keyword()) :: {:ok, t()} | {:error, term()}
+  def open(path_or_ref, opts \\ []) when is_list(opts),
+    do: Lifecycle.open(__MODULE__, path_or_ref, Keyword.put_new(opts, :backend, :local))
+
+  @doc "Closes the underlying file. Idempotent."
+  @spec close(t()) :: :ok
+  def close(%Handle{} = h), do: Lifecycle.close(h)
+
+  @doc "Closes and deletes (or unpins) the file. Idempotent."
+  @spec drop(t()) :: :ok
+  def drop(%Handle{} = h), do: Lifecycle.drop(h)
+
+  # ---- file verbs ----
+
+  @doc "Loads the content into the handle's buffer (`:open` to `:loaded`). Returns the new handle."
+  @spec load(t(), keyword()) :: {:ok, t()} | {:error, term()}
+  def load(%Handle{backend: b, state: s} = h, opts \\ []),
+    do: Lifecycle.rebind(h, b.load(s, opts))
+
+  @doc "A lazy stream over the loaded content."
+  @spec stream(t(), keyword()) :: {:ok, Enumerable.t()} | {:error, term()}
+  def stream(%Handle{backend: b, state: s}, opts \\ []), do: b.stream(s, opts)
+
+  @doc "Broadcasts the loaded content to the EventBus."
+  @spec cast(t(), keyword()) :: :ok | {:error, term()}
+  def cast(%Handle{backend: b, state: s}, opts \\ []), do: b.cast(s, opts)
+
+  @doc "The loaded content as a binary."
+  @spec read(t(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def read(%Handle{backend: b, state: s}, opts \\ []), do: b.read(s, opts)
+
+  @doc "Writes `data` through the handle. Returns the new handle (IPFS gets a new content id)."
+  @spec write(t(), iodata(), keyword()) :: {:ok, t()} | {:error, term()}
+  def write(%Handle{backend: b, state: s} = h, data, opts \\ []),
+    do: Lifecycle.rebind(h, b.write(s, data, opts))
+
+  # ---- @behaviour Comn.Repo ----
+
+  @impl Comn.Repo
+  def describe(%Handle{backend: b, state: s}), do: b.describe(s)
+
+  @doc "`get(f, [])` is the loaded buffer; `get(f, id: event_id)` finds one event line."
+  @impl Comn.Repo
+  def get(%Handle{backend: b, state: s}, opts), do: b.get(s, opts)
+
+  @doc "`set(f, event: e)` appends one encoded event line; `set(f, value: data)` writes data. Returns the new handle."
+  @impl Comn.Repo
+  def set(%Handle{backend: b, state: s} = h, opts), do: Lifecycle.rebind(h, b.set(s, opts))
+
+  @impl Comn.Repo
+  def delete(%Handle{backend: b, state: s}, opts), do: b.delete(s, opts)
+
+  @impl Comn.Repo
+  def observe(%Handle{backend: b, state: s}, opts \\ []), do: b.observe(s, opts)
+
+  # ---- @behaviour Comn ----
+
   @impl Comn
   def look,
     do:
@@ -95,18 +192,19 @@ defmodule Comn.Repo.File do
   @impl Comn
   def recon do
     %{
-      callbacks: [:open, :load, :stream, :cast, :read, :write, :close],
+      callbacks: [:open, :close, :drop, :load, :stream, :cast, :read, :write],
+      backends: Map.keys(@backends),
       extends: Comn.Repo,
       states: [:open, :loaded, :closed],
-      type: :behaviour
+      type: :facade
     }
   end
 
   @impl Comn
-  def choices do
-    %{implementations: ["Local", "NFS", "IPFS"]}
-  end
+  def choices, do: %{backends: ["local", "nfs", "ipfs"]}
 
   @impl Comn
-  def act(_input), do: Comn.behaviour_only()
+  def act(%{action: :open, path: p, opts: o}), do: open(p, o)
+  def act(%{action: :open, path: p}), do: open(p, [])
+  def act(input), do: Comn.unknown_action(input)
 end

@@ -51,7 +51,7 @@ defmodule Comn.Repo do
   Canonical form (ADR-0001): `get(resource, id: event_id)` returns the
   stored `Comn.Events.EventStruct` with that id, or `repo/event_not_found`.
 
-  Errors: `repo/event_not_found`, `repo.file/invalid_state`, `repo.graph/missing_key`.
+  Errors: `repo/event_not_found`, `repo.file/invalid_state`, `repo.graphs/missing_key`.
   """
   @callback get(resource(), keyword()) :: {:ok, term()} | {:error, term()}
 
@@ -63,14 +63,14 @@ defmodule Comn.Repo do
   stores it under the id, a file appends a line, a queue enqueues, a stream
   appends. Anything else under `:event` is `repo/invalid_event`.
 
-  Errors: `repo/invalid_event`, `repo.table/not_found`, `repo.file/invalid_state`, `repo.graph/missing_key`.
+  Errors: `repo/invalid_event`, `repo.table/not_found`, `repo.file/invalid_state`, `repo.graphs/missing_key`.
   """
   @callback set(resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
 
   @doc """
   Removes a value. Opts must include `:key` (or backend equivalent).
 
-  Errors: `repo.table/not_found`, `repo.graph/missing_key`.
+  Errors: `repo.table/not_found`, `repo.graphs/missing_key`.
   """
   @callback delete(resource(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
 

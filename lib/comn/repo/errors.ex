@@ -30,6 +30,10 @@ defmodule Comn.Repo.Errors do
   register_error("repo.table/delete_failed", :persistence, message: "The delete saga rolled back")
 
   # File
+  register_error("repo.file/invalid_opts", :validation,
+    message: "File backend options are missing or malformed"
+  )
+
   register_error("repo.file/invalid_state", :validation,
     message: "File handle is not in the expected lifecycle state"
   )
@@ -41,23 +45,31 @@ defmodule Comn.Repo.Errors do
   register_error("repo.file/ipfs_error", :network, message: "IPFS daemon returned an error")
 
   # Graph
-  register_error("repo.graph/missing_key", :validation,
+  register_error("repo.graphs/invalid_opts", :validation,
+    message: "Graph backend options are missing or malformed"
+  )
+
+  register_error("repo.graphs/missing_key", :validation,
     message: "Required :vertex or :key option was not provided"
   )
 
-  register_error("repo.graph/unknown_query_type", :validation,
+  register_error("repo.graphs/unknown_query_type", :validation,
     message: "Unrecognized traversal query type"
   )
 
-  register_error("repo.graph/zone_not_found", :persistence,
+  register_error("repo.graphs/zone_not_found", :persistence,
     message: "Zone locale does not correspond to a vertex in this graph"
   )
 
-  register_error("repo.graph/unreachable", :persistence,
+  register_error("repo.graphs/unreachable", :persistence,
     message: "Target vertex is not reachable from the source zone"
   )
 
   # Batch
+  register_error("repo.batch/invalid_opts", :validation,
+    message: "Batch backend options are missing or malformed"
+  )
+
   register_error("repo.batch/buffer_full", :validation,
     message: "Batch buffer has reached its hard limit"
   )
@@ -144,6 +156,14 @@ defmodule Comn.Repo.Errors do
   )
 
   # Column
+  register_error("repo.column/invalid_opts", :validation,
+    message: "Column backend options are missing or malformed"
+  )
+
+  register_error("repo.column/already_exists", :persistence,
+    message: "Column store already exists"
+  )
+
   register_error("repo.column/not_found", :persistence, message: "Column store does not exist")
 
   register_error("repo.column/invalid_schema", :validation,

@@ -542,8 +542,8 @@ it shares the five-verb surface — you can describe a command, observe its outp
 
 **Batch** is write-behind buffering. Rather than flushing every write to the
 backend immediately, Batch accumulates writes and flushes on a size threshold
-or time interval. The primitive operations are push, flush, size, drain, and
-status. This shape exists because the cost model for many backends (network I/O,
+or time interval. The primitive operations are add, add_many, flush, pending, and
+config. This shape exists because the cost model for many backends (network I/O,
 disk fsync, API rate limits) makes per-write flushing prohibitive at volume.
 Batch decouples the write rate the caller sees from the write rate the backend
 absorbs. The mem (GenServer) implementation supports configurable auto-flush;
@@ -551,7 +551,7 @@ the auto-flush logic lives in the implementation, not the behaviour.
 
 **Column** is schema-enforced columnar storage. Rows must conform to a declared
 schema; projections select subsets of columns. The extension callbacks add
-create, put, select, delete, schema, count, and drop on top of the base five.
+define_schema, append_row, append_rows, flush, project, and count on top of the base five.
 Column differs from Table in that the schema is part of the contract — you
 cannot put an arbitrary term under a key, you put a row that validates against
 declared column types. This gives you query semantics (select by column
