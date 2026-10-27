@@ -31,14 +31,13 @@ defmodule Comn.Secrets.Vault do
   @behaviour Comn.Secrets
 
   alias Comn.Errors.Registry, as: ErrReg
-  alias Comn.Secrets.{Container, Key, LockedBlob}
-  alias Comn.Secrets.Local.UUID
+  alias Comn.Secrets.{Key, LockedBlob, Utils}
 
   require Logger
 
   @impl true
   def lock(blob, %Key{} = key) when is_binary(blob) do
-    with :ok <- validate_key(key),
+    with :ok <- Utils.validate_key(key),
          {:ok, vault_config} <- extract_vault_config(key),
          {:ok, ciphertext} <- vault_encrypt(blob, vault_config) do
       # Parse Vault's ciphertext format
@@ -84,7 +83,7 @@ defmodule Comn.Secrets.Vault do
 
   @impl true
   def unlock(%LockedBlob{} = locked, %Key{} = key) do
-    with :ok <- validate_key(key),
+    with :ok <- Utils.validate_key(key),
          true <- Key.fingerprint_matches?(locked.key_hint, key),
          {:ok, vault_config} <- extract_vault_config(key),
          {:ok, plaintext} <- vault_decrypt(locked.encrypted, vault_config) do
@@ -101,82 +100,12 @@ defmodule Comn.Secrets.Vault do
   def unlock(_locked, _key), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   @impl true
-  def wrap(blobs, %Key{} = key) when is_list(blobs) do
-    with :ok <- validate_key(key) do
-      container = %Container{
-        id: UUID.uuid4(),
-        blobs: blobs,
-        metadata: %{
-          created_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-          blob_count: length(blobs)
-        }
-      }
-
-      serialized = :erlang.term_to_binary(container)
-      lock(serialized, key)
-    end
-  end
+  def wrap(blobs, key), do: Utils.wrap(__MODULE__, blobs, key)
 
   @impl true
-  def unwrap(%LockedBlob{} = locked_container, %Key{} = key) do
-    case validate_key(key) do
-      :ok ->
-        case unlock(locked_container, key) do
-          {:ok, serialized} ->
-            try do
-              container = :erlang.binary_to_term(serialized, [:safe])
-
-              case container do
-                %Container{blobs: blobs} when is_list(blobs) ->
-                  {:ok, blobs}
-
-                _ ->
-                  {:error, ErrReg.error!("secrets/invalid_container")}
-              end
-            rescue
-              ArgumentError -> {:error, ErrReg.error!("secrets/invalid_container")}
-            end
-
-          {:error, _reason} = error ->
-            error
-        end
-
-      error ->
-        error
-    end
-  end
+  def unwrap(locked, key), do: Utils.unwrap(__MODULE__, locked, key)
 
   # Private helpers
-
-  defp validate_key(%Key{algorithm: :ed25519, public: pub, private: priv})
-       when is_binary(pub) and is_binary(priv) do
-    cond do
-      byte_size(pub) != 32 ->
-        {:error, ErrReg.error!("secrets/invalid_key")}
-
-      byte_size(priv) != 32 ->
-        {:error, ErrReg.error!("secrets/invalid_key")}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp validate_key(%Key{algorithm: :ed25519, private: nil}) do
-    {:error, ErrReg.error!("secrets/invalid_key")}
-  end
-
-  defp validate_key(%Key{algorithm: :rsa_4096}) do
-    # RSA not implemented yet
-    {:error, ErrReg.error!("secrets/invalid_key")}
-  end
-
-  defp validate_key(%Key{algorithm: :ecdsa_p256}) do
-    # ECDSA not implemented yet
-    {:error, ErrReg.error!("secrets/invalid_key")}
-  end
-
-  defp validate_key(_), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   defp extract_vault_config(%Key{metadata: metadata}) do
     case metadata do

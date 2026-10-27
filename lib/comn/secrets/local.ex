@@ -21,13 +21,12 @@ defmodule Comn.Secrets.Local do
   @behaviour Comn.Secrets
 
   alias Comn.Errors.Registry, as: ErrReg
-  alias Comn.Secrets.{Container, Key, LockedBlob}
-  alias Comn.Secrets.Local.UUID
+  alias Comn.Secrets.{Key, LockedBlob, Utils}
 
   @impl true
   def lock(blob, %Key{} = key) when is_binary(blob) do
     # Validate key first
-    with :ok <- validate_key(key) do
+    with :ok <- Utils.validate_key(key) do
       # Derive symmetric key from Ed25519 private key
       # In production, you'd use proper key derivation (HKDF)
       # For now, hash the private key to get 32 bytes for ChaCha20
@@ -74,7 +73,7 @@ defmodule Comn.Secrets.Local do
   @impl true
   def unlock(%LockedBlob{} = locked, %Key{} = key) do
     # Validate key first
-    with :ok <- validate_key(key),
+    with :ok <- Utils.validate_key(key),
          true <- Key.fingerprint_matches?(locked.key_hint, key) do
       # Derive same symmetric key
       symmetric_key = :crypto.hash(:sha256, key.private)
@@ -110,88 +109,10 @@ defmodule Comn.Secrets.Local do
   def unlock(_locked, _key), do: {:error, ErrReg.error!("secrets/invalid_key")}
 
   @impl true
-  def wrap(blobs, %Key{} = key) when is_list(blobs) do
-    # Validate key
-    with :ok <- validate_key(key) do
-      # Create container
-      container = %Container{
-        id: UUID.uuid4(),
-        blobs: blobs,
-        metadata: %{
-          created_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-          blob_count: length(blobs)
-        }
-      }
-
-      # Serialize container
-      serialized = :erlang.term_to_binary(container)
-
-      # Encrypt the entire serialized container (lock operation)
-      lock(serialized, key)
-    end
-  end
+  def wrap(blobs, key), do: Utils.wrap(__MODULE__, blobs, key)
 
   @impl true
-  def unwrap(%LockedBlob{} = locked_container, %Key{} = key) do
-    case validate_key(key) do
-      :ok ->
-        case unlock(locked_container, key) do
-          {:ok, serialized} ->
-            # Deserialize safely
-            try do
-              container = :erlang.binary_to_term(serialized, [:safe])
-
-              case container do
-                %Container{blobs: blobs} when is_list(blobs) ->
-                  {:ok, blobs}
-
-                _ ->
-                  {:error, ErrReg.error!("secrets/invalid_container")}
-              end
-            rescue
-              ArgumentError -> {:error, ErrReg.error!("secrets/invalid_container")}
-            end
-
-          {:error, _reason} = error ->
-            error
-        end
-
-      error ->
-        error
-    end
-  end
-
-  # Private helpers
-
-  defp validate_key(%Key{algorithm: :ed25519, public: pub, private: priv})
-       when is_binary(pub) and is_binary(priv) do
-    cond do
-      byte_size(pub) != 32 ->
-        {:error, ErrReg.error!("secrets/invalid_key")}
-
-      byte_size(priv) != 32 ->
-        {:error, ErrReg.error!("secrets/invalid_key")}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp validate_key(%Key{algorithm: :ed25519, private: nil}) do
-    {:error, ErrReg.error!("secrets/invalid_key")}
-  end
-
-  defp validate_key(%Key{algorithm: :rsa_4096}) do
-    # RSA not implemented yet
-    {:error, ErrReg.error!("secrets/invalid_key")}
-  end
-
-  defp validate_key(%Key{algorithm: :ecdsa_p256}) do
-    # ECDSA not implemented yet
-    {:error, ErrReg.error!("secrets/invalid_key")}
-  end
-
-  defp validate_key(_), do: {:error, ErrReg.error!("secrets/invalid_key")}
+  def unwrap(locked, key), do: Utils.unwrap(__MODULE__, locked, key)
 
   # Comn callbacks
 
