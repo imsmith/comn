@@ -15,7 +15,10 @@ defmodule Comn.Repo.File do
            ├→ read → close
            └→ write → close
 
-  Using a handle in the wrong state is `repo.file/invalid_state`. A file of
+  Every path is confined: `:local` requires `root:` and `:nfs` requires
+  `mount:`, and a path that resolves outside it is `repo.file/outside_root`
+  (see `Comn.Repo.File.Root`). Using a handle in the wrong state is
+  `repo.file/invalid_state`. A file of
   events is a log: `set(f, event: e)` appends one encoded line and
   `observe(f, as: :events)` streams them back.
 
@@ -26,7 +29,7 @@ defmodule Comn.Repo.File do
 
       iex> path = Path.join(System.tmp_dir!(), "file_doc_#{:erlang.unique_integer([:positive])}.txt")
       iex> File.write!(path, "hello")
-      iex> {:ok, f} = Comn.Repo.File.open(path)
+      iex> {:ok, f} = Comn.Repo.File.open(path, root: System.tmp_dir!())
       iex> {:ok, f} = Comn.Repo.File.load(f)
       iex> {:ok, "hello"} = Comn.Repo.File.read(f)
       iex> Comn.Repo.File.drop(f)
@@ -121,11 +124,13 @@ defmodule Comn.Repo.File do
   handle starts in the `:open` state.
 
   Options: `:backend` — `:local` (default), `:nfs`, `:ipfs`, or a module
-  implementing the private backend contract; `:mode` for local files,
-  `:mount` (required) for NFS, `:api` for IPFS.
+  implementing the private backend contract; `:root` (required) and
+  `:mode` for local files, `:mount` (required) for NFS, `:api` for IPFS.
+  A relative path is joined to the root; an absolute one must be under it.
 
-  Errors: `repo.file/invalid_opts`, `repo.file/stale_handle`,
-  `repo.file/ipfs_error`, or an OS reason such as `:enoent`.
+  Errors: `repo.file/invalid_opts`, `repo.file/outside_root`,
+  `repo.file/stale_handle`, `repo.file/ipfs_error`, or an OS reason such
+  as `:enoent`.
   """
   @spec open(term(), keyword()) :: {:ok, t()} | {:error, term()}
   def open(path_or_ref, opts \\ []) when is_list(opts),

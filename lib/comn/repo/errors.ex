@@ -34,6 +34,10 @@ defmodule Comn.Repo.Errors do
     message: "File backend options are missing or malformed"
   )
 
+  register_error("repo.file/outside_root", :validation,
+    message: "Path resolves outside the backend's root"
+  )
+
   register_error("repo.file/invalid_state", :validation,
     message: "File handle is not in the expected lifecycle state"
   )

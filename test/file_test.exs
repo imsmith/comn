@@ -20,7 +20,7 @@ defmodule Comn.Repo.FileTest do
   end
 
   def open_sink(%{tmp_dir: dir}) do
-    {:ok, f0} = F.open(tmp_file(dir, ""), mode: [:read, :append, :binary])
+    {:ok, f0} = F.open(tmp_file(dir, ""), root: dir, mode: [:read, :append, :binary])
     {:ok, f} = F.load(f0)
     {f, fn -> F.drop(f) end}
   end
@@ -40,17 +40,17 @@ defmodule Comn.Repo.FileTest do
     @tag :file_phase1
     test "open/2 with an unknown backend is invalid_opts", %{tmp_dir: dir} do
       assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/invalid_opts"}} =
-               F.open(tmp_file(dir), backend: :abacus)
+               F.open(tmp_file(dir), root: dir, backend: :abacus)
     end
 
     @tag :file_phase1
     test "open/2 on a missing file surfaces the OS reason", %{tmp_dir: dir} do
-      assert {:error, :enoent} = F.open(Path.join(dir, "nope.txt"))
+      assert {:error, :enoent} = F.open(Path.join(dir, "nope.txt"), root: dir)
     end
 
     @tag :file_phase1
     test "Comn.Repo.File.Local keeps its public surface", %{tmp_dir: dir} do
-      {:ok, fs0} = F.Local.open(tmp_file(dir, "x"))
+      {:ok, fs0} = F.Local.open(tmp_file(dir, "x"), root: dir)
       {:ok, fs} = F.Local.load(fs0)
       assert {:ok, "x"} = F.Local.read(fs)
       :ok = F.Local.close(fs)
@@ -60,7 +60,7 @@ defmodule Comn.Repo.FileTest do
   describe ":local lifecycle" do
     @tag :file_phase1
     test "open → load → read → close", %{tmp_dir: dir} do
-      {:ok, f0} = F.open(tmp_file(dir, "content"))
+      {:ok, f0} = F.open(tmp_file(dir, "content"), root: dir)
       assert %Handle{shape: F, backend: F.Adapter} = f0
       {:ok, f} = F.load(f0)
       assert {:ok, "content"} = F.read(f)
@@ -72,7 +72,7 @@ defmodule Comn.Repo.FileTest do
     @tag :file_phase1
     test "open → load → write → close", %{tmp_dir: dir} do
       path = tmp_file(dir, "")
-      {:ok, f0} = F.open(path, mode: [:write, :binary])
+      {:ok, f0} = F.open(path, root: dir, mode: [:write, :binary])
       {:ok, f1} = F.load(f0)
       {:ok, f2} = F.write(f1, "written")
       :ok = F.close(f2)
@@ -81,7 +81,7 @@ defmodule Comn.Repo.FileTest do
 
     @tag :file_phase1
     test "stream yields lines; read before load is invalid_state", %{tmp_dir: dir} do
-      {:ok, f0} = F.open(tmp_file(dir, "a\nb\n"))
+      {:ok, f0} = F.open(tmp_file(dir, "a\nb\n"), root: dir)
 
       assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/invalid_state"}} = F.read(f0)
 
@@ -94,10 +94,45 @@ defmodule Comn.Repo.FileTest do
     @tag :file_phase1
     test "drop/1 closes and deletes the file", %{tmp_dir: dir} do
       path = tmp_file(dir)
-      {:ok, f} = F.open(path)
+      {:ok, f} = F.open(path, root: dir)
       assert :ok = F.drop(f)
       refute File.exists?(path)
       assert :ok = F.drop(f)
+    end
+  end
+
+  describe "paths are confined to root" do
+    @tag :file_phase1
+    test "open/2 without a root is invalid_opts", %{tmp_dir: dir} do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/invalid_opts", field: "root"}} =
+               F.open(tmp_file(dir))
+    end
+
+    @tag :file_phase1
+    test "a relative path is joined to the root", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "rel.txt"), "rel")
+      {:ok, f0} = F.open("rel.txt", root: dir)
+      {:ok, f} = F.load(f0)
+      assert {:ok, "rel"} = F.read(f)
+      F.close(f)
+    end
+
+    @tag :file_phase1
+    test "a relative path that climbs out is outside_root", %{tmp_dir: dir} do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/outside_root"}} =
+               F.open("../../etc/passwd", root: dir)
+    end
+
+    @tag :file_phase1
+    test "an absolute path outside the root is outside_root", %{tmp_dir: dir} do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/outside_root"}} =
+               F.open("/etc/passwd", root: dir)
+    end
+
+    @tag :file_phase1
+    test "a sibling directory with the root as a prefix is outside_root", %{tmp_dir: dir} do
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/outside_root"}} =
+               F.open(dir <> "_evil/x.txt", root: dir)
     end
   end
 
@@ -113,7 +148,8 @@ defmodule Comn.Repo.FileTest do
 
     @tag :file_phase1
     test "a path escaping the mount is refused", %{tmp_dir: mount} do
-      assert_raise ArgumentError, fn -> F.open("../escape.txt", backend: :nfs, mount: mount) end
+      assert {:error, %Comn.Errors.ErrorStruct{code: "repo.file/outside_root"}} =
+               F.open("../escape.txt", backend: :nfs, mount: mount)
     end
   end
 end
@@ -137,7 +173,7 @@ defmodule Comn.Repo.File.LocalTest do
     test "reads file content through full lifecycle" do
       path = tmp_file("test content")
 
-      assert {:ok, %FileStruct{state: :open} = fs} = Local.open(path)
+      assert {:ok, %FileStruct{state: :open} = fs} = Local.open(path, root: @tmp_dir)
       assert {:ok, %FileStruct{state: :loaded, buffer: "test content"} = fs} = Local.load(fs)
       assert {:ok, "test content"} = Local.read(fs)
       assert :ok = Local.close(fs)
@@ -148,7 +184,7 @@ defmodule Comn.Repo.File.LocalTest do
     test "writes data through lifecycle" do
       path = tmp_file("")
 
-      assert {:ok, fs} = Local.open(path, mode: [:write, :binary])
+      assert {:ok, fs} = Local.open(path, root: @tmp_dir, mode: [:write, :binary])
       assert {:ok, fs} = Local.load(fs)
       assert {:ok, fs} = Local.write(fs, "written data")
       assert :ok = Local.close(fs)
@@ -161,7 +197,7 @@ defmodule Comn.Repo.File.LocalTest do
     test "streams and casts file content" do
       path = tmp_file("line1\nline2\nline3\n")
 
-      assert {:ok, fs} = Local.open(path)
+      assert {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:ok, fs} = Local.load(fs)
       assert {:ok, stream} = Local.stream(fs)
       assert is_function(stream) or is_struct(stream, File.Stream)
@@ -177,7 +213,7 @@ defmodule Comn.Repo.File.LocalTest do
   describe "state enforcement" do
     test "read without load fails" do
       path = tmp_file()
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.read(fs)
       Local.close(fs)
     end
@@ -189,21 +225,21 @@ defmodule Comn.Repo.File.LocalTest do
 
     test "write without load fails" do
       path = tmp_file()
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.write(fs, "data")
       Local.close(fs)
     end
 
     test "stream without load fails" do
       path = tmp_file()
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.stream(fs)
       Local.close(fs)
     end
 
     test "cast without load fails" do
       path = tmp_file()
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.cast(fs)
       Local.close(fs)
     end
@@ -211,14 +247,15 @@ defmodule Comn.Repo.File.LocalTest do
 
   describe "error cases" do
     test "open nonexistent file returns error" do
-      assert {:error, :enoent} = Local.open("/tmp/comn_nonexistent_#{System.unique_integer()}")
+      assert {:error, :enoent} =
+               Local.open("/tmp/comn_nonexistent_#{System.unique_integer()}", root: @tmp_dir)
     end
   end
 
   describe "Comn.Repo callbacks" do
     test "describe returns file metadata" do
       path = tmp_file("some data")
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:ok, info} = Local.describe(fs)
       assert info.path == path
       assert info.state == :open
@@ -228,7 +265,7 @@ defmodule Comn.Repo.File.LocalTest do
 
     test "get returns buffer when loaded" do
       path = tmp_file("get test")
-      {:ok, fs0} = Local.open(path)
+      {:ok, fs0} = Local.open(path, root: @tmp_dir)
       {:ok, fs} = Local.load(fs0)
       assert {:ok, "get test"} = Local.get(fs, [])
       Local.close(fs)
@@ -236,14 +273,14 @@ defmodule Comn.Repo.File.LocalTest do
 
     test "get fails when not loaded" do
       path = tmp_file()
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       assert {:error, %ErrorStruct{code: "repo.file/invalid_state"}} = Local.get(fs, [])
       Local.close(fs)
     end
 
     test "delete removes the file" do
       path = tmp_file("delete me")
-      {:ok, fs} = Local.open(path)
+      {:ok, fs} = Local.open(path, root: @tmp_dir)
       Local.close(fs)
       assert :ok = Local.delete(fs, [])
       refute File.exists?(path)

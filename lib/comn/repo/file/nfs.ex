@@ -17,7 +17,7 @@ defmodule Comn.Repo.File.NFS do
   """
 
   alias Comn.Errors.Registry, as: ErrReg
-  alias Comn.Repo.File.{FileStruct, Local}
+  alias Comn.Repo.File.{FileStruct, Local, Root}
 
   @behaviour Comn
   @behaviour Comn.Repo
@@ -28,18 +28,32 @@ defmodule Comn.Repo.File.NFS do
   @spec open(term(), keyword()) :: {:ok, Comn.Repo.File.handle()} | {:error, term()}
   @impl Comn.Repo.File
   def open(path, opts \\ []) do
-    mount = Keyword.fetch!(opts, :mount)
-    full_path = resolve_path(mount, path)
+    with {:ok, mount} <- mount_opt(opts),
+         {:ok, full} <- Root.resolve(mount, path) do
+      case Local.open(full, opts |> Keyword.delete(:mount) |> Keyword.put(:root, mount)) do
+        {:ok, fs} ->
+          {:ok, %{fs | backend: __MODULE__, metadata: Map.put(fs.metadata, :mount, mount)}}
 
-    case Local.open(full_path, Keyword.delete(opts, :mount)) do
-      {:ok, fs} ->
-        {:ok, %{fs | backend: __MODULE__, metadata: Map.put(fs.metadata, :mount, mount)}}
+        {:error, :estale} ->
+          {:error, ErrReg.error!("repo.file/stale_handle", field: full)}
 
-      {:error, :estale} ->
-        {:error, ErrReg.error!("repo.file/stale_handle", field: full_path)}
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
 
-      {:error, reason} ->
-        {:error, reason}
+  defp mount_opt(opts) do
+    case Keyword.fetch(opts, :mount) do
+      {:ok, mount} when is_binary(mount) ->
+        {:ok, mount}
+
+      _ ->
+        {:error,
+         ErrReg.error!("repo.file/invalid_opts",
+           field: "mount",
+           suggestion: "pass mount: \"/mnt/share\""
+         )}
     end
   end
 
@@ -132,17 +146,4 @@ defmodule Comn.Repo.File.NFS do
   end
 
   def act(input), do: Comn.unknown_action(input)
-
-  # Helpers
-
-  defp resolve_path(mount, path) do
-    full = mount |> Path.join(path) |> Path.expand()
-    mount_expanded = Path.expand(mount)
-
-    if String.starts_with?(full, mount_expanded <> "/") or full == mount_expanded do
-      full
-    else
-      raise ArgumentError, "path traversal detected: #{path} escapes mount #{mount}"
-    end
-  end
 end

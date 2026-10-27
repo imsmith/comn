@@ -321,11 +321,13 @@ simply absent from `Table.open/2`.
 ### Files (Local, NFS, IPFS)
 
 A file is a value with a state, so `load` and `write` return a new handle.
+Every path is confined to a declared root (`root:` for local, `mount:` for
+NFS); a path that resolves outside it is `repo.file/outside_root`.
 
 ```elixir
 alias Comn.Repo.File
 
-{:ok, f} = File.open("/tmp/example.txt", backend: :local, mode: [:read, :binary])
+{:ok, f} = File.open("example.txt", backend: :local, root: "/srv/data", mode: [:read, :binary])
 {:ok, f} = File.load(f)
 {:ok, data} = File.read(f)
 File.close(f)

@@ -49,7 +49,7 @@ defmodule Comn.EventSink.FileTest do
 
   def open_sink(%{tmp_dir: dir}) do
     path = Path.join(dir, "sink.log")
-    {:ok, fs0} = Local.open(path, mode: [:read, :append, :binary])
+    {:ok, fs0} = Local.open(path, root: dir, mode: [:read, :append, :binary])
     {:ok, fs} = Local.load(fs0)
     {fs, fn -> File.rm(path) end}
   end

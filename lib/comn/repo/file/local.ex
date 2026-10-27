@@ -16,7 +16,7 @@ defmodule Comn.Repo.File.Local do
   """
 
   alias Comn.Errors.Registry, as: ErrReg
-  alias Comn.Repo.File.FileStruct
+  alias Comn.Repo.File.{FileStruct, Root}
 
   @behaviour Comn
   @behaviour Comn.Repo
@@ -29,19 +29,16 @@ defmodule Comn.Repo.File.Local do
   def open(path, opts \\ []) do
     mode = Keyword.get(opts, :mode, [:read, :binary])
 
-    case File.open(path, mode) do
-      {:ok, io_device} ->
-        {:ok,
-         %FileStruct{
-           path: path,
-           handle: io_device,
-           state: :open,
-           backend: __MODULE__,
-           metadata: %{mode: mode}
-         }}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, full} <- Root.resolve(opts, :root, path),
+         {:ok, io_device} <- File.open(full, mode) do
+      {:ok,
+       %FileStruct{
+         path: full,
+         handle: io_device,
+         state: :open,
+         backend: __MODULE__,
+         metadata: %{mode: mode, root: Path.expand(opts[:root])}
+       }}
     end
   end
 
@@ -243,8 +240,8 @@ defmodule Comn.Repo.File.Local do
 
   @spec act(map()) :: {:ok, term()} | {:error, term()}
   @impl Comn
-  def act(%{action: :read, path: path}) do
-    with {:ok, fs} <- open(path),
+  def act(%{action: :read, path: path, root: root}) do
+    with {:ok, fs} <- open(path, root: root),
          {:ok, fs} <- load(fs),
          {:ok, data} <- read(fs) do
       close(fs)
@@ -252,8 +249,8 @@ defmodule Comn.Repo.File.Local do
     end
   end
 
-  def act(%{action: :write, path: path, data: data}) do
-    with {:ok, fs} <- open(path, mode: [:write, :binary]),
+  def act(%{action: :write, path: path, root: root, data: data}) do
+    with {:ok, fs} <- open(path, root: root, mode: [:write, :binary]),
          {:ok, fs} <- load(fs),
          {:ok, _fs} <- write(fs, data) do
       close(fs)
