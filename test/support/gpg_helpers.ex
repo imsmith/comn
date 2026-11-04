@@ -12,7 +12,8 @@ defmodule Comn.Secrets.GPGHelpers do
   @doc "Creates a private temporary GNUPGHOME and schedules its removal."
   @spec homedir!() :: Path.t()
   def homedir! do
-    dir = Path.join(System.tmp_dir!(), "comn_gpg_#{System.unique_integer([:positive])}")
+    suffix = Base.url_encode64(:crypto.strong_rand_bytes(9), padding: false)
+    dir = Path.join(System.tmp_dir!(), "comn_gpg_#{suffix}")
     File.mkdir_p!(dir)
     File.chmod!(dir, 0o700)
 
@@ -49,6 +50,24 @@ defmodule Comn.Secrets.GPGHelpers do
         _ -> nil
       end
     end)
+  end
+
+  @doc "Revokes the key `fpr_hex` in `homedir` by generating and importing a revocation certificate."
+  @spec revoke_key!(Path.t(), String.t()) :: :ok
+  def revoke_key!(homedir, fpr_hex) do
+    cert = Path.join(homedir, "revoke_#{fpr_hex}.asc")
+    answers = Path.join(homedir, "revoke_#{fpr_hex}.answers")
+    File.write!(answers, "y\n0\n\ny\n")
+    base = ["--homedir", homedir, "--yes", "--no-tty", "--command-file", answers]
+    args = base ++ ["--output", cert, "--gen-revoke", fpr_hex]
+    {_, 0} = System.cmd("gpg", args, stderr_to_stdout: true)
+
+    {_, 0} =
+      System.cmd("gpg", ["--homedir", homedir, "--batch", "--import", cert],
+        stderr_to_stdout: true
+      )
+
+    :ok
   end
 
   @doc "A recipient-mode key for `fpr_hex` living in `homedir`."

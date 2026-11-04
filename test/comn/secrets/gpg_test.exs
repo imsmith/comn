@@ -95,7 +95,8 @@ defmodule Comn.Secrets.GPGTest do
 
     test "hung gpg is secrets/gpg_error after the timeout", %{key: key, home: home} do
       stub = Path.join(home, "slow-gpg")
-      File.write!(stub, "#!/bin/sh\nsleep 5\n")
+      pid_file = Path.join(home, "slow-gpg.pid")
+      File.write!(stub, "#!/bin/sh\necho $$ > #{pid_file}\nsleep 5\n")
       File.chmod!(stub, 0o700)
       key = %{key | metadata: Map.merge(key.metadata, %{gpg_path: stub, timeout_ms: 200})}
       assert {:error, %ErrorStruct{code: "secrets/gpg_error"}} = GPG.lock("x", key)
@@ -104,6 +105,16 @@ defmodule Comn.Secrets.GPGTest do
                File.ls!(System.tmp_dir!()),
                &String.starts_with?(&1, "comn_gpg_status_")
              )
+
+      pid = pid_file |> File.read!() |> String.trim()
+      refute File.exists?("/proc/#{pid}"), "hung gpg #{pid} survived the timeout"
+    end
+
+    test "a trapping caller gets no stray port message", %{key: key} do
+      Process.flag(:trap_exit, true)
+      assert {:ok, _} = GPG.lock("x", key)
+      refute_received {:EXIT, _, _}
+      refute_received {_port, {:data, _}}
     end
   end
 
@@ -157,6 +168,17 @@ defmodule Comn.Secrets.GPGTest do
 
       assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
                GPG.unlock(locked, demanding)
+    end
+
+    test "a revoked signer no longer satisfies a required signature", %{key: key, home: home} do
+      fpr2 = gen_key!(home, "Second <two@comn.invalid>")
+      signer2 = %{key | metadata: Map.put(key.metadata, :sign, fpr2)}
+      assert {:ok, locked} = GPG.lock("hello", signer2)
+      assert {:ok, "hello"} = GPG.unlock(locked, signer2)
+      revoke_key!(home, fpr2)
+
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               GPG.unlock(locked, signer2)
     end
 
     test "symmetric blob signed with an explicit fingerprint", %{home: home, fpr: fpr} do

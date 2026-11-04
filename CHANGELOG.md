@@ -16,6 +16,11 @@ Notable changes to comn. Newest first. Earlier history is in git.
   and error codes `secrets/invalid_gpg_config`, `secrets/gpg_unavailable`,
   `secrets/gpg_error`.
 
+### Changed
+
+- `nimble_options` lock moved from 1.1.1 to 1.2.0 (`mix deps.get` resolves it
+  on every run; no code depends on the difference).
+
 ### Fixed
 
 - **`Comn.Repo.File.Local` round-trips raw bytes.** `write` and `load` used

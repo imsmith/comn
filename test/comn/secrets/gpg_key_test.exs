@@ -30,7 +30,8 @@ defmodule Comn.Secrets.GPGKeyTest do
           %{sym | private: nil},
           %{sym | private: ""},
           %{sym | public: ""},
-          %{sym | private: "a\nb"}
+          %{sym | private: "a\nb"},
+          %{sym | private: "a\0b"}
         ] do
       assert {:error, %ErrorStruct{code: "secrets/invalid_key"}} = Utils.validate_key(bad)
     end

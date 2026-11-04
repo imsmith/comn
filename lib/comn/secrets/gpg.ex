@@ -34,12 +34,16 @@ defmodule Comn.Secrets.GPG do
   with that key. On unlock a signature is required when the key sets `sign`
   or the blob says `signed: true`: gpg's `VALIDSIG` primary fingerprint must
   equal the expected signer, else `secrets/authentication_failed`. Any
-  `BADSIG`, `ERRSIG`, or `NO_PUBKEY` fails regardless.
+  `BADSIG`, `ERRSIG`, `NO_PUBKEY`, `REVKEYSIG`, `EXPKEYSIG`, or `EXPSIG`
+  fails regardless. Only `key.metadata.sign` is a guarantee: the blob's
+  own `signed` flag is unauthenticated metadata.
 
   ## Process boundary
 
   Plaintext, ciphertext, and passphrase travel over the child's stdin;
-  only their byte count appears on argv. gpg's machine status goes to a
+  only their byte count appears on argv. The child runs under coreutils
+  `timeout -s KILL`, so a hung gpg is killed at `timeout_ms` rather than
+  orphaned. gpg's machine status goes to a
   file in a private temporary directory that is removed after every call.
   Status keywords are the only gpg output that ever reaches an error.
 
@@ -61,7 +65,9 @@ defmodule Comn.Secrets.GPG do
   @armor_header "-----BEGIN PGP MESSAGE-----"
   @default_timeout 30_000
   @loopback ["--pinentry-mode", "loopback", "--passphrase-fd", "0"]
-  @shell ~S(n=$1; shift; head -c "$n" | exec "$@" 2>/dev/null)
+  @bad_signature ["BADSIG ", "ERRSIG ", "NO_PUBKEY ", "REVKEYSIG ", "EXPKEYSIG ", "EXPSIG "]
+  @shell ~S(n=$1; t=$2; shift 2; head -c "$n" | exec timeout -s KILL "$t" "$@" 2>/dev/null)
+  @grace_ms 1_000
 
   @impl true
   def lock(blob, %Key{algorithm: :gpg} = key) when is_binary(blob) do
@@ -236,7 +242,7 @@ defmodule Comn.Secrets.GPG do
 
   defp verify_signature(status, %Key{metadata: meta} = key, %LockedBlob{metadata: locked_meta}) do
     required? = meta[:sign] not in [nil, false] or locked_meta[:signed] == true
-    bad? = Enum.any?(status, &String.starts_with?(&1, ["BADSIG ", "ERRSIG ", "NO_PUBKEY "]))
+    bad? = Enum.any?(status, &String.starts_with?(&1, @bad_signature))
 
     cond do
       bad? -> {:error, ErrReg.error!("secrets/authentication_failed", field: "signature")}
@@ -294,15 +300,14 @@ defmodule Comn.Secrets.GPG do
 
   defp run(%Key{metadata: meta}, args, stdin) do
     with {:ok, gpg} <- binary(meta[:gpg_path]),
-         :ok <- check_homedir(meta[:homedir]) do
-      dir = Path.join(System.tmp_dir!(), "comn_gpg_status_#{System.unique_integer([:positive])}")
-      File.mkdir_p!(dir)
-      File.chmod!(dir, 0o700)
+         :ok <- check_homedir(meta[:homedir]),
+         {:ok, dir} <- status_dir() do
+      timeout = meta[:timeout_ms] || @default_timeout
       status_file = Path.join(dir, "status")
 
       try do
         argv =
-          [@shell, "sh", Integer.to_string(byte_size(stdin)), gpg | args] ++
+          [@shell, "sh", Integer.to_string(byte_size(stdin)), seconds(timeout), gpg | args] ++
             ["--status-file", status_file]
 
         port =
@@ -315,18 +320,14 @@ defmodule Comn.Secrets.GPG do
           ])
 
         Port.command(port, stdin)
-        timeout = meta[:timeout_ms] || @default_timeout
+        result = collect(port, [], timeout + @grace_ms)
+        flush(port)
 
-        case collect(port, [], timeout) do
-          {:ok, 0, out} ->
-            {:ok, out, status_lines(status_file)}
-
-          {:ok, _code, _out} ->
-            {:error, status_error(status_lines(status_file))}
-
-          :timeout ->
-            {:error,
-             ErrReg.error!("secrets/gpg_error", message: "gpg timed out after #{timeout} ms")}
+        case result do
+          {:ok, 0, out} -> {:ok, out, status_lines(status_file)}
+          {:ok, 137, _out} -> {:error, timeout_error(timeout)}
+          {:ok, _code, _out} -> {:error, status_error(status_lines(status_file))}
+          :timeout -> {:error, timeout_error(timeout)}
         end
       after
         File.rm_rf!(dir)
@@ -334,6 +335,8 @@ defmodule Comn.Secrets.GPG do
     end
   end
 
+  # The child runs under `timeout -s KILL`, so a hung gpg dies at the
+  # deadline on its own; the BEAM-side wait is a backstop with some grace.
   defp collect(port, acc, timeout) do
     receive do
       {^port, {:data, chunk}} -> collect(port, [acc | chunk], timeout)
@@ -342,6 +345,43 @@ defmodule Comn.Secrets.GPG do
       timeout ->
         Port.close(port)
         :timeout
+    end
+  end
+
+  # Drains anything the port left behind so a caller that traps exits sees
+  # no stray `{port, _}` or `{:EXIT, port, _}` message.
+  defp flush(port) do
+    receive do
+      {^port, _} -> flush(port)
+    after
+      0 ->
+        if Process.info(self(), :trap_exit) == {:trap_exit, true} do
+          receive do
+            {:EXIT, ^port, _} -> :ok
+          after
+            @grace_ms -> :ok
+          end
+        else
+          :ok
+        end
+    end
+  end
+
+  defp seconds(timeout_ms), do: Float.to_string(timeout_ms / 1000)
+
+  defp timeout_error(timeout),
+    do: ErrReg.error!("secrets/gpg_error", message: "gpg timed out after #{timeout} ms")
+
+  defp status_dir do
+    name = "comn_gpg_status_" <> Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
+    dir = Path.join(System.tmp_dir!(), name)
+
+    with :ok <- File.mkdir(dir),
+         :ok <- File.chmod(dir, 0o700) do
+      {:ok, dir}
+    else
+      {:error, reason} ->
+        {:error, ErrReg.error!("secrets/gpg_error", field: "status_dir:#{reason}")}
     end
   end
 

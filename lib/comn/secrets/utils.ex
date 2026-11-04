@@ -20,7 +20,7 @@ defmodule Comn.Secrets.Utils do
   `Comn.Secrets.GPG`: a recipient key (`public` is a 20- or 32-byte raw
   fingerprint, `private` is nil) and a symmetric key (`metadata.mode` is
   `:symmetric`, `public` is a non-empty label, `private` is a non-empty
-  passphrase without a newline).
+  passphrase without a newline or NUL byte).
 
   Errors: `secrets/invalid_key` for anything else. RSA-4096 and ECDSA-P256
   are not implemented and are rejected.
@@ -40,7 +40,7 @@ defmodule Comn.Secrets.Utils do
         private: pw
       })
       when is_binary(label) and label != "" and is_binary(pw) and pw != "" do
-    if String.contains?(pw, "\n"),
+    if String.contains?(pw, ["\n", <<0>>]),
       do: {:error, ErrReg.error!("secrets/invalid_key")},
       else: :ok
   end
