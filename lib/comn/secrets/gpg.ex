@@ -17,12 +17,24 @@ defmodule Comn.Secrets.GPG do
 
   Passed via `%Comn.Secrets.Key{metadata: ...}`:
 
+  - `mode` — `:symmetric` for passphrase encryption; absent means recipient
   - `homedir` — GnuPG home directory; omitted means gpg's default
   - `recipients` — extra recipient fingerprints as hex strings
   - `sign` — `true` (sign with `public`) or a signer fingerprint as hex
   - `armor` — `false` for binary output; default `true`
-  - `gpg_path` — absolute path to the gpg binary; default `gpg` on PATH
-  - `timeout_ms` — per-invocation timeout; default 30 000
+  - `gpg_path` — absolute path to the gpg binary; default `gpg` on PATH,
+    `secrets/gpg_unavailable` when there is none
+  - `timeout_ms` — per-invocation timeout; default 30 000, then
+    `secrets/gpg_error`
+
+  ## Signing policy
+
+  On lock, `sign: true` signs with `public` (recipient mode only; in
+  symmetric mode it is `secrets/invalid_gpg_config`) and a hex `sign` signs
+  with that key. On unlock a signature is required when the key sets `sign`
+  or the blob says `signed: true`: gpg's `VALIDSIG` primary fingerprint must
+  equal the expected signer, else `secrets/authentication_failed`. Any
+  `BADSIG`, `ERRSIG`, or `NO_PUBKEY` fails regardless.
 
   ## Process boundary
 
@@ -415,7 +427,7 @@ defmodule Comn.Secrets.GPG do
   def choices do
     %{
       operations: ["lock", "unlock", "wrap", "unwrap", "put", "fetch"],
-      config: ["homedir", "recipients", "sign", "armor", "gpg_path", "timeout_ms"]
+      config: ["mode", "homedir", "recipients", "sign", "armor", "gpg_path", "timeout_ms"]
     }
   end
 

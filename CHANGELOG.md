@@ -2,6 +2,28 @@
 
 Notable changes to comn. Newest first. Earlier history is in git.
 
+## Unreleased
+
+### Added
+
+- **`Comn.Secrets.GPG`.** An OpenPGP backend that drives the system `gpg`
+  binary: recipient mode (one or more keyring fingerprints), symmetric mode
+  (passphrase), optional signing with a `VALIDSIG` check on unlock, armored
+  or binary output. `put/4` writes the message into any Repo shape, raw
+  into a File or as a `:secrets_locked` event; `fetch/3` reads it back.
+  Plaintext and passphrases travel over stdin, only byte counts on argv.
+- **`:gpg` key algorithm** (fingerprint byte `0x04`), `Utils.gpg_fingerprint_hex/1`,
+  and error codes `secrets/invalid_gpg_config`, `secrets/gpg_unavailable`,
+  `secrets/gpg_error`.
+
+### Fixed
+
+- **`Comn.Repo.File.Local` round-trips raw bytes.** `write` and `load` used
+  `IO.write`/`IO.read`, which transcode and reject or mangle bytes above
+  127 in a `:binary` file; they now use `binwrite`/`binread`. An
+  `:append`-only handle loads like a `:write` one instead of crashing the
+  io server.
+
 ## 0.7.0 — 2026-10-27
 
 One handle, one lifecycle, every shape a facade; paths confined to a root;

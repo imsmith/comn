@@ -18,7 +18,7 @@ Every module implements `@behaviour Comn` — four callbacks (`look`, `recon`, `
 | Presence | Complete | Zone-scoped actor presence (`announce`/`who`); Agent-backed local impl |
 | Errors | Complete | Structured errors, categorization, compile-time registry with namespaced codes |
 | Events | Complete | Registry-based pub/sub, event log, NATS adapter, structured events |
-| Secrets | Complete | ChaCha20-Poly1305 local encryption + HashiCorp Vault Transit backend |
+| Secrets | Complete | ChaCha20-Poly1305 local encryption, HashiCorp Vault Transit, and OpenPGP via the system `gpg` |
 | Repo.Table | Complete | Key-value facade over fungible backends: ETS, Ecto |
 | Repo.File | Complete | File facade with a lifecycle state machine; backends: Local, NFS, IPFS |
 | Repo.Graphs | Complete | Graph facade (`link`/`unlink`/`traverse`) with spatial verbs; libgraph backend |
@@ -238,6 +238,45 @@ key = %Key{
   }
 }
 ```
+
+The GPG backend (`Comn.Secrets.GPG`) drives the system `gpg` binary and its
+agent. Keys never leave the GnuPG keyring; the output is a standard OpenPGP
+message that `gpg -d` reads. It can also put that message into any Repo
+shape, raw into a File or as a `:secrets_locked` event anywhere:
+
+```elixir
+alias Comn.Secrets.{GPG, Key}
+
+key = %Key{
+  algorithm: :gpg,
+  public: Base.decode16!("<40 or 64 hex primary fingerprint>"),
+  metadata: %{homedir: "/home/me/.gnupg", sign: true}
+}
+
+{:ok, locked} = GPG.lock("sensitive data", key)     # locked.encrypted is an armored PGP message
+{:ok, "sensitive data"} = GPG.unlock(locked, key)   # VALIDSIG checked
+
+{:ok, f} = Comn.Repo.File.open("secret.asc", root: "/srv/secrets", mode: [:write, :binary])
+{:ok, f} = Comn.Repo.File.load(f)
+{:ok, _f} = GPG.put(locked, Comn.Repo.File, f, as: :raw)   # gpg -d secret.asc works
+
+{:ok, t} = Comn.Repo.Table.open(:secrets)
+{:ok, id, :ok} = GPG.put(locked, Comn.Repo.Table, t, [])
+{:ok, ^locked} = GPG.fetch(Comn.Repo.Table, t, id: id)
+```
+
+Symmetric mode takes a passphrase instead of a keyring entry:
+
+```elixir
+key = %Key{
+  algorithm: :gpg,
+  public: "backup-2026",
+  private: passphrase,
+  metadata: %{mode: :symmetric, armor: false}
+}
+```
+
+Passphrases and plaintext go to gpg over stdin, never on argv or in a file.
 
 ## Repo
 
@@ -571,6 +610,7 @@ lib/comn/
   secrets.ex                 Secrets behaviour
   secrets/local.ex           ChaCha20-Poly1305 local encryption
   secrets/vault.ex           HashiCorp Vault Transit backend
+  secrets/gpg.ex             OpenPGP via the system gpg binary
   secrets/key.ex             Cryptographic key struct
   secrets/locked_blob.ex     Encrypted blob struct
   secrets/container.ex       Blob container struct
@@ -638,7 +678,7 @@ lib/comn/
 ## Running Tests
 
 ```bash
-mix test                    # All tests (Vault tests auto-excluded)
+mix test                    # All tests (Vault tests auto-excluded; GPG tests auto-excluded without a gpg binary)
 VAULT_TOKEN=xxx mix test    # Include Vault integration tests
 NATS_URL=nats://127.0.0.1:4222 mix test   # Include JetStream tests (needs a -js server)
 ```

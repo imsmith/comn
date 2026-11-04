@@ -91,6 +91,7 @@ defmodule Comn.MixProject do
             Comn.Secret,
             Comn.Secrets.Local,
             Comn.Secrets.Vault,
+            Comn.Secrets.GPG,
             Comn.Secrets.Utils,
             Comn.Secrets.Key,
             Comn.Secrets.LockedBlob,
