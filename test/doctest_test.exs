@@ -33,4 +33,5 @@ defmodule Comn.DoctestTest do
   doctest Comn.Repo.Table
   doctest Comn.Secrets.Local
   doctest Comn.Secrets.Vault
+  doctest Comn.Secrets.GPG
 end

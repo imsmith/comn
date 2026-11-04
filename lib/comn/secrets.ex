@@ -24,6 +24,9 @@ defmodule Comn.Secrets do
      - Ed25519: 32-byte private key, 32-byte public key
      - RSA-4096: 4096-bit modulus
      - ECDSA-P256: Valid P-256 curve points
+     - GPG: 20- or 32-byte raw fingerprint and no private part (recipient),
+       or a label plus a newline-free passphrase (symmetric); see
+       `Comn.Secrets.GPG`
      Return a `secrets/invalid_key` error for malformed keys.
 
   2. **Use unique nonces** - Never reuse nonces with the same key.
@@ -145,8 +148,8 @@ defmodule Comn.Secrets do
   def recon do
     %{
       callbacks: [:lock, :unlock, :wrap, :unwrap],
-      algorithms: [:ed25519, :rsa_4096, :ecdsa_p256],
-      implementations: [Comn.Secrets.Local, Comn.Secrets.Vault],
+      algorithms: [:ed25519, :rsa_4096, :ecdsa_p256, :gpg],
+      implementations: [Comn.Secrets.Local, Comn.Secrets.Vault, Comn.Secrets.GPG],
       type: :behaviour
     }
   end
@@ -154,8 +157,8 @@ defmodule Comn.Secrets do
   @impl Comn
   def choices do
     %{
-      backends: ["Local", "Vault"],
-      algorithms: ["ed25519", "rsa_4096", "ecdsa_p256"]
+      backends: ["Local", "Vault", "GPG"],
+      algorithms: ["ed25519", "rsa_4096", "ecdsa_p256", "gpg"]
     }
   end
 

@@ -30,8 +30,16 @@ defmodule Comn.Secrets.GPG do
   only their byte count appears on argv. gpg's machine status goes to a
   file in a private temporary directory that is removed after every call.
   Status keywords are the only gpg output that ever reaches an error.
+
+  ## Examples
+
+      iex> Comn.Secrets.GPG.look()
+      "Secrets.GPG — OpenPGP via the system gpg binary, keys stay in the GnuPG keyring"
+
+      iex> %{key_management: :keyring} = Comn.Secrets.GPG.recon()
   """
 
+  @behaviour Comn
   @behaviour Comn.Secrets
 
   alias Comn.Errors.Registry, as: ErrReg
@@ -307,4 +315,37 @@ defmodule Comn.Secrets.GPG do
       nil -> ErrReg.error!("secrets/gpg_error")
     end
   end
+
+  # Comn introspection
+
+  @impl Comn
+  def look,
+    do: "Secrets.GPG — OpenPGP via the system gpg binary, keys stay in the GnuPG keyring"
+
+  @impl Comn
+  def recon do
+    %{
+      backend: :gpg,
+      requires: [:gpg_binary],
+      key_management: :keyring,
+      modes: [:recipient, :symmetric],
+      signing: true,
+      type: :implementation
+    }
+  end
+
+  @impl Comn
+  def choices do
+    %{
+      operations: ["lock", "unlock", "wrap", "unwrap", "put", "fetch"],
+      config: ["homedir", "recipients", "sign", "armor", "gpg_path", "timeout_ms"]
+    }
+  end
+
+  @impl Comn
+  def act(%{action: :lock, blob: blob, key: key}), do: lock(blob, key)
+  def act(%{action: :unlock, locked: locked, key: key}), do: unlock(locked, key)
+  def act(%{action: :wrap, blobs: blobs, key: key}), do: wrap(blobs, key)
+  def act(%{action: :unwrap, locked: locked, key: key}), do: unwrap(locked, key)
+  def act(input), do: Comn.unknown_action(input)
 end

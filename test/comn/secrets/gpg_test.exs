@@ -163,4 +163,21 @@ defmodule Comn.Secrets.GPGTest do
       assert {:ok, "hello"} = GPG.unlock(locked, key)
     end
   end
+
+  describe "wrap/unwrap and introspection" do
+    test "container round trip", %{key: key} do
+      {:ok, a} = GPG.lock("a", key)
+      {:ok, b} = GPG.lock("b", key)
+      assert {:ok, container} = GPG.wrap([a, b], key)
+      assert {:ok, [^a, ^b]} = GPG.unwrap(container, key)
+    end
+
+    test "registry lists GPG" do
+      assert Comn.Secrets.GPG in Comn.Secrets.recon().implementations
+      assert :gpg in Comn.Secrets.recon().algorithms
+      assert "GPG" in Comn.Secrets.choices().backends
+      assert %{backend: :gpg, modes: [:recipient, :symmetric], signing: true} = GPG.recon()
+      assert {:error, %ErrorStruct{}} = GPG.act(%{action: :nope})
+    end
+  end
 end
