@@ -27,8 +27,9 @@ defmodule Comn.Secrets.GPGHelpers do
   @doc "Generates a passphrase-less key in `homedir` and returns its primary fingerprint."
   @spec gen_key!(Path.t(), String.t()) :: String.t()
   def gen_key!(homedir, name \\ "Comn Test <test@comn.invalid>") do
-    args = ~w(--homedir #{homedir} --batch --pinentry-mode loopback --passphrase) ++ [""]
-    args = args ++ ["--quick-gen-key", name, "default", "default", "never"]
+    args =
+      ~w(--homedir #{homedir} --batch --pinentry-mode loopback --passphrase) ++
+        ["", "--quick-gen-key", name, "default", "default", "never"]
 
     case System.cmd("gpg", args, stderr_to_stdout: true) do
       {_, 0} -> :ok
