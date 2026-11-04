@@ -10,4 +10,6 @@ exclude = if System.get_env("VAULT_TOKEN"), do: exclude, else: [:vault_integrati
 # Exclude NATS JetStream integration tests unless NATS_URL is set (e.g. nats://127.0.0.1:4222)
 exclude = if System.get_env("NATS_URL"), do: exclude, else: [:nats | exclude]
 
+exclude = if System.find_executable("gpg"), do: exclude, else: [:gpg | exclude]
+
 ExUnit.start(exclude: exclude)
