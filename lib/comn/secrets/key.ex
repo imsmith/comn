@@ -8,7 +8,7 @@ defmodule Comn.Secrets.Key do
   ## Fields
 
   - `id` - Key identifier/fingerprint
-  - `algorithm` - Key algorithm (:ed25519, :rsa_4096, :ecdsa_p256)
+  - `algorithm` - Key algorithm (:ed25519, :rsa_4096, :ecdsa_p256, :gpg)
   - `public` - Public key material
   - `private` - Private key material (may be nil for public-only keys)
   - `metadata` - Arbitrary metadata about the key
@@ -25,10 +25,12 @@ defmodule Comn.Secrets.Key do
   ## Fingerprints
 
   Key fingerprints are self-describing 17-byte identifiers:
-  - 1 byte: algorithm type (0x01=Ed25519, 0x02=RSA-4096, 0x03=ECDSA-P256)
+  - 1 byte: algorithm type (0x01=Ed25519, 0x02=RSA-4096, 0x03=ECDSA-P256, 0x04=GPG)
   - 16 bytes: BLAKE2b hash of public key (truncated to 128 bits)
 
   This provides cryptographic identification without leaking key metadata.
+  For `:gpg` keys `public` is the raw OpenPGP primary fingerprint (recipient
+  mode) or a label (symmetric mode); see `Comn.Secrets.GPG`.
 
   ## Example
 
@@ -45,7 +47,7 @@ defmodule Comn.Secrets.Key do
       hint = Key.fingerprint(key)
   """
 
-  @type algorithm :: :ed25519 | :rsa_4096 | :ecdsa_p256
+  @type algorithm :: :ed25519 | :rsa_4096 | :ecdsa_p256 | :gpg
 
   @type t :: %__MODULE__{
           id: binary(),
@@ -68,7 +70,8 @@ defmodule Comn.Secrets.Key do
   @algorithm_bytes %{
     ed25519: 0x01,
     rsa_4096: 0x02,
-    ecdsa_p256: 0x03
+    ecdsa_p256: 0x03,
+    gpg: 0x04
   }
 
   @doc """
@@ -101,6 +104,7 @@ defmodule Comn.Secrets.Key do
   def algorithm_from_fingerprint(<<0x01, _rest::binary>>), do: :ed25519
   def algorithm_from_fingerprint(<<0x02, _rest::binary>>), do: :rsa_4096
   def algorithm_from_fingerprint(<<0x03, _rest::binary>>), do: :ecdsa_p256
+  def algorithm_from_fingerprint(<<0x04, _rest::binary>>), do: :gpg
   def algorithm_from_fingerprint(_), do: :unknown
 
   @doc """

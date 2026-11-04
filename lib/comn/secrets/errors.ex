@@ -33,8 +33,18 @@ defmodule Comn.Secrets.Errors do
   register_error("secrets/vault_error", :internal, message: "Vault returned an unexpected error")
 
   register_error("secrets/invalid_ciphertext", :validation,
-    message: "Vault returned ciphertext that could not be decoded"
+    message: "Ciphertext could not be decoded"
   )
 
   register_error("secrets/network_error", :network, message: "HTTP request to Vault failed")
+
+  register_error("secrets/invalid_gpg_config", :validation,
+    message: "Key metadata has an invalid gpg option (homedir, gpg_path, recipients, sign)"
+  )
+
+  register_error("secrets/gpg_unavailable", :network,
+    message: "No gpg binary found on PATH and none configured"
+  )
+
+  register_error("secrets/gpg_error", :internal, message: "gpg failed or timed out")
 end

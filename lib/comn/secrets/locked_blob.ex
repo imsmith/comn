@@ -13,7 +13,7 @@ defmodule Comn.Secrets.LockedBlob do
 
   ## Fields
 
-  - `cipher` - The encryption algorithm used (:aes_gcm, :chacha20_poly1305)
+  - `cipher` - The encryption algorithm used (:aes_gcm, :chacha20_poly1305, :vault_transit, :gpg)
   - `encrypted` - The encrypted binary data (single blob or serialized container)
   - `tag` - AEAD authentication tag (for verifying ciphertext and metadata integrity)
   - `key_hint` - Self-describing key fingerprint (17 bytes: 1-byte algorithm + 16-byte BLAKE2b hash)
@@ -23,7 +23,7 @@ defmodule Comn.Secrets.LockedBlob do
   ## Key Hint Format
 
   The `key_hint` is a deterministic fingerprint generated from the public key:
-  - Byte 0: Algorithm identifier (0x01=Ed25519, 0x02=RSA-4096, 0x03=ECDSA-P256)
+  - Byte 0: Algorithm identifier (0x01=Ed25519, 0x02=RSA-4096, 0x03=ECDSA-P256, 0x04=GPG)
   - Bytes 1-16: BLAKE2b hash of public key (truncated to 128 bits)
 
   This provides fast key lookup without revealing key ownership or metadata.
@@ -34,6 +34,12 @@ defmodule Comn.Secrets.LockedBlob do
   the authentication tag that verifies both the ciphertext and the metadata.
   Implementations should include serialized metadata as associated data during
   encryption/decryption.
+
+  ## GPG Blobs
+
+  Blobs with `cipher: :gpg` carry a complete OpenPGP message in `encrypted`;
+  `tag` and `nonce` are nil and `metadata` is not authenticated. Integrity
+  comes from OpenPGP's MDC/AEAD packet and, when signed, the signature.
 
   ## Container Security
 
@@ -51,7 +57,7 @@ defmodule Comn.Secrets.LockedBlob do
   container MUST be encrypted again to prevent structure manipulation attacks.
   """
 
-  @type cipher :: :aes_gcm | :chacha20_poly1305
+  @type cipher :: :aes_gcm | :chacha20_poly1305 | :vault_transit | :gpg
 
   @type t :: %__MODULE__{
           cipher: cipher(),
