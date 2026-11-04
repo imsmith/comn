@@ -38,26 +38,26 @@ defmodule Comn.Secrets.GPG do
   alias Comn.Secrets.{Key, LockedBlob, Utils}
 
   @default_timeout 30_000
+  @loopback ["--pinentry-mode", "loopback", "--passphrase-fd", "0"]
   @shell ~S(n=$1; shift; head -c "$n" | exec "$@" 2>/dev/null)
 
   @impl true
   def lock(blob, %Key{algorithm: :gpg} = key) when is_binary(blob) do
     with :ok <- Utils.validate_key(key),
-         {:ok, args, recipients} <- recipient_args(key),
-         {:ok, encrypted, _status} <- run(key, common_args(key) ++ args, blob) do
+         {:ok, args, stdin, meta} <- lock_plan(key, blob),
+         {:ok, encrypted, _status} <- run(key, common_args(key) ++ args, stdin) do
       {:ok,
        %LockedBlob{
          cipher: :gpg,
          encrypted: encrypted,
          key_hint: Key.fingerprint(key),
-         metadata: %{
-           created_at: DateTime.to_iso8601(DateTime.utc_now()),
-           algorithm: :gpg,
-           mode: :recipient,
-           armor: armor?(key),
-           signed: false,
-           recipients: recipients
-         }
+         metadata:
+           Map.merge(meta, %{
+             created_at: DateTime.to_iso8601(DateTime.utc_now()),
+             algorithm: :gpg,
+             armor: armor?(key),
+             signed: false
+           })
        }}
     end
   end
@@ -68,8 +68,8 @@ defmodule Comn.Secrets.GPG do
   def unlock(%LockedBlob{cipher: :gpg} = locked, %Key{algorithm: :gpg} = key) do
     with :ok <- Utils.validate_key(key),
          true <- hint_ok?(locked, key),
-         {:ok, plaintext, _status} <-
-           run(key, common_args(key) ++ ["--decrypt"], locked.encrypted) do
+         {args, stdin} = unlock_plan(key, locked),
+         {:ok, plaintext, _status} <- run(key, common_args(key) ++ args, stdin) do
       {:ok, plaintext}
     else
       false -> {:error, ErrReg.error!("secrets/wrong_key")}
@@ -88,6 +88,32 @@ defmodule Comn.Secrets.GPG do
   def unwrap(locked, key), do: Utils.unwrap(__MODULE__, locked, key)
 
   # Argument building
+
+  defp symmetric?(%Key{metadata: meta}), do: meta[:mode] == :symmetric
+
+  defp lock_plan(%Key{private: pw} = key, blob) do
+    if symmetric?(key) do
+      with {:ok, args} <- symmetric_args(key) do
+        {:ok, args, pw <> "\n" <> blob, %{mode: :symmetric}}
+      end
+    else
+      with {:ok, args, recipients} <- recipient_args(key) do
+        {:ok, args, blob, %{mode: :recipient, recipients: recipients}}
+      end
+    end
+  end
+
+  defp unlock_plan(%Key{private: pw} = key, %LockedBlob{encrypted: data}) do
+    if symmetric?(key),
+      do: {@loopback ++ ["--decrypt"], pw <> "\n" <> data},
+      else: {["--decrypt"], data}
+  end
+
+  defp symmetric_args(%Key{metadata: meta} = key) do
+    if meta[:sign] in [nil, false],
+      do: {:ok, @loopback ++ armor_args(key) ++ ["--symmetric"]},
+      else: {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "sign")}
+  end
 
   defp common_args(%Key{metadata: meta}) do
     base = ["--batch", "--yes", "--quiet", "--no-tty"]

@@ -104,4 +104,29 @@ defmodule Comn.Secrets.GPGTest do
              )
     end
   end
+
+  describe "symmetric mode" do
+    test "round trip, armored, and gpg -d interop", %{home: home} do
+      key = symmetric_key("correct horse", %{homedir: home})
+
+      assert {:ok, %LockedBlob{metadata: %{mode: :symmetric}} = locked} =
+               GPG.lock("hello\nworld", key)
+
+      assert {:ok, "hello\nworld"} = GPG.unlock(locked, key)
+      assert locked.key_hint == Key.fingerprint(key)
+    end
+
+    test "wrong passphrase is secrets/wrong_key", %{home: home} do
+      key = symmetric_key("one", %{homedir: home})
+      assert {:ok, locked} = GPG.lock("hello", key)
+
+      assert {:error, %ErrorStruct{code: "secrets/wrong_key"}} =
+               GPG.unlock(%{locked | key_hint: nil}, symmetric_key("two", %{homedir: home}))
+    end
+
+    test "sign: true is a config error in symmetric mode", %{home: home} do
+      key = symmetric_key("pw", %{homedir: home, sign: true})
+      assert {:error, %ErrorStruct{code: "secrets/invalid_gpg_config"}} = GPG.lock("x", key)
+    end
+  end
 end
