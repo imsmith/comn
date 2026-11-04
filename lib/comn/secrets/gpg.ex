@@ -45,7 +45,8 @@ defmodule Comn.Secrets.GPG do
   def lock(blob, %Key{algorithm: :gpg} = key) when is_binary(blob) do
     with :ok <- Utils.validate_key(key),
          {:ok, args, stdin, meta} <- lock_plan(key, blob),
-         {:ok, encrypted, _status} <- run(key, common_args(key) ++ args, stdin) do
+         {:ok, sign, signer} <- sign_args(key),
+         {:ok, encrypted, _status} <- run(key, common_args(key) ++ args ++ sign, stdin) do
       {:ok,
        %LockedBlob{
          cipher: :gpg,
@@ -56,7 +57,7 @@ defmodule Comn.Secrets.GPG do
              created_at: DateTime.to_iso8601(DateTime.utc_now()),
              algorithm: :gpg,
              armor: armor?(key),
-             signed: false
+             signed: signer != nil
            })
        }}
     end
@@ -69,7 +70,8 @@ defmodule Comn.Secrets.GPG do
     with :ok <- Utils.validate_key(key),
          true <- hint_ok?(locked, key),
          {args, stdin} = unlock_plan(key, locked),
-         {:ok, plaintext, _status} <- run(key, common_args(key) ++ args, stdin) do
+         {:ok, plaintext, status} <- run(key, common_args(key) ++ args, stdin),
+         :ok <- verify_signature(status, key, locked) do
       {:ok, plaintext}
     else
       false -> {:error, ErrReg.error!("secrets/wrong_key")}
@@ -109,11 +111,53 @@ defmodule Comn.Secrets.GPG do
       else: {["--decrypt"], data}
   end
 
-  defp symmetric_args(%Key{metadata: meta} = key) do
-    if meta[:sign] in [nil, false],
-      do: {:ok, @loopback ++ armor_args(key) ++ ["--symmetric"]},
-      else: {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "sign")}
+  defp symmetric_args(key), do: {:ok, @loopback ++ armor_args(key) ++ ["--symmetric"]}
+
+  # Signing
+
+  defp sign_args(%Key{metadata: meta} = key) do
+    case signer_hex(meta[:sign], key) do
+      {:ok, nil} -> {:ok, [], nil}
+      {:ok, hex} -> {:ok, ["--sign", "--local-user", hex], hex}
+      {:error, _} = err -> err
+    end
   end
+
+  defp signer_hex(sign, _key) when sign in [nil, false], do: {:ok, nil}
+
+  defp signer_hex(sign, key) when is_binary(sign) and is_binary(key.public),
+    do: Utils.gpg_fingerprint_hex(sign)
+
+  defp signer_hex(true, %Key{public: pub} = key) do
+    if symmetric?(key),
+      do: {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "sign")},
+      else: {:ok, Base.encode16(pub)}
+  end
+
+  defp signer_hex(_, _key),
+    do: {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "sign")}
+
+  defp verify_signature(status, %Key{metadata: meta} = key, %LockedBlob{metadata: locked_meta}) do
+    required? = meta[:sign] not in [nil, false] or locked_meta[:signed] == true
+    bad? = Enum.any?(status, &String.starts_with?(&1, ["BADSIG ", "ERRSIG ", "NO_PUBKEY "]))
+
+    cond do
+      bad? -> {:error, ErrReg.error!("secrets/authentication_failed", field: "signature")}
+      not required? -> :ok
+      true -> check_validsig(status, signer_hex(meta[:sign], key))
+    end
+  end
+
+  defp check_validsig(status, {:ok, expected}) do
+    signers =
+      for "VALIDSIG " <> fields <- status, do: fields |> String.split(" ") |> List.last()
+
+    if signers != [] and (expected == nil or expected in signers),
+      do: :ok,
+      else: {:error, ErrReg.error!("secrets/authentication_failed", field: "signature")}
+  end
+
+  defp check_validsig(_status, {:error, _} = err), do: err
 
   defp common_args(%Key{metadata: meta}) do
     base = ["--batch", "--yes", "--quiet", "--no-tty"]

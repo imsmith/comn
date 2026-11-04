@@ -129,4 +129,38 @@ defmodule Comn.Secrets.GPGTest do
       assert {:error, %ErrorStruct{code: "secrets/invalid_gpg_config"}} = GPG.lock("x", key)
     end
   end
+
+  describe "signing" do
+    test "signed round trip", %{key: key} do
+      key = %{key | metadata: Map.put(key.metadata, :sign, true)}
+      assert {:ok, %LockedBlob{metadata: %{signed: true}} = locked} = GPG.lock("hello", key)
+      assert {:ok, "hello"} = GPG.unlock(locked, key)
+    end
+
+    test "signature by another key is rejected", %{key: key, home: home} do
+      fpr2 = gen_key!(home, "Second <two@comn.invalid>")
+      signer2 = %{key | metadata: Map.put(key.metadata, :sign, fpr2)}
+      assert {:ok, locked} = GPG.lock("hello", signer2)
+      demanding = %{key | metadata: Map.put(key.metadata, :sign, true)}
+
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               GPG.unlock(locked, demanding)
+
+      assert {:ok, "hello"} = GPG.unlock(locked, signer2)
+    end
+
+    test "unsigned blob with sign demanded is rejected", %{key: key} do
+      assert {:ok, locked} = GPG.lock("hello", key)
+      demanding = %{key | metadata: Map.put(key.metadata, :sign, true)}
+
+      assert {:error, %ErrorStruct{code: "secrets/authentication_failed"}} =
+               GPG.unlock(locked, demanding)
+    end
+
+    test "symmetric blob signed with an explicit fingerprint", %{home: home, fpr: fpr} do
+      key = symmetric_key("pw", %{homedir: home, sign: fpr})
+      assert {:ok, %LockedBlob{metadata: %{signed: true}} = locked} = GPG.lock("hello", key)
+      assert {:ok, "hello"} = GPG.unlock(locked, key)
+    end
+  end
 end
