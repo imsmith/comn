@@ -43,8 +43,10 @@ defmodule Comn.Secrets.GPG do
   @behaviour Comn.Secrets
 
   alias Comn.Errors.Registry, as: ErrReg
+  alias Comn.Events.EventStruct
   alias Comn.Secrets.{Key, LockedBlob, Utils}
 
+  @armor_header "-----BEGIN PGP MESSAGE-----"
   @default_timeout 30_000
   @loopback ["--pinentry-mode", "loopback", "--passphrase-fd", "0"]
   @shell ~S(n=$1; shift; head -c "$n" | exec "$@" 2>/dev/null)
@@ -93,6 +95,81 @@ defmodule Comn.Secrets.GPG do
 
   @impl true
   def wrap(blobs, key), do: Utils.wrap(__MODULE__, blobs, key)
+
+  @doc """
+  Puts a locked blob into any `Comn.Repo` shape.
+
+  `as: :raw` writes the bare OpenPGP message with `set(handle, value: ...)`
+  so the stock `gpg` CLI can read the file; only `Comn.Repo.File` supports
+  it. Otherwise the blob travels as the `data` of a `:secrets_locked` event
+  on topic `"comn.secrets"` and the minted event id is returned with the
+  shape's own `set` result.
+
+  Errors: `secrets/invalid_gpg_config` for `as: :raw` on a non-File shape,
+  plus whatever the shape's `set` returns.
+  """
+  @spec put(LockedBlob.t(), module(), Comn.Repo.Handle.t(), keyword()) ::
+          {:ok, Comn.Repo.Handle.t()}
+          | {:ok, String.t(), term()}
+          | {:error, Comn.Errors.ErrorStruct.t()}
+  def put(%LockedBlob{cipher: :gpg} = locked, repo, handle, opts) when is_list(opts) do
+    case Keyword.get(opts, :as) do
+      :raw when repo == Comn.Repo.File -> repo.set(handle, value: locked.encrypted)
+      :raw -> {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "as")}
+      _ -> put_event(locked, repo, handle)
+    end
+  end
+
+  defp put_event(locked, repo, handle) do
+    e = EventStruct.new(:secrets_locked, "comn.secrets", locked, __MODULE__)
+
+    case repo.set(handle, event: e) do
+      :ok -> {:ok, e.id, :ok}
+      {:ok, _} = result -> {:ok, e.id, result}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Fetches a locked blob back from a `Comn.Repo` shape.
+
+  `as: :raw` reads a loaded `Comn.Repo.File` and rebuilds the blob from the
+  bytes (`key_hint` nil, `armor` detected from the armor header). `id: id`
+  gets the event by id and returns its `data`.
+
+  Errors: `secrets/invalid_gpg_config` without either option or for `as:
+  :raw` on a non-File shape, `secrets/invalid_container` when the event's
+  data is not a gpg blob, plus whatever the shape's `get`/`read` returns.
+  """
+  @spec fetch(module(), Comn.Repo.Handle.t(), keyword()) ::
+          {:ok, LockedBlob.t()} | {:error, Comn.Errors.ErrorStruct.t()}
+  def fetch(repo, handle, opts) when is_list(opts) do
+    case {Keyword.get(opts, :as), Keyword.get(opts, :id)} do
+      {:raw, _} when repo == Comn.Repo.File -> fetch_raw(handle)
+      {:raw, _} -> {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "as")}
+      {_, nil} -> {:error, ErrReg.error!("secrets/invalid_gpg_config", field: "id")}
+      {_, id} -> fetch_event(repo, handle, id)
+    end
+  end
+
+  defp fetch_raw(handle) do
+    with {:ok, bytes} when is_binary(bytes) <- Comn.Repo.File.read(handle) do
+      {:ok,
+       %LockedBlob{
+         cipher: :gpg,
+         encrypted: bytes,
+         metadata: %{armor: String.starts_with?(bytes, @armor_header), mode: nil, signed: nil}
+       }}
+    end
+  end
+
+  defp fetch_event(repo, handle, id) do
+    case repo.get(handle, id: id) do
+      {:ok, %EventStruct{data: %LockedBlob{cipher: :gpg} = locked}} -> {:ok, locked}
+      {:ok, _} -> {:error, ErrReg.error!("secrets/invalid_container")}
+      {:error, _} = err -> err
+    end
+  end
 
   @impl true
   def unwrap(locked, key), do: Utils.unwrap(__MODULE__, locked, key)
@@ -347,5 +424,12 @@ defmodule Comn.Secrets.GPG do
   def act(%{action: :unlock, locked: locked, key: key}), do: unlock(locked, key)
   def act(%{action: :wrap, blobs: blobs, key: key}), do: wrap(blobs, key)
   def act(%{action: :unwrap, locked: locked, key: key}), do: unwrap(locked, key)
+
+  def act(%{action: :put, locked: locked, repo: repo, handle: handle, opts: opts}),
+    do: put(locked, repo, handle, opts)
+
+  def act(%{action: :fetch, repo: repo, handle: handle, opts: opts}),
+    do: fetch(repo, handle, opts)
+
   def act(input), do: Comn.unknown_action(input)
 end

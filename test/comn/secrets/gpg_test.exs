@@ -3,6 +3,8 @@ defmodule Comn.Secrets.GPGTest do
   @moduletag :gpg
   import Comn.Secrets.GPGHelpers
   alias Comn.Errors.ErrorStruct
+  alias Comn.Repo.File, as: RepoFile
+  alias Comn.Repo.Table
   alias Comn.Secrets.{GPG, Key, LockedBlob}
 
   setup do
@@ -178,6 +180,75 @@ defmodule Comn.Secrets.GPGTest do
       assert "GPG" in Comn.Secrets.choices().backends
       assert %{backend: :gpg, modes: [:recipient, :symmetric], signing: true} = GPG.recon()
       assert {:error, %ErrorStruct{}} = GPG.act(%{action: :nope})
+    end
+  end
+
+  describe "repo destinations" do
+    setup %{home: home} do
+      root = Path.join(home, "repo")
+      File.mkdir_p!(root)
+      {:ok, root: root}
+    end
+
+    defp loaded!(name, root, mode \\ [:read, :binary]) do
+      {:ok, opened} = RepoFile.open(name, root: root, mode: mode)
+      {:ok, handle} = RepoFile.load(opened)
+      handle
+    end
+
+    test "raw file: gpg -d reads it, raw fetch unlocks", %{key: key, home: home, root: root} do
+      {:ok, locked} = GPG.lock("hello", key)
+      out = loaded!("secret.asc", root, [:write, :binary])
+      assert {:ok, %Comn.Repo.Handle{}} = GPG.put(locked, RepoFile, out, as: :raw)
+      :ok = RepoFile.close(out)
+      assert shell_decrypt!(home, File.read!(Path.join(root, "secret.asc"))) == "hello"
+
+      back = loaded!("secret.asc", root)
+
+      assert {:ok, %LockedBlob{cipher: :gpg, key_hint: nil, metadata: %{armor: true}} = fetched} =
+               GPG.fetch(RepoFile, back, as: :raw)
+
+      assert {:ok, "hello"} = GPG.unlock(fetched, key)
+    end
+
+    test "raw fetch of binary output is not armored", %{key: key, root: root} do
+      key = %{key | metadata: Map.put(key.metadata, :armor, false)}
+      {:ok, locked} = GPG.lock("hello", key)
+      out = loaded!("secret.gpg", root, [:write, :binary])
+      {:ok, _} = GPG.put(locked, RepoFile, out, as: :raw)
+      :ok = RepoFile.close(out)
+      back = loaded!("secret.gpg", root)
+
+      assert {:ok, %LockedBlob{metadata: %{armor: false}} = fetched} =
+               GPG.fetch(RepoFile, back, as: :raw)
+
+      assert {:ok, "hello"} = GPG.unlock(fetched, key)
+    end
+
+    test "event form into a Table", %{key: key} do
+      {:ok, t} = Table.open(:"gpg_#{System.unique_integer([:positive])}")
+      {:ok, locked} = GPG.lock("hello", key)
+      assert {:ok, id, :ok} = GPG.put(locked, Table, t, [])
+      assert {:ok, ^locked} = GPG.fetch(Table, t, id: id)
+      Table.drop(t)
+    end
+
+    test "event form into a File log", %{key: key, root: root} do
+      {:ok, locked} = GPG.lock("hello", key)
+      log = loaded!("log.events", root, [:append, :binary])
+      assert {:ok, id, {:ok, written}} = GPG.put(locked, RepoFile, log, [])
+      assert {:ok, ^locked} = GPG.fetch(RepoFile, written, id: id)
+      RepoFile.close(written)
+    end
+
+    test "raw on a non-File shape is a config error", %{key: key} do
+      {:ok, t} = Table.open(:"gpg_raw_#{System.unique_integer([:positive])}")
+      {:ok, locked} = GPG.lock("hello", key)
+
+      assert {:error, %ErrorStruct{code: "secrets/invalid_gpg_config"}} =
+               GPG.put(locked, Table, t, as: :raw)
+
+      Table.drop(t)
     end
   end
 end

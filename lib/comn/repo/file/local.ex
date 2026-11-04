@@ -62,10 +62,10 @@ defmodule Comn.Repo.File.Local do
   def load(%FileStruct{state: :open, handle: handle, metadata: meta} = fs, _opts) do
     mode = Map.get(meta, :mode, [:read, :binary])
 
-    if :write in mode and :read not in mode do
+    if (:write in mode or :append in mode) and :read not in mode do
       {:ok, %{fs | buffer: nil, state: :loaded}}
     else
-      case IO.read(handle, :eof) do
+      case IO.binread(handle, :eof) do
         data when is_binary(data) ->
           {:ok, %{fs | buffer: data, state: :loaded}}
 
@@ -131,7 +131,7 @@ defmodule Comn.Repo.File.Local do
   def write(fs, data, opts \\ [])
 
   def write(%FileStruct{state: :loaded, handle: handle} = fs, data, _opts) do
-    :ok = IO.write(handle, data)
+    :ok = IO.binwrite(handle, data)
     {:ok, %{fs | buffer: data}}
   end
 
