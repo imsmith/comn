@@ -2,6 +2,244 @@
 
 Tracked here until they migrate to a real issue tracker. Newest first.
 
+## `Repo.File` has no directory verbs: list, stat, mkdir, rename
+
+**Filed:** 2026-11-12
+**Reported from:** 3p0 spike (S3 API over `Repo.File.Local`), against v0.7.0 at `7ac2c58`
+
+### Symptom
+
+A store that maps keys onto paths needs five things from the file facade:
+read an object, write one, list a tree, stat an entry (size, mtime, type),
+and create or remove a directory. It also needs an atomic rename so a
+reader never sees a half-written object. `Comn.Repo.File` provides only the
+first two. The 3p0 spike had to call `File.ls/1`, `File.lstat/2`,
+`File.mkdir_p/1`, `File.rmdir/1` and `File.rename/2` directly, with the
+bucket root passed in separately:
+
+```elixir
+# spike/lib/three_p0/store.ex, write_atomic/3
+with :ok <- File.mkdir_p(Path.dirname(full)),          # bypasses Repo.File
+     {:ok, f} <- RF.open(tmp, root: root, mode: [:write, :binary]),
+     {:ok, f} <- RF.load(f),
+     {:ok, f} <- RF.write(f, data),
+     :ok <- RF.close(f),
+     :ok <- File.rename(tmp, full) do                    # bypasses Repo.File
+```
+
+Every one of those bypasses skips `Comn.Repo.File.Root` confinement and the
+event sink (ADR-0001). The spike re-confines by hand with
+`Root.resolve/2`, but a caller who forgets to gets an unconfined path and
+no events.
+
+### Why it happens
+
+The facade is handle-shaped: `open` names one file and every verb acts on
+that handle. Directory operations have no handle, so there is nowhere for
+them to go. The NFS and IPFS backends have the same gap, and IPFS has no
+rename at all, because a CID is immutable.
+
+### What should change
+
+Add root-scoped verbs that take `root:`/`mount:` like `open/2` does, confine
+through `Root`, and emit events. `ls`, `stat`, `mkdir_p`, `rmdir` and
+`rename` would cover 3p0. A backend that cannot rename (IPFS) returns a
+registered error, not a crash. Alternatively, a `Repo.File.Tree` shape over
+the same backends, if a separate facade fits the nine-shape model better.
+
+## `Repo.File` buffers whole files; there is no streaming read or write
+
+**Filed:** 2026-11-12
+**Reported from:** 3p0 spike, against v0.7.0 at `7ac2c58`
+
+### Symptom
+
+`stream/2` needs a `:loaded` handle, and `Local.load/2` gets there by
+reading the whole file into the buffer with `IO.binread(handle, :eof)`
+(`lib/comn/repo/file/local.ex`, `load/2`). `stream/2` then opens the path a
+second time with `File.stream!/1`. So a stream costs a full read first.
+`write/3` takes the whole payload as one `iodata` and keeps it in `buffer`
+afterwards. In the 3p0 spike, a 20 MB PUT sits in memory as the request
+body and again in the handle's buffer; a GET does the same. An S3 listener
+over `Repo.File` therefore caps object size at available RAM, and the
+largest real-client failure mode on record is a client sending one huge
+unsigned chunk (MinIO #21611).
+
+### Why it happens
+
+The lifecycle defines `load` as filling the buffer. For a read-mode handle
+that means reading everything. NFS delegates `stream/2` to `Local`, so it
+inherits the same behaviour.
+
+### What should change
+
+Let `stream/2` work from `:open` without loading, and add a chunked write:
+either `write/3` on a handle that does not keep `buffer` when opened with
+`mode: [:write]`, or a `Collectable` the caller pipes chunks into. Keep
+`buffer` for small files and the event-log case, where it is useful.
+
+## `Repo.File.Root` confinement follows symlinks
+
+**Filed:** 2026-11-12
+**Reported from:** 3p0 spike, against v0.7.0 at `7ac2c58`
+
+### Symptom
+
+`Root.resolve/2` checks the lexical path after `Path.expand/2`, so a
+symlink inside the root that points outside it passes the check. The code
+already says so in a `ponytail:` note above `resolve/2`. This was fine
+while the root was a directory the caller controlled. 3p0 binds existing
+directories (for example, a home directory) as buckets, so a link written
+by any local user or process becomes a read or write outside the bucket
+over the network. The spike skips symlinks when it lists a bucket, but a
+GET or PUT on a key that crosses a link still follows it.
+
+### Why it happens
+
+Lexical checking is cheap and covers `..`. Resolving real paths needs a
+filesystem call per path component.
+
+### What should change
+
+Offer a strict mode (or make it the default when the root is not
+caller-owned): resolve each component with `:file.read_link_info/1`, refuse
+or resolve links, and recheck containment. On Linux, `openat2(2)` with
+`RESOLVE_BENEATH` does this atomically and also closes the check-then-open
+race. That needs a NIF, so it belongs to the strict mode, not the default.
+
+## Error-code and module discovery cannot see a host application
+
+**Filed:** 2026-10-28
+**Reported from:** integrating comn v0.5.2 into cordoba; re-verified against v0.7.0
+
+### Symptom
+
+A host application declares an error module exactly as the
+`Comn.Errors.Registry` moduledoc shows:
+
+```elixir
+defmodule Cordoba.Errors do
+  use Comn.Errors.Registry
+  register_error "index/zone_not_found", :not_found, message: "..."
+end
+```
+
+It compiles, `Cordoba.Errors.__errors__/0` returns the codes, and at runtime
+the registry has never heard of them:
+
+```elixir
+Application.ensure_all_started(:comn)
+Comn.Errors.Registry.lookup("index/zone_not_found")   #=> nil
+Comn.Errors.Registry.discover()                       # the documented remedy
+Comn.Errors.Registry.lookup("index/zone_not_found")   #=> nil
+Comn.Errors.Registry.error!("index/zone_not_found")
+#=> ** (ArgumentError) unknown error code: "index/zone_not_found"
+```
+
+Every `error!/2` call site in the host therefore raises `ArgumentError`
+naming the code, and the failure that was actually being reported is lost.
+This is not cosmetic: an unregistered host module converts every structured
+error path into a crash that masks the original error.
+
+cordoba is the first host to notice because it is the first host with an
+error module. `comn.c4` says docindex and cozybase build on the registry;
+neither defines one.
+
+### Why it happens
+
+`discover/0` (`lib/comn/errors/registry.ex`) scans `:code.all_loaded/0`.
+That table holds modules already loaded into the VM, not modules on the
+code path. Three facts combine:
+
+1. The BEAM loads modules lazily, on first reference.
+2. OTP starts applications in dependency order, so `:comn` starts before
+   any application that depends on it.
+3. `Comn.Application.start/2` runs `discover/0` once, at that moment.
+
+The host's error module is compiled but unreferenced when the scan runs, so
+the scan cannot see it. comn's own five modules are found only because
+`discover/0` force-loads them by name from the hardcoded
+`@comn_error_modules` list. Calling `discover/0` from the host later does
+nothing, because the module is still unloaded when the scan repeats.
+
+The compile-time half of the "compile-time registry" is per-module only:
+`register_error/3` accumulates into a module attribute and
+`@before_compile` emits `__errors__/0` on that module. Nothing crosses
+module or application boundaries at compile time, and nothing could, since
+the host compiles in a different build. The runtime index in
+`persistent_term` is populated only by `register_module/1` and the scan.
+The two halves do not connect for anyone but comn.
+
+`Comn.Discovery.discover/0` (`lib/comn/discovery.ex`) has the identical
+defect: same `:code.all_loaded/0` scan, same hardcoded `@comn_modules`
+preload, so a host's `@behaviour Comn` implementations are invisible to
+`Comn.Discovery.all/0` too.
+
+Scanning `:code.all_loaded/0` for discovery is a known mistake in the
+ecosystem; its result depends on load order and on which code has happened
+to run.
+
+### What should change
+
+Make the documented contract true. The platform offers two sources of truth
+that exist before anything is loaded:
+
+- **Application specs.** `Application.ensure_all_started/1` loads the host
+  and all its dependencies before starting any of them, so when
+  `Comn.Application.start/2` runs, `Application.loaded_applications/0`
+  already lists the host and `:application.get_key(host, :modules)` already
+  names its modules. Releases load every application at boot, so this holds
+  there too.
+- **Beam attributes.** Persisted module attributes are readable from the
+  `.beam` file with `:beam_lib.chunks/2` without loading the module. This
+  is how protocol consolidation finds implementations across every
+  dependency.
+
+Concretely:
+
+1. In `Comn.Errors.Registry.__using__/1`, persist a marker attribute
+   alongside the generated `__errors__/0`
+   (`Module.register_attribute(__MODULE__, :comn_errors, persist: true)`).
+   Do the same in whatever `@behaviour Comn` users get, or key
+   `Comn.Discovery` on the `behaviour` attribute it already persists.
+2. In both `discover/0` functions, iterate `Application.loaded_applications/0`,
+   keep applications whose `:applications` key includes `:comn` (every
+   application that could have compiled the `use`), read each one's module
+   list from its spec, check the marker in the beam attributes, and
+   `Code.ensure_loaded/1` and register only the modules that carry it.
+3. Delete `@comn_error_modules` and `@comn_modules`. comn's own modules carry
+   the marker like everyone else.
+4. Keep `register_module/1` public for applications loaded dynamically after
+   boot, which no boot-time scan can anticipate.
+5. Change `error!/2` so an unknown code logs and synthesises an
+   `ErrorStruct` carrying the bare code instead of raising. A registry miss
+   is a configuration defect; it should not destroy the error being
+   reported. `error/2` already returns a structured `errors/unknown_code`
+   since v0.7.0; `error!/2` should degrade the same way.
+
+Test with a fixture host application under `test/support` that declares an
+error module and a `@behaviour Comn` implementation, is started via
+`Application.ensure_all_started/1` with no registration call of its own, and
+asserts both are visible.
+
+Until then every host must do the registration itself, first thing in its
+own `start/2`:
+
+```elixir
+Code.ensure_loaded!(MyApp.Errors)
+:ok = Comn.Errors.Registry.register_module(MyApp.Errors)
+```
+
+The `ensure_loaded!` line is required: `register_module/1` checks
+`function_exported?/3`, which is false for an unloaded module. This is the
+conventional host-side registration pattern (telemetry handlers, logger
+handlers) and stays correct after the fix, since `register_module/1` is
+idempotent for the module that owns the codes. Document it in the
+`Comn.Errors.Registry` moduledoc in place of the current "call `discover/0`
+at boot" advice, which does not work.
+
+---
+
 ## Safe-decode constraint is enforced only on read, and not by the SQLite queue
 
 **Filed:** 2026-10-13
